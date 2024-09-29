@@ -1,0 +1,152 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ClearDiscreteMap
+#pragma kernel Discretize
+#pragma kernel GenerateInstances
+
+#define MAX_OFFSETS 32
+
+struct IndirectShaderData
+{
+    float4x4 PositionMatrix;
+    float4x4 InversePositionMatrix;
+    float4 ControlData;
+};
+
+// Texture2D<float4> DensityMap;
+Texture2D<float4> PlacementMap;
+RWTexture2D<float4> DiscretizedPlacementMap;
+uint GridSize;
+float TerrainSize;
+
+StructuredBuffer<float2> OrderedPointCloudBuffer;
+int OrderedPointCloudCount;
+float FootprintRadius;
+float4 OffsetList[MAX_OFFSETS];
+int OffsetsCount;
+
+AppendStructuredBuffer<float4> PositionsBuffer;
+AppendStructuredBuffer<IndirectShaderData> IndirectShaderDataBuffer;
+
+[numthreads(8,8,1)]
+void ClearDiscreteMap (uint3 id : SV_DispatchThreadID)
+{
+    uint discreteMapWidth = 0;
+    uint discreteMapHeight = 0;
+    DiscretizedPlacementMap.GetDimensions(discreteMapWidth, discreteMapHeight);
+
+    if (id.x >= discreteMapWidth || id.y >= discreteMapHeight)
+        return;
+
+    DiscretizedPlacementMap[id.xy] = float4(0, 0, 0, 0);
+}
+
+[numthreads(8,8,1)]
+void Discretize (uint3 id : SV_DispatchThreadID)
+{
+    uint placementMapWidth = 0;
+    uint placementMapHeight = 0;
+
+    PlacementMap.GetDimensions(placementMapWidth, placementMapHeight);
+
+    if (id.x >= placementMapWidth || id.y >= placementMapHeight)
+        return;
+
+    // Sample placement map (on green channel)
+    float placement = PlacementMap[id.xy].g;
+    if (placement < 0.9)
+        return;
+
+    float2 placement01 = float2(id.x / (float) placementMapWidth, id.y / (float) placementMapHeight);
+    float2 positionWS = placement01 * TerrainSize;
+
+#if 0
+    float4 position = float4(positionWS.x, 0.0f, positionWS.y, 1.0f);
+
+    IndirectShaderData shaderData;
+    shaderData.PositionMatrix._11_21_31_41 = float4(1, 0, 0, 0);
+    shaderData.PositionMatrix._12_22_32_42 = float4(0, 1, 0, 0);
+    shaderData.PositionMatrix._13_23_33_43 = float4(0, 0, 1, 0);
+    shaderData.PositionMatrix._14_24_34_44 = position;
+
+    shaderData.InversePositionMatrix = shaderData.PositionMatrix;
+    shaderData.InversePositionMatrix._14_24_34 *= -1;
+    shaderData.InversePositionMatrix._11_22_33 = 1.0 / shaderData.InversePositionMatrix._11_22_33;
+
+    shaderData.ControlData = float4(0, 0, 0, 0);
+
+    IndirectShaderDataBuffer.Append(shaderData);
+
+    return;
+#endif
+
+    for (int i = 0; i < OrderedPointCloudCount; i++)
+    {
+        // TODO: Offset by the tile offset that belongs to this ThreadGroup
+        float2 pointWS = OrderedPointCloudBuffer[i] * FootprintRadius;
+        if (distance(pointWS, positionWS) <= 0.01f)
+        {
+            float4 position = float4(pointWS.x, 0.0f, pointWS.y, 1.0f);
+
+            IndirectShaderData shaderData;
+            shaderData.PositionMatrix._11_21_31_41 = float4(1, 0, 0, 0);
+            shaderData.PositionMatrix._12_22_32_42 = float4(0, 1, 0, 0);
+            shaderData.PositionMatrix._13_23_33_43 = float4(0, 0, 1, 0);
+            shaderData.PositionMatrix._14_24_34_44 = position;
+
+            shaderData.InversePositionMatrix = shaderData.PositionMatrix;
+            shaderData.InversePositionMatrix._14_24_34 *= -1;
+            shaderData.InversePositionMatrix._11_22_33 = 1.0 / shaderData.InversePositionMatrix._11_22_33;
+
+            shaderData.ControlData = float4(0, 0, 0, 0);
+
+            IndirectShaderDataBuffer.Append(shaderData);
+            break;
+        }
+    }
+
+    // float DITHER_THRESHOLDS[16] =
+    // {
+    //     1.0 / 17.0,  9.0 / 17.0,  3.0 / 17.0, 11.0 / 17.0,
+    //     13.0 / 17.0,  5.0 / 17.0, 15.0 / 17.0,  7.0 / 17.0,
+    //     4.0 / 17.0, 12.0 / 17.0,  2.0 / 17.0, 10.0 / 17.0,
+    //     16.0 / 17.0,  8.0 / 17.0, 14.0 / 17.0,  6.0 / 17.0
+    // };
+    // uint index = (placementUV.x % 4) * 4 + (placementUV.y) % 4;
+    // float threshold = DITHER_THRESHOLDS[index];
+    // float discrete = placement < threshold ? 0 : 1;
+
+    // uint2 discreteUV = uint2(gridUV.x * discreteMapWidth, gridUV.y * discreteMapHeight);
+    // DiscretizedPlacementMap[discreteUV] = float4(discrete, 0, 0, 0);
+}
+
+[numthreads(8,8,1)]
+void GenerateInstances (uint3 id : SV_DispatchThreadID)
+{
+    uint discreteMapWidth = 0;
+    uint discreteMapHeight = 0;
+    DiscretizedPlacementMap.GetDimensions(discreteMapWidth, discreteMapHeight);
+
+    if (id.x >= discreteMapWidth || id.y >= discreteMapHeight)
+        return;
+
+    float value = DiscretizedPlacementMap[id.xy].r;
+    if (value > 0.5f)
+    {
+        float2 uv = id.xy / (float) discreteMapWidth;
+        float4 position = float4(uv.x * TerrainSize, 0.0f, uv.y * TerrainSize, 1.0f);
+
+        IndirectShaderData shaderData;
+        shaderData.PositionMatrix._11_21_31_41 = float4(1, 0, 0, 0);
+        shaderData.PositionMatrix._12_22_32_42 = float4(0, 1, 0, 0);
+        shaderData.PositionMatrix._13_23_33_43 = float4(0, 0, 1, 0);
+        shaderData.PositionMatrix._14_24_34_44 = position;
+
+        shaderData.InversePositionMatrix = shaderData.PositionMatrix;
+        shaderData.InversePositionMatrix._14_24_34 *= -1;
+        shaderData.InversePositionMatrix._11_22_33 = 1.0 / shaderData.InversePositionMatrix._11_22_33;
+
+        shaderData.ControlData = float4(0, 0, 0, 0);
+
+        IndirectShaderDataBuffer.Append(shaderData);
+    }
+}
