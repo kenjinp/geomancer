@@ -1,11 +1,6 @@
 // Module imports
 import { contextBridge, ipcRenderer } from "electron";
 
-interface IPCBridge {
-  getConfig: (key: string) => Promise<any>;
-  setConfig: (key: string, value: any) => void;
-}
-
 contextBridge.exposeInMainWorld("IPCBridge", {
   /**
    * Gets a config value from disk.
@@ -24,4 +19,4 @@ contextBridge.exposeInMainWorld("IPCBridge", {
   setConfig: (key: string, value: any) => {
     ipcRenderer.invoke("setConfig", key, value);
   },
-} as IPCBridge);
+});
