@@ -9,7 +9,10 @@
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "dist",
+    "jsx": "preserve",
     "moduleResolution": "node",
     "resolveJsonModule": true
-  }
+  },
+  "include": ["src", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
+  "exclude": [".github", ".yarn", "node_modules", "**/*.css"]
 }
