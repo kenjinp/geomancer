@@ -1,0 +1,19 @@
+{
+  "name": "geomancer",
+  "version": "0.0.1",
+  "description": "Worldbuilding tools",
+  "main": "index.js",
+  "repository": "https://github.com/kenjinp/geomancer.git",
+  "author": "Kenneth Pirman <mail@kenny.wtf>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "yarn workspace @geomancer/electron start",
+    "start:desktop": "cd desktop && yarn start",
+    "package": "yarn workspace @geomancer/electron package",
+    "make": "yarn workspace @geomancer/electron make"
+  },
+  "workspaces": [
+    "apps/*"
+  ]
+}
