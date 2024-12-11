@@ -27,6 +27,7 @@ on:
 jobs:
   publish-to-steam:
     runs-on: ubuntu-latest
+    environment: "Steam Prod"
     continue-on-error: true
 
     steps:
@@ -37,12 +38,12 @@ jobs:
           out-file-path: artifacts
           repository: ${{ github.repository }}
           tag: v${{ inputs.version }}
-          token: ${{ secrets.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # Ensure the directories exist before extracting builds.
       # - run: mkdir -p builds/darwin
       - run: mkdir -p builds/linux
-      # - run: mkdir -p builds/win32
+      - run: mkdir -p builds/win32
 
       # Rewrite the Windows zip to use forward slashes instead of backslashes.
       - name: Convert Windows Archive to Forward Slashes
@@ -57,12 +58,18 @@ jobs:
       - name: Decompress Linux Archive
         run: 7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds/linux
 
+      - name: Debug Secret Availability
+        run: |
+          if [ -n "${{ secrets.steamBuildUsername }}" ]; then echo "steamBuildUsername is set"; else echo "steamBuildUsername is NOT set"; fi
+          if [ -n "${{ secrets.steamBuildConfigVDF }}" ]; then echo "steamBuildConfigVDF is set"; else echo "steamBuildConfigVDF is NOT set"; fi
+          if [ -n "${{ secrets.steamAppID }}" ]; then echo "steamAppID is set"; else echo "steamAppID is NOT set"; fi
+
       - name: Publish Builds to Steam
         uses: game-ci/steam-deploy@v3
         with:
           username: ${{ secrets.steamBuildUsername }}
           configVdf: ${{ secrets.steamBuildConfigVDF }}
-          appId: ${{ inputs.branch == 'demo' && secrets.steamDemoAppID || secrets.steamAppID }}
+          appId: ${{ secrets.steamAppID }}
           buildDescription: ${{ inputs.version }}
           rootPath: builds
           depot1Path: win32
