@@ -68,7 +68,7 @@ jobs:
 
       - name: Update Version
         working-directory: ./desktop
-        run: yarn --new-version ${{ inputs.version }}
+        run: yarn version --new-version ${{ inputs.version }}
 
       - name: Build and Publish to Github
         working-directory: ./desktop

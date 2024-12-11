@@ -1,6 +1,6 @@
 {
   "name": "geomancer",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Worldbuilding tools",
   "main": "index.js",
   "author": "Kenneth Pirman <mail@kenny.wtf>",
