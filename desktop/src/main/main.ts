@@ -8,11 +8,12 @@ import { handleGetConfig } from "./helpers/handleGetConfig";
 import { handleSetConfig } from "./helpers/handleSetConfig";
 import { handleWindowReady } from "./helpers/handleWindowReady";
 
+import started from 'electron-squirrel-startup';
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require("electron-squirrel-startup")) {
+if (started) {
   app.quit();
 }
-
 app.on("ready", handleWindowReady);
 app.on("window-all-closed", handleAllWindowsClosed);
 app.on("activate", handleActivate);
