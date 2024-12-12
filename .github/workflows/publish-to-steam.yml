@@ -72,9 +72,9 @@ jobs:
           appId: ${{ secrets.steamAppID }}
           buildDescription: ${{ inputs.version }}
           rootPath: builds
-          depot1Path: win32
-          # depot2Path: darwin
-          depot3Path: linux
+          depot2Path: win32
+          # depot3Path: darwin
+          depot4Path: linux
           releaseBranch: ${{ inputs.branch }}
 
       - name: Save Steam Logs on Error
