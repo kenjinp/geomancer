@@ -3,6 +3,8 @@ import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 // import topLevelAwait from "vite-plugin-top-level-await";
 import react from "@vitejs/plugin-react-swc";
+import tsconfigPaths from "vite-tsconfig-paths";
+
 // https://vitejs.dev/config
 export default defineConfig({
   // You might not need those. They are needed when importing modules with
@@ -11,7 +13,7 @@ export default defineConfig({
   build: { target: "esnext" },
   plugins: [
     react(),
-
+    tsconfigPaths(),
     // topLevelAwait({
     //   promiseExportName: "__tla",
     //   promiseImportName: (i: any) => `__tla_${i}`,

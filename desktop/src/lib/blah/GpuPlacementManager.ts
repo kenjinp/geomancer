@@ -1,261 +1,235 @@
-using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine;
+import { Vector2, Vector3, Vector4, Color, Mesh, Material, Bounds, LODGroup, MeshFilter, MeshRenderer } from 'three';
 
-[ExecuteAlways]
-public class ProcedulraGPUPlacementManager : MonoBehaviour
-{
-    public int GridSize = 64;
-    public GameObject Prefab;
-    public float ScatteringRadius = 1.0f;
-    public float RadiusScale = 1.0f;
-    public bool DrawPattern;
-    public bool TilePattern;
-    public bool DrawGrid;
-    public bool Render;
-    public bool Regenerate;
-    public bool LiveUpdate;
+interface PrefabData {
+  prefabMesh: Mesh;
+  prefabMaterial: Material; 
+  subMeshIndex: number;
+}
 
-    public Terrain Terrain;
-    public ComputeShader PointCloudShader;
-    public RenderTexture DiscreteMap;
-    // public Texture2D DensityMap;
+interface IndirectArguments {
+  indexCount: number;
+  indexStart: number;
+  baseVertex: number;
+}
 
-    public int Seed = 42;
-    public List<Vector2> OrderedPointsPattern;
+export class ProceduralGPUPlacementManager {
+  gridSize = 64;
+  prefab: any;
+  scatteringRadius = 1.0;
+  radiusScale = 1.0;
+  drawPattern = false;
+  tilePattern = false;
+  drawGrid = false;
+  render = false;
+  regenerate = false;
+  liveUpdate = false;
 
-    private ComputeBuffer orderedPointCouldBuffer;
-    private ComputeBuffer indirectShaderDataBuffer;
-    private ComputeBuffer positionsBuffer;
-    private ComputeBuffer argsBuffer;
+  terrain: any;
+  pointCloudShader: any;
+  discreteMap: any;
 
-    [System.Serializable]
-    public struct PrefabData
-    {
-        public Mesh PrefabMesh;
-        public Material PrefabMaterial;
-        public int SubMeshIndex;
+  seed = 42;
+  orderedPointsPattern: Vector2[] = [];
+
+  private orderedPointCloudBuffer: any;
+  private indirectShaderDataBuffer: any;
+  private positionsBuffer: any;
+  private argsBuffer: any;
+
+  prefabData: PrefabData[] = [];
+  prefabIndirectArgs: IndirectArguments[] = [];
+
+  generateOrderedPointsPattern() {
+    // Set random seed
+    Math.seedrandom(this.seed.toString());
+    this.orderedPointsPattern = this.generatePoissonPoints(1.0, new Vector2(32.0, 32.0));
+  }
+
+  private clearDiscreteMap() {
+    const kernelID = this.pointCloudShader.findKernel("ClearDiscreteMap");
+
+    this.pointCloudShader.setTexture(kernelID, "DiscretizedPlacementMap", this.discreteMap);
+    this.pointCloudShader.dispatch(
+      Math.floor(this.discreteMap.width / 8) + 1,
+      Math.floor(this.discreteMap.height / 8) + 1,
+      1
+    );
+  }
+
+  private generatePointCloud() {
+    if (this.orderedPointCloudBuffer) this.orderedPointCloudBuffer.dispose();
+    this.orderedPointCloudBuffer = new GPUBuffer({
+      size: this.orderedPointsPattern.length * 8,
+      usage: GPUBufferUsage.STORAGE
+    });
+    this.orderedPointCloudBuffer.setSubData(0, this.orderedPointsPattern);
+
+    const kernelID = this.pointCloudShader.findKernel("Discretize");
+    const splatMap = this.terrain.terrainData.alphamapTextures[0];
+
+    if (this.indirectShaderDataBuffer) this.indirectShaderDataBuffer.dispose();
+    if (this.positionsBuffer) this.positionsBuffer.dispose();
+    if (this.argsBuffer) this.argsBuffer.dispose();
+
+    this.indirectShaderDataBuffer = new GPUBuffer({
+      size: 1024 * 1024 * (16 * 4 * 2 + 16),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT
+    });
+
+    this.positionsBuffer = new GPUBuffer({
+      size: 1024 * 1024 * 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT  
+    });
+
+    this.argsBuffer = new GPUBuffer({
+      size: this.prefabIndirectArgs.length * 5 * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT
+    });
+
+    const offsets: Vector4[] = [];
+    const tilePerSide = 2;
+    for (let x = 0; x < tilePerSide; x++) {
+      for (let z = 0; z < tilePerSide; z++) {
+        offsets.push(new Vector4(
+          x * (this.terrain.terrainData.size.x / tilePerSide),
+          z * (this.terrain.terrainData.size.z / tilePerSide),
+          0,
+          0
+        ));
+      }
     }
 
-    [System.Serializable]
-    public struct IndirectArguments
-    {
-        public uint IndexCount;
-        public uint IndexStart;
-        public uint BaseVertex;
+    // Set compute shader parameters
+    this.pointCloudShader.setInt("OffsetsCount", offsets.length);
+    this.pointCloudShader.setVectorArray("OffsetList", offsets);
+    this.pointCloudShader.setBuffer("OrderedPointCloudBuffer", this.orderedPointCloudBuffer);
+    this.pointCloudShader.setInt("OrderedPointCloudCount", this.orderedPointsPattern.length);
+    this.pointCloudShader.setFloat("FootprintRadius", this.radiusScale);
+    this.pointCloudShader.setTexture("PlacementMap", splatMap);
+    this.pointCloudShader.setFloat("TerrainSize", this.terrain.terrainData.size.x);
+    this.pointCloudShader.setBuffer("IndirectShaderDataBuffer", this.indirectShaderDataBuffer);
+
+    // Dispatch compute shader
+    this.pointCloudShader.dispatch(
+      Math.floor(splatMap.width / 8) + 1,
+      Math.floor(splatMap.height / 8) + 1,
+      1
+    );
+
+    // Set indirect args data
+    const argsData = new Uint32Array(this.prefabIndirectArgs.length * 5);
+    this.prefabIndirectArgs.forEach((args, i) => {
+      argsData[i * 5 + 0] = args.indexCount;
+      argsData[i * 5 + 1] = 0;
+      argsData[i * 5 + 2] = args.indexStart;
+      argsData[i * 5 + 3] = args.baseVertex;
+      argsData[i * 5 + 4] = 0;
+    });
+
+    this.argsBuffer.setSubData(0, argsData);
+  }
+
+  generateInstances() {
+    this.clearDiscreteMap();
+    this.generatePointCloud();
+  }
+
+  update() {
+    if (!this.render) return;
+
+    if (this.regenerate) {
+      this.initializePrefabDataAndIndirectArgs();
+      this.generateInstances();
+      this.regenerate = false;
     }
 
-    public List<PrefabData> prefabData;
-    public List<IndirectArguments> prefabIndirectArgs;
+    this.prefabIndirectArgs.forEach((args, i) => {
+      const data = this.prefabData[i];
+      data.prefabMaterial.setBuffer("IndirectShaderDataBuffer", this.indirectShaderDataBuffer);
+      data.prefabMaterial.setBuffer("VisibleShaderDataBuffer", this.indirectShaderDataBuffer);
+      
+      // Draw instanced mesh
+      this.renderer.drawMeshInstancedIndirect(
+        data.prefabMesh,
+        data.subMeshIndex,
+        data.prefabMaterial,
+        new Bounds(new Vector3(50, 50, 50), new Vector3(100, 100, 100)),
+        this.argsBuffer,
+        i * 5 * 4
+      );
+    });
+  }
 
-    [ContextMenu("Generate Discretizing Pattern")]
-    private void GenerateOrderedPointsPattern()
-    {
-        Random.InitState(Seed);
-        OrderedPointsPattern = PoissonDiskSampler.GeneratePoints(1.0f, new Vector2(32.0f, 32.0f));
+  private initializePrefabDataAndIndirectArgs() {
+    if (this.prefabData?.length > 0 && 
+        this.prefabIndirectArgs?.length > 0 && 
+        this.prefabData.length === this.prefabIndirectArgs.length) {
+      return;
     }
 
-    private void ClearDiscreteMap()
-    {
-        var kernelID = PointCloudShader.FindKernel("ClearDiscreteMap");
+    this.prefabData = [];
+    this.prefabIndirectArgs = [];
 
-        PointCloudShader.SetTexture(kernelID, "DiscretizedPlacementMap", DiscreteMap);
-        PointCloudShader.Dispatch(kernelID, (DiscreteMap.width / 8) + 1, (DiscreteMap.height / 8) + 1, 1);
+    const lodGroup = this.prefab.getComponent(LODGroup);
+    if (lodGroup) {
+      const lod0 = this.prefab.children[0];
+      const meshFilter = lod0.getComponent(MeshFilter);
+      const meshRenderer = lod0.getComponent(MeshRenderer);
+
+      meshRenderer.materials.forEach((material, i) => {
+        const mesh = meshFilter.mesh;
+
+        this.prefabData.push({
+          prefabMaterial: material,
+          prefabMesh: mesh,
+          subMeshIndex: i
+        });
+
+        this.prefabIndirectArgs.push({
+          indexCount: mesh.getIndexCount(i),
+          indexStart: mesh.getIndexStart(i),
+          baseVertex: mesh.getBaseVertex(i)
+        });
+      });
     }
+  }
 
-    private void GeneratePointClound()
-    {
-        if (orderedPointCouldBuffer != null) orderedPointCouldBuffer.Release();
-        orderedPointCouldBuffer = new ComputeBuffer(OrderedPointsPattern.Count, 8);
-        orderedPointCouldBuffer.SetData(OrderedPointsPattern);
+  drawGizmos() {
+    if (this.drawGrid) {
+      const terrainSize = this.terrain.terrainData.size.x;
+      const cellSize = terrainSize / this.gridSize;
 
-        var kernelID = PointCloudShader.FindKernel("Discretize");
-        var splatMap = Terrain.terrainData.alphamapTextures[0];
-
-        if (indirectShaderDataBuffer != null) indirectShaderDataBuffer.Release();
-        if (positionsBuffer != null) positionsBuffer.Release();
-        if (argsBuffer != null) argsBuffer.Release();
-
-        indirectShaderDataBuffer = new ComputeBuffer(1024 * 1024, 16 * 4 * 2 + 16, ComputeBufferType.Append);
-        indirectShaderDataBuffer.SetCounterValue(0);
-        positionsBuffer = new ComputeBuffer(1024 * 1024, 16, ComputeBufferType.Append);
-        positionsBuffer.SetCounterValue(0);
-        argsBuffer = new ComputeBuffer(prefabIndirectArgs.Count, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
-
-        var offsets = new List<Vector4>();
-        // (0, 0), (0, 1), (1, 0), (1, 1)
-        var tilePerSide = 2;
-        for (var x = 0; x < tilePerSide; x++)
-        {
-            for (var z = 0; z < tilePerSide; z++)
-            {
-                offsets.Add(new Vector4(x * (Terrain.terrainData.size.x / (float)tilePerSide), z * (Terrain.terrainData.size.z / (float)tilePerSide), 0, 0));
-            }
+      for (let x = 0; x < this.gridSize; x++) {
+        for (let z = 0; z < this.gridSize; z++) {
+          const position = new Vector3(
+            x * cellSize + cellSize * 0.5,
+            0.0,
+            z * cellSize + cellSize * 0.5
+          );
+          this.gizmos.drawWireCube(position, new Vector3(cellSize, cellSize, cellSize));
         }
+      }
+    }
+  }
 
-        PointCloudShader.SetInt("OffsetsCount", offsets.Count);
-        PointCloudShader.SetVectorArray("OffsetList", offsets.ToArray());
-        PointCloudShader.SetBuffer(kernelID, "OrderedPointCloudBuffer", orderedPointCouldBuffer);
-        PointCloudShader.SetInt("OrderedPointCloudCount", OrderedPointsPattern.Count);
-        PointCloudShader.SetFloat("FootprintRadius", RadiusScale);
+  drawSceneGUI() {
+    if (this.drawPattern && this.orderedPointsPattern) {
+      const tilePerSide = 2;
+      for (let x = 0; x < tilePerSide; x++) {
+        for (let z = 0; z < tilePerSide; z++) {
+          const offset = new Vector3(
+            x * (this.terrain.terrainData.size.x / tilePerSide),
+            0.0,
+            z * (this.terrain.terrainData.size.z / tilePerSide)
+          );
 
-        PointCloudShader.SetTexture(kernelID, "PlacementMap", splatMap);
-        PointCloudShader.SetFloat("TerrainSize", Terrain.terrainData.size.x);
-        PointCloudShader.SetBuffer(kernelID, "IndirectShaderDataBuffer", indirectShaderDataBuffer);
-        PointCloudShader.Dispatch(kernelID, (splatMap.width / 8) + 1, (splatMap.height / 8) + 1, 1);
-
-        var argsData = new uint[prefabIndirectArgs.Count * 5];
-        for (int i = 0; i < prefabIndirectArgs.Count; i++)
-        {
-            argsData[i * 5 + 0] = prefabIndirectArgs[i].IndexCount;
-            argsData[i * 5 + 1] = 0;
-            argsData[i * 5 + 2] = prefabIndirectArgs[i].IndexStart;
-            argsData[i * 5 + 3] = prefabIndirectArgs[i].BaseVertex;
-            argsData[i * 5 + 4] = 0;
+          this.orderedPointsPattern.forEach(point => {
+            const color = x === 0 && z === 0 ? new Color(1, 1, 0) : new Color(1, 0, 0);
+            const position = new Vector3(point.x, 0, point.y).multiplyScalar(this.radiusScale).add(offset);
+            this.handles.drawWireDisc(position, new Vector3(0, 1, 0), 0.5);
+          });
         }
-
-        argsBuffer.SetData(argsData);
-
-        for (int i = 0; i < prefabIndirectArgs.Count; i++)
-        {
-            ComputeBuffer.CopyCount(indirectShaderDataBuffer, argsBuffer, i * 5 * 4 + 4);
-        }
-
-        argsBuffer.GetData(argsData);
-        Debug.Log(argsData[1]);
+      }
     }
-
-    private void GenerateInstances()
-    {
-        ClearDiscreteMap();
-        GeneratePointClound();
-
-        // PointCloudShader.Dispatch(kernelID, (DiscreteMap.width / 8) + 1, (DiscreteMap.height / 8) + 1, 1);
-    }
-
-    private void OnEnable()
-    {
-#if UNITY_EDITOR
-        SceneView.duringSceneGui -= this.SceneGUI;
-        SceneView.duringSceneGui += this.SceneGUI;
-#endif
-    }
-
-    private void OnDisable()
-    {
-#if UNITY_EDITOR
-        SceneView.duringSceneGui -= this.SceneGUI;
-#endif
-    }
-
-    private void Update()
-    {
-        if (!Render) return;
-
-        if (Regenerate)
-        {
-            InitializePrefabDataAndIndirectArgs();
-            GenerateInstances();
-            Regenerate = false;
-        }
-
-        for (int i = 0; i < prefabIndirectArgs.Count; i++)
-        {
-            var data = prefabData[i];
-            var args = prefabIndirectArgs[i];
-
-            data.PrefabMaterial.SetBuffer("IndirectShaderDataBuffer", indirectShaderDataBuffer);
-            data.PrefabMaterial.SetBuffer("VisibleShaderDataBuffer", indirectShaderDataBuffer);
-            Graphics.DrawMeshInstancedIndirect(data.PrefabMesh, data.SubMeshIndex, data.PrefabMaterial, new Bounds(Vector3.one * 50.0f, Vector3.one * 100.0f), argsBuffer, i * 5 * 4);
-        }
-    }
-
-    private void InitializePrefabDataAndIndirectArgs()
-    {
-        if (prefabData != null && prefabData.Count > 0 && prefabIndirectArgs != null && prefabIndirectArgs.Count > 0 && prefabData.Count == prefabIndirectArgs.Count) return;
-
-        prefabData = new List<PrefabData>();
-        prefabIndirectArgs = new List<IndirectArguments>();
-        var lodGroup = Prefab.GetComponent<LODGroup>();
-        if (lodGroup)
-        {
-            var lod0 = Prefab.transform.GetChild(0).gameObject;
-            var meshFilter = lod0.GetComponent<MeshFilter>();
-            var meshRenderer = lod0.GetComponent<MeshRenderer>();
-            for (int i = 0; i < meshRenderer.sharedMaterials.Length; i++)
-            {
-                var mesh = meshFilter.sharedMesh;
-
-                prefabData.Add(new PrefabData
-                {
-                    PrefabMaterial = meshRenderer.sharedMaterials[i],
-                    PrefabMesh = mesh,
-                    SubMeshIndex = i
-                });
-
-                prefabIndirectArgs.Add(new IndirectArguments
-                {
-                    IndexCount = mesh.GetIndexCount(i),
-                    IndexStart = mesh.GetIndexStart(i),
-                    BaseVertex = mesh.GetBaseVertex(i),
-                });
-
-            }
-        }
-    }
-
-    private void OnDrawGizmos()
-    {
-        var gizmosColor = Gizmos.color;
-
-        if (DrawGrid)
-        {
-            Gizmos.color = Color.yellow;
-
-            var terrainSize = Terrain.terrainData.size.x;
-            var cellSize = terrainSize / GridSize;
-
-            for (int x = 0; x < GridSize; x++)
-            {
-                for (int z = 0; z < GridSize; z++)
-                {
-                    var position = new Vector3(x * cellSize + cellSize * 0.5f, 0.0f, z * cellSize + cellSize * 0.5f);
-                    Gizmos.DrawWireCube(position, Vector3.one * cellSize);
-                }
-            }
-
-        }
-
-
-        Gizmos.color = gizmosColor;
-    }
-
-#if UNITY_EDITOR
-    private void SceneGUI(SceneView sceneView)
-    {
-        if (DrawPattern)
-        {
-            if (OrderedPointsPattern != null)
-            {
-                var tilePerSide = 2;
-                for (var x = 0; x < tilePerSide; x++)
-                {
-                    for (var z = 0; z < tilePerSide; z++)
-                    {
-                        var offset = new Vector3(x * (Terrain.terrainData.size.x / (float)tilePerSide), 0.0f, z * (Terrain.terrainData.size.z / (float)tilePerSide));
-                        if (x == 0 && z == 0)
-                            Handles.color = Color.yellow;
-                        else
-                            Handles.color = Color.red;
-
-                        foreach (var point in OrderedPointsPattern)
-                        {
-                            Handles.DrawWireDisc(new Vector3(point.x, 0.0f, point.y) * RadiusScale + offset, Vector3.up, 0.5f);
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif
+  }
 }

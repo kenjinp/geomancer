@@ -18,7 +18,13 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": false,
-    "target": "ESNext"
+    "target": "ESNext",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/renderer/components/*"],
+      "@views/*": ["src/renderer/views/*"],
+      "@lib/*": ["src/lib/*"]
+    }
   },
   "include": ["src", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
   "exclude": [".github", ".yarn", "node_modules", "**/*.scss"]

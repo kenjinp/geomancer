@@ -1,4 +1,4 @@
-import { noaaRamp } from "../../lib/geo/colors";
+import { noaaRamp } from "@lib/geo/colors";
 
 const convertToHumanReadable = (meters: number): string => {
   const units = [
@@ -33,7 +33,7 @@ export const ColorRamp = () => {
             style={{ backgroundColor: color.color }}
           >
             <div className="h-full flex items-center">
-              <span className="absolute right-4 text-xs text-white">
+              <span className="absolute right-4 text-xs text-white text-shadow drop-shadow">
                 {convertToHumanReadable(color.elevation)}
               </span>
             </div>

@@ -6,7 +6,7 @@ import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 export interface OrbitCameraProps {
   planetRadius: number;
-  planetPosition: Vector3;
+  planetPosition?: Vector3;
   maxAltitudeOffset?: number;
   maxDistanceMultiplier?: number;
   defaultCameraPosition?: Vector3;
@@ -22,7 +22,7 @@ export const OrbitCamera: React.FC<
   React.PropsWithChildren<OrbitCameraProps>
 > = ({
   planetRadius,
-  planetPosition,
+  planetPosition = new Vector3(),
   maxAltitudeOffset = 100,
   maxDistanceMultiplier = 10,
   defaultCameraPosition,
