@@ -1,6 +1,107 @@
 import * as THREE from "three";
 import { CubicQuadtree } from "./CubicQuadtree";
 
+import CustomShaderMaterial from "three-custom-shader-material/vanilla";
+
+const tempColor = new THREE.Color();
+
+let maxLevel = 0;
+const createColorFromLevel = (level: number) => {
+  maxLevel = Math.max(level, maxLevel);
+  const levelConverted = THREE.MathUtils.mapLinear(level, 0, maxLevel, 0, 1);
+  tempColor.setRGB(levelConverted, 0, 0);
+  return tempColor;
+};
+
+const getMaterial = (color: number) =>
+  new CustomShaderMaterial({
+    baseMaterial: THREE.MeshPhysicalMaterial,
+    side: THREE.FrontSide,
+    vertexShader: /* glsl */ `\
+
+
+    // Declare the instance attribute
+        attribute vec3 instanceColor;
+
+        // Varying to pass to fragment shader
+        varying vec3 vLevelColor;
+
+
+      uniform float uRadius;
+
+     // Bend vertices of an instanced mesh into a spherical shape
+vec3 bendInstancedToSphere(vec3 position, mat4 instanceMatrix, vec3 sphereCenter, float radius) {
+    // First transform the vertex to world space using instance and model matrices
+    mat4 worldMatrix = modelMatrix * instanceMatrix;
+    vec3 worldPos = (worldMatrix * vec4(position, 1.0)).xyz;
+    
+    // Calculate vector from sphere center to world position
+    vec3 toPoint = worldPos - sphereCenter;
+    float dist = length(toPoint);
+    
+    // If point is at center, return original to avoid division by zero
+    if (dist < 0.0001) {
+        return position;
+    }
+    
+    // Normalize the direction vector
+    vec3 direction = toPoint / dist;
+    
+    // Calculate how much the point should be bent
+    float bendDist = min(dist, radius);
+    
+    // Calculate the final world position
+    vec3 bentWorldPos = sphereCenter + direction * bendDist;
+    
+    // Transform back to object space
+    vec3 bentPos = (inverse(worldMatrix) * vec4(bentWorldPos, 1.0)).xyz;
+    
+    return bentPos;
+}
+
+
+
+
+      void main() {
+
+      vLevelColor = instanceColor;
+
+ // Apply the spherical bend
+    vec3 bentPosition = bendInstancedToSphere(
+        position,
+        instanceMatrix,
+        vec3(0.0),
+        uRadius
+    );
+        csm_Position = bentPosition;
+        // csm_Position = position;
+
+
+        // csm_Normal = recalcNormals(csm_Position);
+      }
+    
+  `,
+    fragmentShader: /* glsl */ `
+
+     // Receive the varying from vertex shader
+        varying vec3 vLevelColor;
+
+        void main() {
+            csm_DiffuseColor = vec4(vLevelColor, 1.0);
+        }
+    `,
+    uniforms: {
+      uTime: {
+        value: 0,
+      },
+      uRadius: {
+        value: 1.0,
+      },
+    },
+    // flatShading: true,
+    // color,
+  });
+
 export class QuadtreeRenderer {
   private meshes: THREE.InstancedMesh[];
   private readonly tempMatrix4 = new THREE.Matrix4();
@@ -11,7 +112,7 @@ export class QuadtreeRenderer {
 
   constructor(private quadtree: CubicQuadtree) {
     // Create base plane geometry that will be instanced
-    const segmentsPerChunk = 32;
+    const segmentsPerChunk = 8;
     const planeGeometry = new THREE.PlaneGeometry(
       1,
       1,
@@ -21,42 +122,34 @@ export class QuadtreeRenderer {
 
     // Create materials for each face with different colors
     const materials = [
-      new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Right
-      new THREE.MeshBasicMaterial({
-        color: 0x00ff00,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Left
-      new THREE.MeshBasicMaterial({
-        color: 0x0000ff,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Top
-      new THREE.MeshBasicMaterial({
-        color: 0xff00ff,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Bottom
-      new THREE.MeshBasicMaterial({
-        color: 0xffff00,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Front
-      new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
-        side: THREE.DoubleSide,
-        wireframe: true,
-      }), // Back
+      getMaterial(0xff0000),
+      // Right
+      getMaterial(0x00ff00),
+      // Left
+      getMaterial(0x0000ff), // Top
+      getMaterial(0xff00ff), // Bottom
+      getMaterial(0xffff00), // Front
+      getMaterial(0x00ffff), // Back
     ];
+
+    const maxInstanceCount = 2_048;
+
+    const colors = new Float32Array(maxInstanceCount * 3); // RGB, so 3 values per instance
+    colors.fill(0);
+
+    const colorAttribute = new THREE.InstancedBufferAttribute(colors, 3); // 3 components per instance
+    planeGeometry.setAttribute("instanceColor", colorAttribute);
 
     // Initialize instance matrices for each face
     this.meshes = materials.map((material) => {
+      material.uniforms["uRadius"].value = 2048.0;
+
       // Start with a reasonable maximum instance count
-      const mesh = new THREE.InstancedMesh(planeGeometry, material, 1_000);
+      const mesh = new THREE.InstancedMesh(
+        planeGeometry,
+        material,
+        maxInstanceCount
+      );
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
       mesh.count = 0; // Will be updated when updating instances
@@ -80,6 +173,7 @@ export class QuadtreeRenderer {
     for (let faceIndex in faces) {
       const face = faces[faceIndex];
       const mesh = this.meshes[faceIndex];
+      const colors = mesh.geometry.getAttribute("instanceColor");
       let instanceCount = 0;
 
       // Iterate through all nodes in the face's quadtree
@@ -88,7 +182,7 @@ export class QuadtreeRenderer {
         // Get node properties
         const center = face.nodeBuffer.getCenter(nodeIndex, tempVector);
         const size = face.nodeBuffer.getSize(nodeIndex, tempScale);
-
+        const level = face.getNodeLevel(nodeIndex);
         // Set matrix transformation
         tempMatrix4
           .identity()
@@ -96,8 +190,13 @@ export class QuadtreeRenderer {
           .multiply(tempMatrix4_2.makeTranslation(center.x, center.y, center.z)) // Position
           .multiply(tempMatrix4_3.makeScale(size.x, size.y, 1)); // Scale (z=1 since we're using a plane)
 
+        const color = createColorFromLevel(level);
+        colors.setXYZ(nodeIndex, color.r, color.g, color.b);
+
+        colors.needsUpdate = true;
+
         // Set the instance matrix
-        mesh.setMatrixAt(instanceCount, tempMatrix4);
+        mesh.setMatrixAt(nodeIndex, tempMatrix4);
         instanceCount++;
       }
 

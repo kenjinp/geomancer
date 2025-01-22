@@ -4,13 +4,7 @@ import { Box3, Vector3 } from "three";
 const FLOAT_SIZE = 4;
 const NODE_FLOAT_COUNT = 15; // 3 for center, 3 for sphereCenter, 3 for size, 6 for bounds
 const NODE_INT_COUNT = 11; // 4 for child indices, 1 for childCount, 1 for flags, 1 for parent, 4 for neighbors
-const MAX_NODES = 10000;
-
-// Direction constants for neighbors
-const NEIGHBOR_LEFT = 0;
-const NEIGHBOR_RIGHT = 1;
-const NEIGHBOR_TOP = 2;
-const NEIGHBOR_BOTTOM = 3;
+const MAX_NODES = 10_000;
 
 export class NodeBuffer {
   private floatBuffer: Float32Array;
@@ -54,9 +48,6 @@ export class NodeBuffer {
 
     // Reset node count back to 1 (root node)
     this.nodeCount = 1;
-
-    // // Initialize root node
-    // this.createNode(0);
   }
 
   allocateNode(): number {

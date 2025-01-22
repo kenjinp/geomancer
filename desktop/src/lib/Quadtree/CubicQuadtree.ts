@@ -9,11 +9,13 @@ const FACE_BOTTOM = 3; // -Y
 const FACE_FRONT = 4; // +Z
 const FACE_BACK = 5; // -Z
 
-// Edge constants for cross-face mapping
-const EDGE_FRONT = 0;
-const EDGE_BACK = 1;
-const EDGE_TOP = 2;
-const EDGE_BOTTOM = 3;
+// Edge constants
+const EDGE_LEFT = 0; // Left edge of face
+const EDGE_RIGHT = 1; // Right edge of face
+const EDGE_TOP = 2; // Top edge of face
+const EDGE_BOTTOM = 3; // Bottom edge of face
+const EDGE_FRONT = 4; // Front edge (used for top/bottom face connections)
+const EDGE_BACK = 5; // Back edge (used for top/bottom face connections)
 
 interface FaceTransition {
   targetFace: number;
@@ -107,10 +109,7 @@ export class CubicQuadtree {
   }
 
   private initializeFaceTransitions(): void {
-    // Define transitions between faces
-    // Format: "sourceFace_edge" -> { targetFace, rotation, flipU, flipV }
-
-    // Right face transitions
+    // Right face (+X) transitions
     this.faceTransitions.set(`${FACE_RIGHT}_${EDGE_TOP}`, {
       targetFace: FACE_TOP,
       rotation: -Math.PI / 2,
@@ -136,7 +135,7 @@ export class CubicQuadtree {
       flipV: false,
     });
 
-    // Left face transitions
+    // Left face (-X) transitions
     this.faceTransitions.set(`${FACE_LEFT}_${EDGE_TOP}`, {
       targetFace: FACE_TOP,
       rotation: Math.PI / 2,
@@ -161,8 +160,111 @@ export class CubicQuadtree {
       flipU: false,
       flipV: false,
     });
-  }
 
+    // Top face (+Y) transitions
+    this.faceTransitions.set(`${FACE_TOP}_${EDGE_FRONT}`, {
+      targetFace: FACE_FRONT,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_TOP}_${EDGE_BACK}`, {
+      targetFace: FACE_BACK,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+    this.faceTransitions.set(`${FACE_TOP}_${EDGE_LEFT}`, {
+      targetFace: FACE_LEFT,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+    this.faceTransitions.set(`${FACE_TOP}_${EDGE_RIGHT}`, {
+      targetFace: FACE_RIGHT,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+
+    // Bottom face (-Y) transitions
+    this.faceTransitions.set(`${FACE_BOTTOM}_${EDGE_FRONT}`, {
+      targetFace: FACE_FRONT,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+    this.faceTransitions.set(`${FACE_BOTTOM}_${EDGE_BACK}`, {
+      targetFace: FACE_BACK,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_BOTTOM}_${EDGE_LEFT}`, {
+      targetFace: FACE_LEFT,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_BOTTOM}_${EDGE_RIGHT}`, {
+      targetFace: FACE_RIGHT,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+
+    // Front face (+Z) transitions
+    this.faceTransitions.set(`${FACE_FRONT}_${EDGE_TOP}`, {
+      targetFace: FACE_TOP,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_FRONT}_${EDGE_BOTTOM}`, {
+      targetFace: FACE_BOTTOM,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_FRONT}_${EDGE_LEFT}`, {
+      targetFace: FACE_LEFT,
+      rotation: 0,
+      flipU: false,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_FRONT}_${EDGE_RIGHT}`, {
+      targetFace: FACE_RIGHT,
+      rotation: 0,
+      flipU: false,
+      flipV: false,
+    });
+
+    // Back face (-Z) transitions
+    this.faceTransitions.set(`${FACE_BACK}_${EDGE_TOP}`, {
+      targetFace: FACE_TOP,
+      rotation: Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+    this.faceTransitions.set(`${FACE_BACK}_${EDGE_BOTTOM}`, {
+      targetFace: FACE_BOTTOM,
+      rotation: -Math.PI / 2,
+      flipU: false,
+      flipV: true,
+    });
+    this.faceTransitions.set(`${FACE_BACK}_${EDGE_LEFT}`, {
+      targetFace: FACE_LEFT,
+      rotation: 0,
+      flipU: true,
+      flipV: false,
+    });
+    this.faceTransitions.set(`${FACE_BACK}_${EDGE_RIGHT}`, {
+      targetFace: FACE_RIGHT,
+      rotation: 0,
+      flipU: true,
+      flipV: false,
+    });
+  }
   insert(point: THREE.Vector3): void {
     // Check if point is within valid range using comparatorValue
     // const distanceFromOrigin = point.distanceTo(this.origin);
@@ -298,14 +400,15 @@ export class CubicQuadtree {
   ): number {
     let currentNode = 0; // Start at root
 
+    const _tempVec3A = this._tempVec3A;
+    const _tempVec3B = this._tempVec3B;
+    const minNodeSize = this.minNodeSize;
+    const getQuadrant = this.getQuadrant;
     while (true) {
-      const nodeSize = quadtree.nodeBuffer.getSize(
-        currentNode,
-        this._tempVec3A
-      );
+      const nodeSize = quadtree.nodeBuffer.getSize(currentNode, _tempVec3A);
 
       // If we've found a node of similar size, return it
-      if (Math.abs(nodeSize.x - targetSize) < this.minNodeSize) {
+      if (Math.abs(nodeSize.x - targetSize) < minNodeSize) {
         return currentNode;
       }
 
@@ -313,11 +416,8 @@ export class CubicQuadtree {
       if (childCount === 0) break;
 
       // Find the appropriate child quadrant
-      const center = quadtree.nodeBuffer.getCenter(
-        currentNode,
-        this._tempVec3B
-      );
-      const quadrant = this.getQuadrant(position, center);
+      const center = quadtree.nodeBuffer.getCenter(currentNode, _tempVec3B);
+      const quadrant = getQuadrant(position, center);
 
       if (quadrant === -1) break;
 
@@ -360,5 +460,50 @@ export class CubicQuadtree {
     for (let face of this.faces) {
       face.reset();
     }
+  }
+
+  findClosestNode(point: THREE.Vector3): {
+    faceIndex: number;
+    nodeIndex: number;
+    distance: number;
+    nodeInfo: {
+      center: THREE.Vector3;
+      size: THREE.Vector3;
+      bounds: THREE.Box3;
+      childCount: number;
+      level: number;
+    };
+  } {
+    let closestFaceIndex = 0;
+    let closestNodeIndex = 0;
+    let closestDistance = Infinity;
+    let closestNodeInfo = null;
+
+    // Check each face
+    this.faces.forEach((face, faceIndex) => {
+      // Transform point to face's local space
+      const localPoint = point.clone();
+      const inverseMatrix = this._tempMatrix4
+        .copy(this.faceMatrices[faceIndex])
+        .invert();
+      localPoint.applyMatrix4(inverseMatrix);
+
+      // Find closest node in this face
+      const { nodeIndex, distance } = face.findClosestNode(localPoint);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestFaceIndex = faceIndex;
+        closestNodeIndex = nodeIndex;
+        closestNodeInfo = face.getNodeInfo(nodeIndex);
+      }
+    });
+
+    return {
+      faceIndex: closestFaceIndex,
+      nodeIndex: closestNodeIndex,
+      distance: closestDistance,
+      nodeInfo: closestNodeInfo,
+    };
   }
 }

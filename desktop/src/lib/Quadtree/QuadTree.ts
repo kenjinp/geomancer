@@ -27,6 +27,11 @@ export interface QuadTreeParams {
   comparatorValue: number;
 }
 
+// Initialize return objects
+const _tempVector3 = new Vector3();
+const _tempSize = new Vector3();
+const _tempBounds = new Box3();
+
 export class QuadTree {
   nodeBuffer: NodeBuffer;
   private rootIndex: number;
@@ -127,18 +132,16 @@ export class QuadTree {
   }
 
   private insertRecursive(nodeIndex: number, pos: Vector3): void {
-    const sphereCenter = this.nodeBuffer.getSphereCenter(
-      nodeIndex,
-      this._tempVec3
-    );
-    const size = this.nodeBuffer.getSize(nodeIndex, this._tempSize);
+    const nodeBuffer = this.nodeBuffer;
+    const sphereCenter = nodeBuffer.getSphereCenter(nodeIndex, this._tempVec3);
+    const size = nodeBuffer.getSize(nodeIndex, this._tempSize);
     const distToNode = sphereCenter.distanceTo(pos);
 
     if (
       distToNode < size.x * this.comparatorValue &&
       size.x > this.minNodeSize
     ) {
-      let childCount = this.nodeBuffer.getChildCount(nodeIndex);
+      let childCount = nodeBuffer.getChildCount(nodeIndex);
 
       if (childCount === 0) {
         this.subdivide(nodeIndex);
@@ -146,21 +149,23 @@ export class QuadTree {
       }
 
       for (let i = 0; i < childCount; i++) {
-        const childIndex = this.nodeBuffer.getChildIndex(nodeIndex, i);
+        const childIndex = nodeBuffer.getChildIndex(nodeIndex, i);
         this.insertRecursive(childIndex, pos);
       }
     }
   }
 
   private subdivide(nodeIndex: number): void {
-    this.nodeBuffer.getBounds(nodeIndex, this._tempBox3);
+    const nodeBuffer = this.nodeBuffer;
+
+    nodeBuffer.getBounds(nodeIndex, this._tempBox3);
     this._tempBox3.getCenter(this._tempCenter);
 
     // Create child nodes
     for (let i = 0; i < 4; i++) {
-      const childIndex = this.nodeBuffer.allocateNode();
-      this.nodeBuffer.setChildIndex(nodeIndex, i, childIndex);
-      this.nodeBuffer.setParent(childIndex, nodeIndex);
+      const childIndex = nodeBuffer.allocateNode();
+      nodeBuffer.setChildIndex(nodeIndex, i, childIndex);
+      nodeBuffer.setParent(childIndex, nodeIndex);
 
       this.calculateChildBounds(
         this._tempBox3,
@@ -176,16 +181,16 @@ export class QuadTree {
       );
       const childSize = this._tempChildBox.getSize(this._tempSize);
 
-      this.nodeBuffer.setBounds(childIndex, this._tempChildBox);
-      this.nodeBuffer.setCenter(childIndex, childCenter);
-      this.nodeBuffer.setSphereCenter(childIndex, childSphereCenter);
-      this.nodeBuffer.setSize(childIndex, childSize);
+      nodeBuffer.setBounds(childIndex, this._tempChildBox);
+      nodeBuffer.setCenter(childIndex, childCenter);
+      nodeBuffer.setSphereCenter(childIndex, childSphereCenter);
+      nodeBuffer.setSize(childIndex, childSize);
 
       // Set up neighbor relationships for the new child
       this.setupChildNeighbors(nodeIndex, childIndex, i);
     }
 
-    this.nodeBuffer.setChildCount(nodeIndex, 4);
+    nodeBuffer.setChildCount(nodeIndex, 4);
   }
 
   private setupChildNeighbors(
@@ -193,43 +198,32 @@ export class QuadTree {
     childIndex: number,
     childPosition: number
   ): void {
+    const nodeBuffer = this.nodeBuffer;
     // Get parent's neighbors
     const parentNeighbors = {
-      left: this.nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_LEFT),
-      right: this.nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_RIGHT),
-      top: this.nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_TOP),
-      bottom: this.nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_BOTTOM),
+      left: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_LEFT),
+      right: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_RIGHT),
+      top: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_TOP),
+      bottom: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_BOTTOM),
     };
 
     // Set up internal neighbors between siblings
     switch (childPosition) {
       case 0: // Bottom left
-        this.nodeBuffer.setNeighbor(
-          childIndex,
-          NEIGHBOR_RIGHT,
-          parentIndex + 1
-        );
-        this.nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 2);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_RIGHT, parentIndex + 1);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 2);
         break;
       case 1: // Bottom right
-        this.nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex);
-        this.nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 3);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 3);
         break;
       case 2: // Top left
-        this.nodeBuffer.setNeighbor(
-          childIndex,
-          NEIGHBOR_RIGHT,
-          parentIndex + 3
-        );
-        this.nodeBuffer.setNeighbor(childIndex, NEIGHBOR_BOTTOM, parentIndex);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_RIGHT, parentIndex + 3);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_BOTTOM, parentIndex);
         break;
       case 3: // Top right
-        this.nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex + 2);
-        this.nodeBuffer.setNeighbor(
-          childIndex,
-          NEIGHBOR_BOTTOM,
-          parentIndex + 1
-        );
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex + 2);
+        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_BOTTOM, parentIndex + 1);
         break;
     }
 
@@ -341,10 +335,11 @@ export class QuadTree {
     targetSize: number
   ): number {
     let current = nodeIndex;
-    let neighbor = this.nodeBuffer.getNeighbor(current, direction);
+    const nodeBuffer = this.nodeBuffer;
+    let neighbor = nodeBuffer.getNeighbor(current, direction);
 
     while (neighbor !== -1) {
-      const neighborSize = this.nodeBuffer.getSize(neighbor, this._tempVec3);
+      const neighborSize = nodeBuffer.getSize(neighbor, this._tempVec3);
       if (Math.abs(neighborSize.x - targetSize) < this.minNodeSize) {
         return neighbor;
       }
@@ -356,7 +351,7 @@ export class QuadTree {
         neighbor = childIndex;
       } else {
         // If neighbor is too small, go up to parent
-        const parentIndex = this.nodeBuffer.getParent(neighbor);
+        const parentIndex = nodeBuffer.getParent(neighbor);
         if (parentIndex === -1) break;
         neighbor = parentIndex;
       }
@@ -413,14 +408,16 @@ export class QuadTree {
     return stats;
   }
 
-  private getNodeLevel(nodeIndex: number): number {
+  getNodeLevel(nodeIndex: number): number {
     let level = 0;
     let currentIndex = nodeIndex;
+
+    const nodeBuffer = this.nodeBuffer;
 
     // Traverse up the tree until we reach the root
     while (currentIndex !== 0) {
       // 0 is the root index
-      const parentIndex = this.nodeBuffer.getParent(currentIndex);
+      const parentIndex = nodeBuffer.getParent(currentIndex);
       if (parentIndex === -1) break;
       level++;
       currentIndex = parentIndex;
@@ -438,6 +435,99 @@ export class QuadTree {
       stats,
       totalNodes,
       subdivisionLevel: stats.length,
+    };
+  }
+
+  findClosestNode(point: Vector3): {
+    nodeIndex: number;
+    distance: number;
+  } {
+    let closestNodeIndex = 0;
+    let closestDistance = Infinity;
+
+    // Initialize return objects
+    const center = _tempVector3;
+    const size = _tempSize;
+    const bounds = _tempBounds;
+
+    const searchNode = (nodeIndex: number) => {
+      // Get current node's properties
+      this.nodeBuffer.getCenter(nodeIndex, center);
+      this.nodeBuffer.getSize(nodeIndex, size);
+      this.nodeBuffer.getBounds(nodeIndex, bounds);
+
+      // Calculate distance to this node's center
+      const distance = point.distanceTo(center);
+
+      // Update closest if this is nearer
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestNodeIndex = nodeIndex;
+      }
+
+      // Get child count
+      const childCount = this.nodeBuffer.getChildCount(nodeIndex);
+      console.log("childCount", childCount);
+
+      // If this node has children and the point is within or near the node bounds
+      // (with some margin for safety), search the children
+      if (childCount > 0) {
+        const margin = size.x * 1.5; // Add margin based on node size
+        const expandedBounds = bounds.clone().expandByScalar(margin);
+
+        for (let i = 0; i < childCount; i++) {
+          const childIndex = this.nodeBuffer.getChildIndex(nodeIndex, i);
+          searchNode(childIndex);
+        }
+      }
+    };
+
+    // Start search from root node
+    searchNode(0);
+
+    return {
+      nodeIndex: closestNodeIndex,
+      distance: closestDistance,
+    };
+  }
+
+  getNodeInfo(nodeIndex: number): {
+    center: Vector3;
+    size: Vector3;
+    bounds: Box3;
+    childCount: number;
+    level: number;
+  } {
+    const nodeBuffer = this.nodeBuffer;
+
+    // Initialize return objects
+    const center = _tempVector3;
+    const size = _tempSize;
+    const bounds = _tempBounds;
+
+    // Get node properties from buffer
+    nodeBuffer.getCenter(nodeIndex, center);
+    nodeBuffer.getSize(nodeIndex, size);
+    nodeBuffer.getBounds(nodeIndex, bounds);
+    const childCount = nodeBuffer.getChildCount(nodeIndex);
+
+    // Calculate node level by traversing up to root
+    let level = 0;
+    let currentNode = nodeIndex;
+    while (currentNode !== 0) {
+      // 0 is root index
+      const parentIndex = nodeBuffer.getParent(currentNode);
+      if (parentIndex === -1) break;
+      level++;
+      currentNode = parentIndex;
+    }
+
+    return {
+      center,
+      size,
+      bounds,
+      childCount,
+      level,
     };
   }
 }

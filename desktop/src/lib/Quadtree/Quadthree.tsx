@@ -1,4 +1,4 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { Group } from "three";
 import { CubicQuadtree } from "./CubicQuadtree";
@@ -22,6 +22,8 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
   const rendererRef = useRef<QuadtreeRenderer | null>(null);
   const groupRef = useRef<Group>(null);
 
+  const scene = useThree((s) => s.scene);
+
   // Initialize renderer and handle cleanup
   useEffect(() => {
     // Create new renderer instance
@@ -39,7 +41,6 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
         groupRef.current.add(mesh);
       }
     });
-
     // Initial update
     renderer.update();
 
@@ -73,7 +74,7 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
 
   return (
     <>
-      <group ref={groupRef} />
+      <group ref={groupRef} name="QuadThree" />
     </>
   );
 };
