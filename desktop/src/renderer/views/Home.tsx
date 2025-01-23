@@ -2,7 +2,7 @@ import { CubicQuadtree } from "@/lib/Quadtree/CubicQuadtree";
 import { QuadtreeVisualizer } from "@/lib/Quadtree/Quadthree";
 import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
-import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Perf } from "r3f-perf";
 import { useMemo, useRef, useState } from "react";
 import { Group, Sphere, Vector3 } from "three";
@@ -19,7 +19,6 @@ export const Home: React.FC = () => {
   const groupRefZ = useRef<Group>(null);
   const [sphere] = useState(() => new Sphere(new Vector3(), radius));
   const [mouseTarget] = useState(new Vector3());
-  const [hover, setHover] = useState(false);
 
   const quadtreeThingy = useMemo(() => {
     return new CubicQuadtree({
@@ -29,18 +28,6 @@ export const Home: React.FC = () => {
       comparatorValue: 1.5,
     });
   }, []);
-
-  const handleDebugHover = (e: ThreeEvent<PointerEvent>) => {
-    let point = e.point;
-    const element = document.getElementById("node-debug");
-    const closestNode = quadtreeThingy.findClosestNode(point);
-
-    element.innerText = `
-      faceIndex: ${closestNode.faceIndex}\n
-      distance: ${closestNode.distance.toFixed(2)}\n
-      nodeIndex: ${closestNode.nodeIndex}\n
-      level: ${closestNode.nodeInfo.level}`;
-  };
 
   useFrame(() => {
     if (playing) {
@@ -96,16 +83,6 @@ export const Home: React.FC = () => {
           </div>
         </Html>
       </group>
-
-      <mesh
-        visible={false}
-        onPointerMove={handleDebugHover}
-        onPointerEnter={() => setHover(true)}
-        onPointerLeave={() => setHover(false)}
-      >
-        <sphereGeometry args={[radius, 32, 32]} />
-        <meshBasicMaterial wireframe />
-      </mesh>
 
       <group ref={groupRef}>
         <mesh position={new Vector3(0, 0, radius)} scale={[64, 64, 64]}>

@@ -15,13 +15,14 @@ const createColorFromLevel = (level: number) => {
 
 const getMaterial = (color: number) =>
   new CustomShaderMaterial({
-    baseMaterial: THREE.MeshPhysicalMaterial,
-    side: THREE.FrontSide,
+    baseMaterial: THREE.MeshStandardMaterial,
+    side: THREE.DoubleSide,
     vertexShader: /* glsl */ `\
-
+    
 
     // Declare the instance attribute
         attribute vec3 instanceColor;
+        attribute int faceIndex;
 
         // Varying to pass to fragment shader
         varying vec3 vLevelColor;
@@ -66,13 +67,37 @@ vec3 bendInstancedToSphere(vec3 position, mat4 instanceMatrix, vec3 sphereCenter
 
       vLevelColor = instanceColor;
 
- // Apply the spherical bend
-    vec3 bentPosition = bendInstancedToSphere(
-        position,
-        instanceMatrix,
-        vec3(0.0),
-        uRadius
-    );
+      if (faceIndex == 0) {
+        vLevelColor = vec3(1.0, 0.0, 0.0);
+      }
+
+      if (faceIndex == 1) {
+        vLevelColor = vec3(0.0, 1.0, 0.0);
+      }
+
+      if (faceIndex == 2) {
+        vLevelColor = vec3(0.0, 0.0, 1.0);
+      }
+
+      if (faceIndex == 3) {
+        vLevelColor = vec3(1.0, 1.0, 0.0);
+      }
+
+      if (faceIndex == 4) {
+        vLevelColor = vec3(1.0, 1.0, 1.0);
+      }
+
+      if (faceIndex == 5) {
+        vLevelColor = vec3(0.0, 1.0, 1.0);
+      }
+
+      // Apply the spherical bend
+          vec3 bentPosition = bendInstancedToSphere(
+              position,
+              instanceMatrix,
+              vec3(0.0),
+              uRadius
+          );
         csm_Position = bentPosition;
         // csm_Position = position;
 
@@ -103,7 +128,7 @@ vec3 bendInstancedToSphere(vec3 position, mat4 instanceMatrix, vec3 sphereCenter
   });
 
 export class QuadtreeRenderer {
-  private meshes: THREE.InstancedMesh[];
+  private mesh: THREE.InstancedMesh;
   private readonly tempMatrix4 = new THREE.Matrix4();
   private readonly tempMatrix4_2 = new THREE.Matrix4();
   private readonly tempMatrix4_3 = new THREE.Matrix4();
@@ -121,63 +146,62 @@ export class QuadtreeRenderer {
     );
 
     // Create materials for each face with different colors
-    const materials = [
-      getMaterial(0xff0000),
-      // Right
-      getMaterial(0x00ff00),
-      // Left
-      getMaterial(0x0000ff), // Top
-      getMaterial(0xff00ff), // Bottom
-      getMaterial(0xffff00), // Front
-      getMaterial(0x00ffff), // Back
-    ];
+    const material = getMaterial(0x000000);
 
-    const maxInstanceCount = 2_048;
+    const maxInstanceCount = 2_048 * 6;
 
     const colors = new Float32Array(maxInstanceCount * 3); // RGB, so 3 values per instance
     colors.fill(0);
 
+    const faceIndices = new Int16Array(maxInstanceCount);
+    faceIndices.fill(-1);
+
     const colorAttribute = new THREE.InstancedBufferAttribute(colors, 3); // 3 components per instance
     planeGeometry.setAttribute("instanceColor", colorAttribute);
 
+    const faceAttribute = new THREE.InstancedBufferAttribute(faceIndices, 1); // 1 component per instance
+    faceAttribute.setUsage(THREE.DynamicDrawUsage);
+    faceAttribute.gpuType = THREE.IntType;
+    planeGeometry.setAttribute("faceIndex", faceAttribute);
+
     // Initialize instance matrices for each face
-    this.meshes = materials.map((material) => {
-      material.uniforms["uRadius"].value = 2048.0;
+    material.uniforms["uRadius"].value = 2048.0;
 
-      // Start with a reasonable maximum instance count
-      const mesh = new THREE.InstancedMesh(
-        planeGeometry,
-        material,
-        maxInstanceCount
-      );
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Start with a reasonable maximum instance count
+    this.mesh = new THREE.InstancedMesh(
+      planeGeometry,
+      material,
+      maxInstanceCount
+    );
+    // this.mesh.frustumCulled = false;
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-      mesh.count = 0; // Will be updated when updating instances
-      return mesh;
-    });
+    this.mesh.count = 0; // Will be updated when updating instances
   }
 
-  update(): void {
+  update(selectedFaceIndex: number): void {
     // Update instances for each face
     const faces = this.quadtree.getFaces();
+    const qt = this.quadtree;
 
     const tempMatrix4 = this.tempMatrix4;
     const tempMatrix4_2 = this.tempMatrix4_2;
     const tempMatrix4_3 = this.tempMatrix4_3;
     const tempVector = this.tempVector;
     const tempScale = this.tempScale;
+    const mesh = this.mesh;
 
     tempMatrix4_2.identity();
     tempMatrix4_3.identity();
 
-    for (let faceIndex in faces) {
+    let instanceCount = 0;
+
+    for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
       const face = faces[faceIndex];
-      const mesh = this.meshes[faceIndex];
       const colors = mesh.geometry.getAttribute("instanceColor");
-      let instanceCount = 0;
+      const faceIndices = mesh.geometry.getAttribute("faceIndex");
 
       // Iterate through all nodes in the face's quadtree
-
       for (let nodeIndex = 0; nodeIndex < face.nodeBuffer.size; nodeIndex++) {
         // Get node properties
         const center = face.nodeBuffer.getCenter(nodeIndex, tempVector);
@@ -190,68 +214,66 @@ export class QuadtreeRenderer {
           .multiply(tempMatrix4_2.makeTranslation(center.x, center.y, center.z)) // Position
           .multiply(tempMatrix4_3.makeScale(size.x, size.y, 1)); // Scale (z=1 since we're using a plane)
 
+        const absoluteNodeIndex = qt.getAbsoluteIndex(faceIndex, nodeIndex);
+
         const color = createColorFromLevel(level);
-        colors.setXYZ(nodeIndex, color.r, color.g, color.b);
-
+        colors.setXYZ(absoluteNodeIndex, color.r, color.g, color.b);
+        faceIndices.setX(
+          absoluteNodeIndex,
+          selectedFaceIndex === faceIndex ? selectedFaceIndex : -1
+        );
+        // faceIndices.array[nodeIndex] =
+        // selectedFaceIndex === faceIndex ? selectedFaceIndex : -1;
         colors.needsUpdate = true;
-
+        faceIndices.needsUpdate = true;
         // Set the instance matrix
-        mesh.setMatrixAt(nodeIndex, tempMatrix4);
+        mesh.setMatrixAt(absoluteNodeIndex, tempMatrix4);
         instanceCount++;
       }
-
-      // Update instance count
-      mesh.count = instanceCount;
-      mesh.instanceMatrix.needsUpdate = true;
     }
+    // Update instance count
+    mesh.count = instanceCount;
+    mesh.instanceMatrix.needsUpdate = true;
   }
 
-  getMeshes(): THREE.InstancedMesh[] {
-    return this.meshes;
+  getMesh(): THREE.InstancedMesh {
+    return this.mesh;
   }
 
   // Helper method to add meshes to a scene
   addToScene(scene: THREE.Scene): void {
-    this.meshes.forEach((mesh) => scene.add(mesh));
+    scene.add(this.mesh);
   }
 
   // Helper method to remove meshes from a scene
   removeFromScene(scene: THREE.Scene): void {
-    this.meshes.forEach((mesh) => scene.remove(mesh));
+    scene.remove(this.mesh);
   }
 
   // Optional: Set wireframe mode
   setWireframe(enabled: boolean): void {
-    this.meshes.forEach((mesh) => {
-      const material = mesh.material as THREE.MeshBasicMaterial;
-      material.wireframe = enabled;
-    });
+    const material = this.mesh.material as THREE.MeshBasicMaterial;
+    material.wireframe = enabled;
   }
 
   // Optional: Set face colors
   setFaceColor(faceIndex: number, color: THREE.Color | number): void {
-    if (faceIndex >= 0 && faceIndex < this.meshes.length) {
-      const material = this.meshes[faceIndex]
-        .material as THREE.MeshBasicMaterial;
-      material.color = new THREE.Color(color);
-    }
+    const material = this.mesh.material as THREE.MeshBasicMaterial;
+    material.color = new THREE.Color(color);
   }
 
   // Optional: Set opacity for visualization
   setOpacity(opacity: number): void {
-    this.meshes.forEach((mesh) => {
-      const material = mesh.material as THREE.MeshBasicMaterial;
-      material.transparent = opacity < 1;
-      material.opacity = opacity;
-    });
+    const material = this.mesh.material as THREE.MeshBasicMaterial;
+    material.transparent = opacity < 1;
+    material.opacity = opacity;
   }
 
   dispose(): void {
     // Clean up geometries and materials
-    const geometry = this.meshes[0].geometry;
-    this.meshes.forEach((mesh) => {
-      (mesh.material as THREE.Material).dispose();
-    });
+    const geometry = this.mesh.geometry;
+    const material = this.mesh.material as THREE.MeshBasicMaterial;
+    material.dispose();
     geometry.dispose();
   }
 }

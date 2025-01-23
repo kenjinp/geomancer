@@ -1,5 +1,5 @@
-import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useRef, useState } from "react";
 import { Group } from "three";
 import { CubicQuadtree } from "./CubicQuadtree";
 import { QuadtreeRenderer } from "./QuadtreeRenderer";
@@ -21,8 +21,22 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
   // Reference to our QuadtreeRenderer instance
   const rendererRef = useRef<QuadtreeRenderer | null>(null);
   const groupRef = useRef<Group>(null);
+  const [hover, setHover] = useState(false);
+  const [faceIndex, setFaceIndex] = useState(-1);
 
   const scene = useThree((s) => s.scene);
+
+  const handleDebugHover = (e: ThreeEvent<PointerEvent>) => {
+    let point = e.point;
+    const element = document.getElementById("node-debug");
+    const closestNode = quadtree.findClosestNode(point);
+    setFaceIndex(closestNode.faceIndex);
+    element.innerText = `
+      faceIndex: ${closestNode.faceIndex}\n
+      distance: ${closestNode.distance.toFixed(2)}\n
+      nodeIndex: ${closestNode.nodeIndex}\n
+      level: ${closestNode.nodeInfo.level}`;
+  };
 
   // Initialize renderer and handle cleanup
   useEffect(() => {
@@ -35,22 +49,15 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     renderer.setOpacity(opacity);
 
     // Add meshes to our group
-    const meshes = renderer.getMeshes();
-    meshes.forEach((mesh) => {
-      if (groupRef.current) {
-        groupRef.current.add(mesh);
-      }
-    });
+    const mesh = renderer.getMesh();
+    groupRef.current.add(mesh);
+
     // Initial update
-    renderer.update();
+    renderer.update(faceIndex);
 
     // Cleanup
     return () => {
-      meshes.forEach((mesh) => {
-        if (groupRef.current) {
-          groupRef.current.remove(mesh);
-        }
-      });
+      groupRef.current.remove(renderer.getMesh());
       renderer.dispose();
     };
   }, [quadtree]); // Only recreate if quadtree changes
@@ -69,11 +76,27 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
   }, [opacity]);
 
   useFrame(() => {
-    rendererRef.current.update();
+    if (!rendererRef.current) {
+      return;
+    }
+    rendererRef.current.update(faceIndex);
   });
 
   return (
     <>
+      <mesh
+        visible={false}
+        onPointerMove={handleDebugHover}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => {
+          setHover(false);
+          setFaceIndex(-1);
+        }}
+      >
+        <sphereGeometry args={[2048, 32, 32]} />
+        <meshBasicMaterial wireframe />
+      </mesh>
+
       <group ref={groupRef} name="QuadThree" />
     </>
   );

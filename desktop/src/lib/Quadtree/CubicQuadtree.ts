@@ -506,4 +506,38 @@ export class CubicQuadtree {
       nodeInfo: closestNodeInfo,
     };
   }
+
+  getAbsoluteIndex(faceIndex: number, nodeIndex: number): number {
+    if (faceIndex < 0 || faceIndex >= 6) {
+      throw new Error("Invalid face index");
+    }
+
+    let absoluteIndex = 0;
+
+    // // Add up all nodes in previous faces
+    for (let i = 0; i < faceIndex; i++) {
+      absoluteIndex += this.faces[i].nodeBuffer.size;
+    }
+
+    // Add the node index within the current face
+    return absoluteIndex + nodeIndex;
+  }
+
+  // Optional: Add reverse lookup
+  getRelativeIndices(absoluteIndex: number): {
+    faceIndex: number;
+    nodeIndex: number;
+  } {
+    let remainingIndex = absoluteIndex;
+
+    for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
+      const faceSize = this.faces[faceIndex].nodeBuffer.size;
+      if (remainingIndex < faceSize) {
+        return { faceIndex, nodeIndex: remainingIndex };
+      }
+      remainingIndex -= faceSize;
+    }
+
+    throw new Error("Invalid absolute index");
+  }
 }
