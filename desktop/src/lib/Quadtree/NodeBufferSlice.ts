@@ -1,31 +1,36 @@
 import { Box3, Vector3 } from "three";
+import { NODE_FLOAT_COUNT, NODE_INT_COUNT } from "./constants";
 
-// Constants for memory layout
-const FLOAT_SIZE = 4;
-const NODE_FLOAT_COUNT = 15; // 3 for center, 3 for sphereCenter, 3 for size, 6 for bounds
-const NODE_INT_COUNT = 11; // 4 for child indices, 1 for childCount, 1 for flags, 1 for parent, 4 for neighbors
-const MAX_NODES = 10_000;
-
-export class NodeBuffer {
+// Shares memory with all NodeBufferSlices
+export class NodeBufferSlice {
   private floatBuffer: Float32Array;
   private intBuffer: Int32Array;
-  private nodeCount: number = 1;
+  private nodeCount: number = 0;
+  readonly startIndex: number;
+  readonly maxNodes: number;
 
-  constructor() {
-    const floatMemory = new ArrayBuffer(
-      MAX_NODES * NODE_FLOAT_COUNT * FLOAT_SIZE
-    );
-    const intMemory = new ArrayBuffer(MAX_NODES * NODE_INT_COUNT * 4);
-
-    this.floatBuffer = new Float32Array(floatMemory);
-    this.intBuffer = new Int32Array(intMemory);
+  constructor(
+    floatBuffer: Float32Array,
+    intBuffer: Int32Array,
+    startIndex: number,
+    maxNodes: number
+  ) {
+    this.floatBuffer = floatBuffer;
+    this.intBuffer = intBuffer;
+    this.startIndex = startIndex;
+    this.maxNodes = maxNodes;
+    this.nodeCount = 1; // Start with root node
   }
 
   get size(): number {
     return this.nodeCount;
   }
 
-  iterate = (callback: (index: number) => void): void => {
+  getNodeAbsoluteIndex(nodeIndex: number) {
+    return this.startIndex + nodeIndex;
+  }
+
+  iterate = (callback: (node: number) => void): void => {
     for (let i = 0; i < this.nodeCount; i++) {
       callback(i);
     }
@@ -35,36 +40,51 @@ export class NodeBuffer {
     this.setChildCount(index, 0);
     this.setFlags(index, 0);
     this.setParent(index, -1);
+    this.setFace(index, -1); // unset for now//
     // Initialize neighbors to -1 (no neighbor)
-    for (let i = 0; i < 4; i++) {
-      this.setNeighbor(index, i, -1);
-    }
+    this.setNeighbor(index, 0, -1);
+    this.setNeighbor(index, 1, -1);
+    this.setNeighbor(index, 2, -1);
+    this.setNeighbor(index, 3, -1);
   }
 
   reset(): void {
     // Reset buffers to initial state
-    this.floatBuffer.fill(0);
-    this.intBuffer.fill(0);
+    const floatStart = this.startIndex * NODE_FLOAT_COUNT;
+    const floatEnd = floatStart + this.maxNodes * NODE_FLOAT_COUNT;
+    const intStart = this.startIndex * NODE_INT_COUNT;
+    const intEnd = intStart + this.maxNodes * NODE_INT_COUNT;
 
-    // Reset node count back to 1 (root node)
-    this.nodeCount = 1;
+    this.floatBuffer.fill(0, floatStart, floatEnd);
+    this.intBuffer.fill(0, intStart, intEnd);
+
+    // Reset node count to 1 (root node)
+    this.nodeCount = 0;
+
+    // Initialize root node
+    // this.createNode(0);
+  }
+
+  private getFloatOffset(nodeIndex: number): number {
+    // return nodeIndex * NODE_FLOAT_COUNT;
+    return (this.startIndex + nodeIndex) * NODE_FLOAT_COUNT;
+  }
+
+  private getIntOffset(nodeIndex: number): number {
+    // return nodeIndex * NODE_INT_COUNT;
+    return (this.startIndex + nodeIndex) * NODE_INT_COUNT;
   }
 
   allocateNode(): number {
     const index = this.nodeCount++;
-    if (index >= MAX_NODES) {
-      throw new Error("Maximum node count exceeded");
+    if (index >= this.maxNodes) {
+      throw new Error(
+        `Maximum node count exceeded for buffer slice (${this.maxNodes})`
+      );
     }
+    // const absoluteIndex = this.startIndex + size;
     this.createNode(index);
     return index;
-  }
-
-  private getFloatOffset(nodeIndex: number): number {
-    return nodeIndex * NODE_FLOAT_COUNT;
-  }
-
-  private getIntOffset(nodeIndex: number): number {
-    return nodeIndex * NODE_INT_COUNT;
   }
 
   setCenter(nodeIndex: number, center: Vector3): void {
@@ -184,17 +204,27 @@ export class NodeBuffer {
     return this.intBuffer[offset + 6];
   }
 
+  setFace(nodeIndex: number, faceIndex: number): void {
+    const offset = this.getIntOffset(nodeIndex);
+    this.intBuffer[offset + 7] = faceIndex;
+  }
+
+  getFace(nodeIndex: number): number {
+    const offset = this.getIntOffset(nodeIndex);
+    return this.intBuffer[offset + 7];
+  }
+
   setNeighbor(
     nodeIndex: number,
     direction: number,
     neighborIndex: number
   ): void {
     const offset = this.getIntOffset(nodeIndex);
-    this.intBuffer[offset + 7 + direction] = neighborIndex;
+    this.intBuffer[offset + 8 + direction] = neighborIndex;
   }
 
   getNeighbor(nodeIndex: number, direction: number): number {
     const offset = this.getIntOffset(nodeIndex);
-    return this.intBuffer[offset + 7 + direction];
+    return this.intBuffer[offset + 8 + direction];
   }
 }

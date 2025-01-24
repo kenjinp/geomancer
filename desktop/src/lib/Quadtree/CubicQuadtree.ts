@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { QuadTree, QuadTreeParams } from "./QuadTree";
+import { UnifiedNodeBuffer } from "./UnifiedNodeBuffer";
 
 // Face constants
 const FACE_RIGHT = 0; // +X
@@ -8,7 +9,6 @@ const FACE_TOP = 2; // +Y
 const FACE_BOTTOM = 3; // -Y
 const FACE_FRONT = 4; // +Z
 const FACE_BACK = 5; // -Z
-
 // Edge constants
 const EDGE_LEFT = 0; // Left edge of face
 const EDGE_RIGHT = 1; // Right edge of face
@@ -28,6 +28,7 @@ export class CubicQuadtree {
   private faces: QuadTree[] = [];
   private readonly faceMatrices: THREE.Matrix4[] = [];
   private readonly origin: THREE.Vector3;
+  readonly unifiedBuffer: UnifiedNodeBuffer;
   readonly size: number;
   private readonly minNodeSize: number;
   private readonly comparatorValue: number;
@@ -41,11 +42,14 @@ export class CubicQuadtree {
   private readonly _tempMatrix4 = new THREE.Matrix4();
   private readonly _tempQuat = new THREE.Quaternion();
 
-  constructor(params: Omit<QuadTreeParams, "localToWorld">) {
+  constructor(params: Omit<QuadTreeParams, "localToWorld" | "nodeBuffer">) {
     this.origin = params.origin;
     this.size = params.size;
     this.minNodeSize = params.minNodeSize;
     this.comparatorValue = params.comparatorValue;
+
+    // Create unified buffer for 6 faces
+    this.unifiedBuffer = new UnifiedNodeBuffer(6);
 
     this.initializeFaceMatrices();
     this.initializeFaceTransitions();
@@ -53,56 +57,53 @@ export class CubicQuadtree {
 
   private initializeFaceMatrices(): void {
     const matrices = this.faceMatrices;
-    const faces = this.faces;
     const r = this.size;
-    const origin = this.origin;
-    const size = this.size;
-    const minNodeSize = this.minNodeSize;
-    const comparatorValue = this.comparatorValue;
 
     let m = this._tempMatrix4.identity();
-    // +Y
-    m.makeRotationX(-Math.PI / 2);
-    m.premultiply(new THREE.Matrix4().makeTranslation(0, r, 0));
-    matrices.push(m.clone());
-
-    // -Y
-    m = this._tempMatrix4.identity();
-    m.makeRotationX(Math.PI / 2);
-    m.premultiply(new THREE.Matrix4().makeTranslation(0, -r, 0));
-    matrices.push(m.clone());
-
-    // +X
+    // +X (FACE_RIGHT = 0)
     m = this._tempMatrix4.identity();
     m.makeRotationY(Math.PI / 2);
     m.premultiply(new THREE.Matrix4().makeTranslation(r, 0, 0));
     matrices.push(m.clone());
 
-    // -X
+    // -X (FACE_LEFT = 1)
     m = this._tempMatrix4.identity();
     m.makeRotationY(-Math.PI / 2);
     m.premultiply(new THREE.Matrix4().makeTranslation(-r, 0, 0));
     matrices.push(m.clone());
 
-    // +Z
+    // +Y (FACE_TOP = 2)
+    m = this._tempMatrix4.identity();
+    m.makeRotationX(-Math.PI / 2);
+    m.premultiply(new THREE.Matrix4().makeTranslation(0, r, 0));
+    matrices.push(m.clone());
+
+    // -Y (FACE_BOTTOM = 3)
+    m = this._tempMatrix4.identity();
+    m.makeRotationX(Math.PI / 2);
+    m.premultiply(new THREE.Matrix4().makeTranslation(0, -r, 0));
+    matrices.push(m.clone());
+
+    // +Z (FACE_FRONT = 4)
     m = this._tempMatrix4.identity();
     m.premultiply(new THREE.Matrix4().makeTranslation(0, 0, r));
     matrices.push(m.clone());
 
-    // -Z
+    // -Z (FACE_BACK = 5)
     m = this._tempMatrix4.identity();
     m.makeRotationY(Math.PI);
     m.premultiply(new THREE.Matrix4().makeTranslation(0, 0, -r));
     matrices.push(m.clone());
 
-    for (let t of matrices) {
-      faces.push(
+    for (let i = 0; i < matrices.length; i++) {
+      this.faces.push(
         new QuadTree({
-          origin,
-          size,
-          minNodeSize,
-          comparatorValue,
-          localToWorld: t,
+          origin: this.origin,
+          size: this.size,
+          minNodeSize: this.minNodeSize,
+          comparatorValue: this.comparatorValue,
+          localToWorld: matrices[i],
+          nodeBuffer: this.unifiedBuffer.createBuffer(i),
         })
       );
     }
@@ -465,6 +466,8 @@ export class CubicQuadtree {
   findClosestNode(point: THREE.Vector3): {
     faceIndex: number;
     nodeIndex: number;
+    absoluteNodeIndex: number;
+    incrementalNodeIndex: number;
     distance: number;
     nodeInfo: {
       center: THREE.Vector3;
@@ -502,6 +505,14 @@ export class CubicQuadtree {
     return {
       faceIndex: closestFaceIndex,
       nodeIndex: closestNodeIndex,
+      absoluteNodeIndex:
+        this.faces[closestFaceIndex].nodeBuffer.getNodeAbsoluteIndex(
+          closestNodeIndex
+        ),
+      incrementalNodeIndex: this.getAbsoluteIndex(
+        closestFaceIndex,
+        closestNodeIndex
+      ),
       distance: closestDistance,
       nodeInfo: closestNodeInfo,
     };

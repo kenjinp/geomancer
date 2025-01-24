@@ -4,6 +4,7 @@ import "../styles/app.css";
 import { Home } from "../views/Home";
 import { Canvas } from "./Canvas";
 import { ColorRamp } from "./ColorRamp";
+import { MouseFollower } from "./MouseFollower";
 
 /**
  * Wrapper for the entire application.
@@ -18,6 +19,9 @@ export function App() {
         <PanelGroup direction="horizontal">
           <Panel minSize={75} order={2}>
             <div className="relative w-full h-full bg-dark">
+              <MouseFollower>
+                <div id="mouse-node-debug"></div>
+              </MouseFollower>
               <Canvas>
                 <Home />
               </Canvas>

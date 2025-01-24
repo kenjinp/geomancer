@@ -1,4 +1,4 @@
-import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import { Group } from "three";
 import { CubicQuadtree } from "./CubicQuadtree";
@@ -22,19 +22,18 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
   const rendererRef = useRef<QuadtreeRenderer | null>(null);
   const groupRef = useRef<Group>(null);
   const [hover, setHover] = useState(false);
-  const [faceIndex, setFaceIndex] = useState(-1);
-
-  const scene = useThree((s) => s.scene);
+  const [nodeIndex, setNodeIndex] = useState(-1);
 
   const handleDebugHover = (e: ThreeEvent<PointerEvent>) => {
     let point = e.point;
     const element = document.getElementById("node-debug");
     const closestNode = quadtree.findClosestNode(point);
-    setFaceIndex(closestNode.faceIndex);
+    setNodeIndex(closestNode.incrementalNodeIndex);
     element.innerText = `
-      faceIndex: ${closestNode.faceIndex}\n
-      distance: ${closestNode.distance.toFixed(2)}\n
-      nodeIndex: ${closestNode.nodeIndex}\n
+      faceIndex: ${closestNode.faceIndex}
+      distance: ${closestNode.distance.toFixed(2)}
+      nodeIndex: ${closestNode.nodeIndex}
+      absoluteNodeIndex: ${closestNode.absoluteNodeIndex}
       level: ${closestNode.nodeInfo.level}`;
   };
 
@@ -53,7 +52,7 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     groupRef.current.add(mesh);
 
     // Initial update
-    renderer.update(faceIndex);
+    renderer.update(nodeIndex);
 
     // Cleanup
     return () => {
@@ -79,21 +78,22 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     if (!rendererRef.current) {
       return;
     }
-    rendererRef.current.update(faceIndex);
+    rendererRef.current.update(nodeIndex);
   });
 
   return (
     <>
       <mesh
-        visible={false}
+        // visible={false}
         onPointerMove={handleDebugHover}
         onPointerEnter={() => setHover(true)}
         onPointerLeave={() => {
           setHover(false);
-          setFaceIndex(-1);
+          setNodeIndex(-1);
         }}
       >
-        <sphereGeometry args={[2048, 32, 32]} />
+        <boxGeometry args={[2048 * 2, 2048 * 2, 2048 * 2]} />
+        {/* <sphereGeometry args={[2048, 32, 32]} /> */}
         <meshBasicMaterial wireframe />
       </mesh>
 

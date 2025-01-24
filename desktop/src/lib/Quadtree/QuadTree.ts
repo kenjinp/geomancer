@@ -1,11 +1,5 @@
 import { Box3, Matrix4, Vector3 } from "three";
-import { NodeBuffer } from "./NodeBuffer";
-
-// Constants for memory layout
-const FLOAT_SIZE = 4;
-const NODE_FLOAT_COUNT = 15; // 3 for center, 3 for sphereCenter, 3 for size, 6 for bounds
-const NODE_INT_COUNT = 11; // 4 for child indices, 1 for childCount, 1 for flags, 1 for parent, 4 for neighbors
-const MAX_NODES = 10000;
+import { NodeBufferSlice } from "./NodeBufferSlice";
 
 // Direction constants for neighbors
 const NEIGHBOR_LEFT = 0;
@@ -25,20 +19,27 @@ export interface QuadTreeParams {
   minNodeSize: number;
   origin: Vector3;
   comparatorValue: number;
+  nodeBuffer: NodeBufferSlice;
 }
 
 // Initialize return objects
 const _tempVector3 = new Vector3();
+const _tempVector3_2 = new Vector3();
 const _tempSize = new Vector3();
 const _tempBounds = new Box3();
 
+// function Spherize(position: Vector3, radius: number) {
+//   _tempVector3.copy(position).normalize().multiplyScalar(radius);
+//   return _tempVector3;
+// }
+
 export class QuadTree {
-  nodeBuffer: NodeBuffer;
+  readonly nodeBuffer: NodeBufferSlice;
   private rootIndex: number;
   readonly localToWorld: Matrix4;
   private readonly minNodeSize: number;
   private readonly origin: Vector3;
-  private readonly size: number;
+  private readonly size: number; // corresponds to radius
   private readonly comparatorValue: number;
 
   // Reusable temporary objects
@@ -63,10 +64,13 @@ export class QuadTree {
     this.comparatorValue = params.comparatorValue;
 
     // Initialize buffers and root node
-    this.nodeBuffer = new NodeBuffer();
-    this.rootIndex = this.nodeBuffer.allocateNode();
-
+    this.nodeBuffer = params.nodeBuffer;
     this.reset();
+    // this.rootIndex = this.nodeBuffer.allocateNode();
+  }
+
+  public getNodeStartIndex() {
+    return this.nodeBuffer.startIndex;
   }
 
   private calculateSphereCenter(center: Vector3, target: Vector3): Vector3 {
@@ -177,7 +181,7 @@ export class QuadTree {
       const childCenter = this._tempChildBox.getCenter(this._tempVec3);
       const childSphereCenter = this.calculateSphereCenter(
         childCenter,
-        new Vector3()
+        _tempVector3_2
       );
       const childSize = this._tempChildBox.getSize(this._tempSize);
 
@@ -379,6 +383,10 @@ export class QuadTree {
     }
   }
 
+  iterateNodes(cb: (nodeIndex: number) => void) {
+    this.nodeBuffer.iterate(cb);
+  }
+
   getNodeLevelStatistics(): LevelStats[] {
     const levelCounts = new Map<number, { count: number; totalSize: number }>();
 
@@ -444,51 +452,34 @@ export class QuadTree {
   } {
     let closestNodeIndex = 0;
     let closestDistance = Infinity;
-
-    // Initialize return objects
     const center = _tempVector3;
     const size = _tempSize;
-    const bounds = _tempBounds;
+    const nodeBuffer = this.nodeBuffer;
 
     const searchNode = (nodeIndex: number) => {
-      // Get current node's properties
-      this.nodeBuffer.getCenter(nodeIndex, center);
-      this.nodeBuffer.getSize(nodeIndex, size);
-      this.nodeBuffer.getBounds(nodeIndex, bounds);
+      nodeBuffer.getCenter(nodeIndex, center);
+      nodeBuffer.getSize(nodeIndex, size);
 
-      // Calculate distance to this node's center
       const distance = point.distanceTo(center);
 
-      // Update closest if this is nearer
       if (distance < closestDistance) {
         closestDistance = distance;
         closestNodeIndex = nodeIndex;
       }
 
-      // Get child count
-      const childCount = this.nodeBuffer.getChildCount(nodeIndex);
-      console.log("childCount", childCount);
-
-      // If this node has children and the point is within or near the node bounds
-      // (with some margin for safety), search the children
+      let childCount = nodeBuffer.getChildCount(nodeIndex);
       if (childCount > 0) {
-        const margin = size.x * 1.5; // Add margin based on node size
-        const expandedBounds = bounds.clone().expandByScalar(margin);
-
         for (let i = 0; i < childCount; i++) {
-          const childIndex = this.nodeBuffer.getChildIndex(nodeIndex, i);
-          searchNode(childIndex);
+          const childIndex = nodeBuffer.getChildIndex(nodeIndex, i);
+          if (childIndex !== -1 && childIndex !== nodeIndex) {
+            searchNode(childIndex);
+          }
         }
       }
     };
 
-    // Start search from root node
     searchNode(0);
-
-    return {
-      nodeIndex: closestNodeIndex,
-      distance: closestDistance,
-    };
+    return { nodeIndex: closestNodeIndex, distance: closestDistance };
   }
 
   getNodeInfo(nodeIndex: number): {

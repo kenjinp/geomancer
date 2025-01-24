@@ -72,7 +72,7 @@ export const Home: React.FC = () => {
 
   return (
     <group>
-      <Perf />
+      <Perf position="bottom-right" />
       <group position={[0, radius + 1024, 0]}>
         <Html key="yes">
           <div id="debug" className="text-azure"></div>
@@ -99,14 +99,14 @@ export const Home: React.FC = () => {
         </mesh>
 
         <group ref={groupRefY}>
-          {/* <mesh position={new Vector3(0, 0, 2048)} scale={[32, 32, 32]}>
+          <mesh position={new Vector3(0, 0, 2048)} scale={[32, 32, 32]}>
             <sphereGeometry />
             <meshBasicMaterial color="green" />
           </mesh>
           <mesh position={new Vector3(0, 2048, 0)} scale={[32, 32, 32]}>
             <sphereGeometry />
             <meshBasicMaterial color="blue" />
-          </mesh> */}
+          </mesh>
           <mesh position={new Vector3(radius, 0, 0)} scale={[32, 32, 32]}>
             <sphereGeometry />
             <meshBasicMaterial color="red" />
@@ -115,14 +115,14 @@ export const Home: React.FC = () => {
       </group>
 
       <group ref={groupRefZ}>
-        {/* <mesh position={new Vector3(0, 0, 2048)} scale={[32, 32, 32]}>
+        <mesh position={new Vector3(0, 0, 2048)} scale={[32, 32, 32]}>
           <sphereGeometry />
           <meshBasicMaterial color="green" />
         </mesh>
         <mesh position={new Vector3(0, 2048, 0)} scale={[32, 32, 32]}>
           <sphereGeometry />
           <meshBasicMaterial color="blue" />
-        </mesh> */}
+        </mesh>
         <mesh position={new Vector3(radius, 0, 0)} scale={[32, 32, 32]}>
           <sphereGeometry />
           <meshBasicMaterial color="red" />
