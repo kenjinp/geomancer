@@ -20,9 +20,6 @@ export class UnifiedNodeBuffer {
 
     const totalNodes = totalTrees * maxNodesPerTree;
 
-    // Log buffer allocation for debugging
-    console.log(`Allocating buffers for ${totalNodes} total nodes`);
-
     const floatMemory = new ArrayBuffer(
       totalNodes * NODE_FLOAT_COUNT * Float32Array.BYTES_PER_ELEMENT
     );
@@ -32,13 +29,9 @@ export class UnifiedNodeBuffer {
 
     this.floatBuffer = new Float32Array(floatMemory);
     this.intBuffer = new Int32Array(intMemory);
-
-    // Log buffer sizes for debugging
-    console.log(`Float buffer length: ${this.floatBuffer.length}`);
-    console.log(`Int buffer length: ${this.intBuffer.length}`);
   }
 
-  createBuffer(treeIndex: number): NodeBufferSlice {
+  createBufferSlice(treeIndex: number): NodeBufferSlice {
     if (treeIndex >= this.totalTrees) {
       throw new Error(
         `Tree index ${treeIndex} exceeds maximum trees ${this.totalTrees}`

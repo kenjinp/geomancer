@@ -103,7 +103,7 @@ export class CubicQuadtree {
           minNodeSize: this.minNodeSize,
           comparatorValue: this.comparatorValue,
           localToWorld: matrices[i],
-          nodeBuffer: this.unifiedBuffer.createBuffer(i),
+          nodeBuffer: this.unifiedBuffer.createBufferSlice(i),
         })
       );
     }
@@ -475,6 +475,10 @@ export class CubicQuadtree {
       bounds: THREE.Box3;
       childCount: number;
       level: number;
+      isRoot: boolean;
+      isLeaf: boolean;
+      isSplit: boolean;
+      isBoundary: boolean;
     };
   } {
     let closestFaceIndex = 0;
@@ -485,14 +489,14 @@ export class CubicQuadtree {
     // Check each face
     this.faces.forEach((face, faceIndex) => {
       // Transform point to face's local space
-      const localPoint = point.clone();
-      const inverseMatrix = this._tempMatrix4
-        .copy(this.faceMatrices[faceIndex])
-        .invert();
-      localPoint.applyMatrix4(inverseMatrix);
+      // const localPoint = point.clone();
+      // const inverseMatrix = this._tempMatrix4
+      //   .copy(this.faceMatrices[faceIndex])
+      //   .invert();
+      // localPoint.applyMatrix4(inverseMatrix);
 
       // Find closest node in this face
-      const { nodeIndex, distance } = face.findClosestNode(localPoint);
+      const { nodeIndex, distance } = face.findClosestNode(point);
 
       if (distance < closestDistance) {
         closestDistance = distance;
@@ -550,5 +554,21 @@ export class CubicQuadtree {
     }
 
     throw new Error("Invalid absolute index");
+  }
+
+  // returns a copy of the int buffer from the unified buffer
+  // but where all of the values are compacted
+  getCompactedIntBuffer() {
+    const buffer = this.unifiedBuffer.intBuffer;
+    const newBuffer = new Int32Array(buffer.length);
+    for (let face of this.faces) {
+      const faceBufferStartIndex = face.nodeBuffer.startIndex;
+      const faceBufferEndIndex = faceBufferStartIndex + face.nodeBuffer.size;
+      newBuffer.set(
+        buffer.slice(faceBufferStartIndex, faceBufferEndIndex),
+        faceBufferStartIndex
+      );
+    }
+    return newBuffer;
   }
 }

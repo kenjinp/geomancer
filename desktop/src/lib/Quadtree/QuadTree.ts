@@ -1,11 +1,11 @@
 import { Box3, Matrix4, Vector3 } from "three";
 import { NodeBufferSlice } from "./NodeBufferSlice";
-
+import { FLAGS } from "./constants";
 // Direction constants for neighbors
-const NEIGHBOR_LEFT = 0;
-const NEIGHBOR_RIGHT = 1;
-const NEIGHBOR_TOP = 2;
-const NEIGHBOR_BOTTOM = 3;
+const DIRECTION_NEIGHBOR_LEFT = 0;
+const DIRECTION_NEIGHBOR_RIGHT = 1;
+const DIRECTION_NEIGHBOR_TOP = 2;
+const DIRECTION_NEIGHBOR_BOTTOM = 3;
 
 export interface LevelStats {
   level: number;
@@ -27,11 +27,6 @@ const _tempVector3 = new Vector3();
 const _tempVector3_2 = new Vector3();
 const _tempSize = new Vector3();
 const _tempBounds = new Box3();
-
-// function Spherize(position: Vector3, radius: number) {
-//   _tempVector3.copy(position).normalize().multiplyScalar(radius);
-//   return _tempVector3;
-// }
 
 export class QuadTree {
   readonly nodeBuffer: NodeBufferSlice;
@@ -128,7 +123,11 @@ export class QuadTree {
     this.nodeBuffer.setCenter(this.rootIndex, center);
     this.nodeBuffer.setSphereCenter(this.rootIndex, sphereCenter);
     this.nodeBuffer.setSize(this.rootIndex, size);
-    this.nodeBuffer.setFlags(this.rootIndex, 1); // Root flag
+    // Set root flags: IS_ROOT | IS_LEAF | IS_BOUNDARY
+    this.nodeBuffer.setFlags(
+      this.rootIndex,
+      FLAGS.IS_ROOT | FLAGS.IS_LEAF | FLAGS.IS_BOUNDARY
+    );
   }
 
   insert(pos: Vector3): void {
@@ -141,12 +140,12 @@ export class QuadTree {
     const size = nodeBuffer.getSize(nodeIndex, this._tempSize);
     const distToNode = sphereCenter.distanceTo(pos);
 
+    // If this node is close enough to the point and large enough, subdivide it
     if (
       distToNode < size.x * this.comparatorValue &&
-      size.x > this.minNodeSize
+      size.x > this.minNodeSize * 2
     ) {
       let childCount = nodeBuffer.getChildCount(nodeIndex);
-
       if (childCount === 0) {
         this.subdivide(nodeIndex);
         childCount = 4;
@@ -162,12 +161,21 @@ export class QuadTree {
   private subdivide(nodeIndex: number): void {
     const nodeBuffer = this.nodeBuffer;
 
+    // Update parent node flags - remove IS_LEAF, add IS_SPLIT
+    const currentFlags = nodeBuffer.getFlags(nodeIndex);
+    nodeBuffer.setFlags(
+      nodeIndex,
+      (currentFlags & ~FLAGS.IS_LEAF) | FLAGS.IS_SPLIT
+    );
+
     nodeBuffer.getBounds(nodeIndex, this._tempBox3);
     this._tempBox3.getCenter(this._tempCenter);
 
     // Create child nodes
+    const childIndices: number[] = [];
     for (let i = 0; i < 4; i++) {
       const childIndex = nodeBuffer.allocateNode();
+      childIndices.push(childIndex);
       nodeBuffer.setChildIndex(nodeIndex, i, childIndex);
       nodeBuffer.setParent(childIndex, nodeIndex);
 
@@ -190,141 +198,246 @@ export class QuadTree {
       nodeBuffer.setSphereCenter(childIndex, childSphereCenter);
       nodeBuffer.setSize(childIndex, childSize);
 
-      // Set up neighbor relationships for the new child
-      this.setupChildNeighbors(nodeIndex, childIndex, i);
+      // Set child flags: IS_LEAF by default, add IS_BOUNDARY for edge nodes
+      let childFlags = FLAGS.IS_LEAF;
+
+      // Check if child is on boundary (based on index)
+      if (i === 0) {
+        // Bottom left
+        childFlags |= FLAGS.IS_BOUNDARY;
+      } else if (i === 1) {
+        // Bottom right
+        childFlags |= FLAGS.IS_BOUNDARY;
+      } else if (i === 2) {
+        // Top left
+        childFlags |= FLAGS.IS_BOUNDARY;
+      } else if (i === 3) {
+        // Top right
+        childFlags |= FLAGS.IS_BOUNDARY;
+      }
+
+      nodeBuffer.setFlags(childIndex, childFlags);
     }
+
+    // Set up neighbor relationships between siblings
+    // Bottom Left (0)
+    nodeBuffer.setNeighbor(
+      childIndices[0],
+      DIRECTION_NEIGHBOR_RIGHT,
+      childIndices[1]
+    ); // -> Bottom Right
+    nodeBuffer.setNeighbor(
+      childIndices[0],
+      DIRECTION_NEIGHBOR_TOP,
+      childIndices[2]
+    ); // -> Top Left
+
+    // Bottom Right (1)
+    nodeBuffer.setNeighbor(
+      childIndices[1],
+      DIRECTION_NEIGHBOR_LEFT,
+      childIndices[0]
+    ); // -> Bottom Left
+    nodeBuffer.setNeighbor(
+      childIndices[1],
+      DIRECTION_NEIGHBOR_TOP,
+      childIndices[3]
+    ); // -> Top Right
+
+    // Top Left (2)
+    nodeBuffer.setNeighbor(
+      childIndices[2],
+      DIRECTION_NEIGHBOR_RIGHT,
+      childIndices[3]
+    ); // -> Top Right
+    nodeBuffer.setNeighbor(
+      childIndices[2],
+      DIRECTION_NEIGHBOR_BOTTOM,
+      childIndices[0]
+    ); // -> Bottom Left
+
+    // Top Right (3)
+    nodeBuffer.setNeighbor(
+      childIndices[3],
+      DIRECTION_NEIGHBOR_LEFT,
+      childIndices[2]
+    ); // -> Top Left
+    nodeBuffer.setNeighbor(
+      childIndices[3],
+      DIRECTION_NEIGHBOR_BOTTOM,
+      childIndices[1]
+    ); // -> Bottom Right
+
+    // After setting up sibling relationships, we need to connect children across quadrants
+    // Get the node's neighbors
+    const parentNeighbors = this.getNodeNeighbors(nodeIndex);
+    const [leftNeighbor, rightNeighbor, topNeighbor, bottomNeighbor] =
+      parentNeighbors;
+
+    // Connect with existing subdivided neighbors
+    this.connectWithNeighbor(
+      nodeIndex,
+      childIndices,
+      rightNeighbor,
+      DIRECTION_NEIGHBOR_RIGHT
+    );
+    this.connectWithNeighbor(
+      nodeIndex,
+      childIndices,
+      leftNeighbor,
+      DIRECTION_NEIGHBOR_LEFT
+    );
+    this.connectWithNeighbor(
+      nodeIndex,
+      childIndices,
+      topNeighbor,
+      DIRECTION_NEIGHBOR_TOP
+    );
+    this.connectWithNeighbor(
+      nodeIndex,
+      childIndices,
+      bottomNeighbor,
+      DIRECTION_NEIGHBOR_BOTTOM
+    );
 
     nodeBuffer.setChildCount(nodeIndex, 4);
   }
 
-  private setupChildNeighbors(
-    parentIndex: number,
-    childIndex: number,
-    childPosition: number
+  private connectWithNeighbor(
+    nodeIndex: number,
+    childIndices: number[],
+    neighbor: number,
+    direction: number
   ): void {
+    if (neighbor === -1 || this.nodeBuffer.getChildCount(neighbor) === 0) {
+      return;
+    }
+
     const nodeBuffer = this.nodeBuffer;
-    // Get parent's neighbors
-    const parentNeighbors = {
-      left: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_LEFT),
-      right: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_RIGHT),
-      top: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_TOP),
-      bottom: nodeBuffer.getNeighbor(parentIndex, NEIGHBOR_BOTTOM),
-    };
 
-    // Set up internal neighbors between siblings
-    switch (childPosition) {
-      case 0: // Bottom left
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_RIGHT, parentIndex + 1);
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 2);
-        break;
-      case 1: // Bottom right
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex);
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_TOP, parentIndex + 3);
-        break;
-      case 2: // Top left
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_RIGHT, parentIndex + 3);
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_BOTTOM, parentIndex);
-        break;
-      case 3: // Top right
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_LEFT, parentIndex + 2);
-        nodeBuffer.setNeighbor(childIndex, NEIGHBOR_BOTTOM, parentIndex + 1);
-        break;
-    }
+    switch (direction) {
+      case DIRECTION_NEIGHBOR_RIGHT: {
+        // Connect bottom-right to bottom-left of right neighbor
+        const neighborBottomLeft = nodeBuffer.getChildIndex(neighbor, 0);
+        const neighborTopLeft = nodeBuffer.getChildIndex(neighbor, 2);
 
-    // Connect to external neighbors if they exist and are at the same level
-    this.connectToExternalNeighbors(childIndex, childPosition, parentNeighbors);
-  }
+        nodeBuffer.setNeighbor(
+          childIndices[1],
+          DIRECTION_NEIGHBOR_RIGHT,
+          neighborBottomLeft
+        );
+        nodeBuffer.setNeighbor(
+          neighborBottomLeft,
+          DIRECTION_NEIGHBOR_LEFT,
+          childIndices[1]
+        );
 
-  private connectToExternalNeighbors(
-    childIndex: number,
-    childPosition: number,
-    parentNeighbors: {
-      left: number;
-      right: number;
-      top: number;
-      bottom: number;
-    }
-  ): void {
-    // Helper to find corresponding child of neighbor
-    const getNeighborChild = (
-      neighborIndex: number,
-      childPos: number
-    ): number => {
-      if (neighborIndex === -1) return -1;
-      const childCount = this.nodeBuffer.getChildCount(neighborIndex);
-      return childCount === 4
-        ? this.nodeBuffer.getChildIndex(neighborIndex, childPos)
-        : -1;
-    };
+        nodeBuffer.setNeighbor(
+          childIndices[3],
+          DIRECTION_NEIGHBOR_RIGHT,
+          neighborTopLeft
+        );
+        nodeBuffer.setNeighbor(
+          neighborTopLeft,
+          DIRECTION_NEIGHBOR_LEFT,
+          childIndices[3]
+        );
+        break;
+      }
+      case DIRECTION_NEIGHBOR_LEFT: {
+        // Connect bottom-left to bottom-right of left neighbor
+        const neighborBottomRight = nodeBuffer.getChildIndex(neighbor, 1);
+        const neighborTopRight = nodeBuffer.getChildIndex(neighbor, 3);
 
-    // Connect based on child position
-    switch (childPosition) {
-      case 0: // Bottom left
-        if (parentNeighbors.left !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_LEFT,
-            getNeighborChild(parentNeighbors.left, 1)
-          );
-        if (parentNeighbors.bottom !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_BOTTOM,
-            getNeighborChild(parentNeighbors.bottom, 2)
-          );
+        nodeBuffer.setNeighbor(
+          childIndices[0],
+          DIRECTION_NEIGHBOR_LEFT,
+          neighborBottomRight
+        );
+        nodeBuffer.setNeighbor(
+          neighborBottomRight,
+          DIRECTION_NEIGHBOR_RIGHT,
+          childIndices[0]
+        );
+
+        nodeBuffer.setNeighbor(
+          childIndices[2],
+          DIRECTION_NEIGHBOR_LEFT,
+          neighborTopRight
+        );
+        nodeBuffer.setNeighbor(
+          neighborTopRight,
+          DIRECTION_NEIGHBOR_RIGHT,
+          childIndices[2]
+        );
         break;
-      case 1: // Bottom right
-        if (parentNeighbors.right !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_RIGHT,
-            getNeighborChild(parentNeighbors.right, 0)
-          );
-        if (parentNeighbors.bottom !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_BOTTOM,
-            getNeighborChild(parentNeighbors.bottom, 3)
-          );
+      }
+      case DIRECTION_NEIGHBOR_TOP: {
+        // Connect top children to bottom children of top neighbor
+        const neighborBottomLeft = nodeBuffer.getChildIndex(neighbor, 0);
+        const neighborBottomRight = nodeBuffer.getChildIndex(neighbor, 1);
+
+        nodeBuffer.setNeighbor(
+          childIndices[2],
+          DIRECTION_NEIGHBOR_TOP,
+          neighborBottomLeft
+        );
+        nodeBuffer.setNeighbor(
+          neighborBottomLeft,
+          DIRECTION_NEIGHBOR_BOTTOM,
+          childIndices[2]
+        );
+
+        nodeBuffer.setNeighbor(
+          childIndices[3],
+          DIRECTION_NEIGHBOR_TOP,
+          neighborBottomRight
+        );
+        nodeBuffer.setNeighbor(
+          neighborBottomRight,
+          DIRECTION_NEIGHBOR_BOTTOM,
+          childIndices[3]
+        );
         break;
-      case 2: // Top left
-        if (parentNeighbors.left !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_LEFT,
-            getNeighborChild(parentNeighbors.left, 3)
-          );
-        if (parentNeighbors.top !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_TOP,
-            getNeighborChild(parentNeighbors.top, 0)
-          );
+      }
+      case DIRECTION_NEIGHBOR_BOTTOM: {
+        // Connect bottom children to top children of bottom neighbor
+        const neighborTopLeft = nodeBuffer.getChildIndex(neighbor, 2);
+        const neighborTopRight = nodeBuffer.getChildIndex(neighbor, 3);
+
+        nodeBuffer.setNeighbor(
+          childIndices[0],
+          DIRECTION_NEIGHBOR_BOTTOM,
+          neighborTopLeft
+        );
+        nodeBuffer.setNeighbor(
+          neighborTopLeft,
+          DIRECTION_NEIGHBOR_TOP,
+          childIndices[0]
+        );
+
+        nodeBuffer.setNeighbor(
+          childIndices[1],
+          DIRECTION_NEIGHBOR_BOTTOM,
+          neighborTopRight
+        );
+        nodeBuffer.setNeighbor(
+          neighborTopRight,
+          DIRECTION_NEIGHBOR_TOP,
+          childIndices[1]
+        );
         break;
-      case 3: // Top right
-        if (parentNeighbors.right !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_RIGHT,
-            getNeighborChild(parentNeighbors.right, 2)
-          );
-        if (parentNeighbors.top !== -1)
-          this.nodeBuffer.setNeighbor(
-            childIndex,
-            NEIGHBOR_TOP,
-            getNeighborChild(parentNeighbors.top, 1)
-          );
-        break;
+      }
     }
   }
 
   // Helper methods for traversing the tree structure
   getNodeNeighbors(nodeIndex: number): number[] {
     return [
-      this.nodeBuffer.getNeighbor(nodeIndex, NEIGHBOR_LEFT),
-      this.nodeBuffer.getNeighbor(nodeIndex, NEIGHBOR_RIGHT),
-      this.nodeBuffer.getNeighbor(nodeIndex, NEIGHBOR_TOP),
-      this.nodeBuffer.getNeighbor(nodeIndex, NEIGHBOR_BOTTOM),
+      this.nodeBuffer.getNeighbor(nodeIndex, DIRECTION_NEIGHBOR_LEFT),
+      this.nodeBuffer.getNeighbor(nodeIndex, DIRECTION_NEIGHBOR_RIGHT),
+      this.nodeBuffer.getNeighbor(nodeIndex, DIRECTION_NEIGHBOR_TOP),
+      this.nodeBuffer.getNeighbor(nodeIndex, DIRECTION_NEIGHBOR_BOTTOM),
     ];
   }
 
@@ -333,35 +446,46 @@ export class QuadTree {
   }
 
   // Method to find neighboring nodes at same or similar level
-  findNeighborAtLevel(
+  private findNeighborAtLevel(
     nodeIndex: number,
     direction: number,
     targetSize: number
   ): number {
-    let current = nodeIndex;
     const nodeBuffer = this.nodeBuffer;
-    let neighbor = nodeBuffer.getNeighbor(current, direction);
+    let current = nodeIndex;
+    let currentSize = nodeBuffer.getSize(current, this._tempVec3).x;
 
-    while (neighbor !== -1) {
-      const neighborSize = nodeBuffer.getSize(neighbor, this._tempVec3);
-      if (Math.abs(neighborSize.x - targetSize) < this.minNodeSize) {
-        return neighbor;
-      }
-
-      // If neighbor is too large, traverse down to find a closer match
-      if (neighborSize.x > targetSize) {
-        const childIndex = this.getAppropriateChild(neighbor, direction);
-        if (childIndex === -1) break;
-        neighbor = childIndex;
-      } else {
-        // If neighbor is too small, go up to parent
-        const parentIndex = nodeBuffer.getParent(neighbor);
-        if (parentIndex === -1) break;
-        neighbor = parentIndex;
-      }
+    // If we're too small, traverse up until we find a parent at the right size
+    while (currentSize < targetSize) {
+      const parent = nodeBuffer.getParent(current);
+      if (parent === -1) return -1;
+      current = parent;
+      currentSize = nodeBuffer.getSize(current, this._tempVec3).x;
     }
 
-    return -1;
+    // Get the neighbor at this level
+    let neighbor = nodeBuffer.getNeighbor(current, direction);
+    if (neighbor === -1) return -1;
+
+    // If the neighbor is the right size, return it
+    const neighborSize = nodeBuffer.getSize(neighbor, this._tempVec3).x;
+    if (Math.abs(neighborSize - targetSize) < this.minNodeSize) {
+      return neighbor;
+    }
+
+    // If the neighbor is larger, return -1 (no appropriate neighbor exists)
+    if (neighborSize > targetSize) {
+      return -1;
+    }
+
+    // If we get here, the neighbor is smaller and we need to traverse down
+    while (neighborSize < targetSize) {
+      const childIndex = this.getAppropriateChild(neighbor, direction);
+      if (childIndex === -1) break;
+      neighbor = childIndex;
+    }
+
+    return neighbor;
   }
 
   private getAppropriateChild(nodeIndex: number, direction: number): number {
@@ -370,14 +494,14 @@ export class QuadTree {
 
     // Select appropriate child based on direction
     switch (direction) {
-      case NEIGHBOR_LEFT:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 1); // right child
-      case NEIGHBOR_RIGHT:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // left child
-      case NEIGHBOR_TOP:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 2); // bottom child
-      case NEIGHBOR_BOTTOM:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // top child
+      case DIRECTION_NEIGHBOR_LEFT:
+        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // left children (0 or 2)
+      case DIRECTION_NEIGHBOR_RIGHT:
+        return this.nodeBuffer.getChildIndex(nodeIndex, 1); // right children (1 or 3)
+      case DIRECTION_NEIGHBOR_TOP:
+        return this.nodeBuffer.getChildIndex(nodeIndex, 2); // top children (2 or 3)
+      case DIRECTION_NEIGHBOR_BOTTOM:
+        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // bottom children (0 or 1)
       default:
         return -1;
     }
@@ -437,12 +561,12 @@ export class QuadTree {
   // Helper method to get a text summary
   getTreeSummary() {
     const stats = this.getNodeLevelStatistics();
-    const totalNodes = stats.reduce((sum, stat) => sum + stat.nodeCount, 0);
+    const totalNodes = this.nodeBuffer.size;
 
     return {
       stats,
       totalNodes,
-      subdivisionLevel: stats.length,
+      subdivisionLevels: stats.length,
     };
   }
 
@@ -460,7 +584,10 @@ export class QuadTree {
       nodeBuffer.getCenter(nodeIndex, center);
       nodeBuffer.getSize(nodeIndex, size);
 
-      const distance = point.distanceTo(center);
+      // convert the local-space center to world space, and place it on the sphere
+      const sphereCenter = this.calculateSphereCenter(center, _tempVector3_2);
+
+      const distance = point.distanceTo(sphereCenter);
 
       if (distance < closestDistance) {
         closestDistance = distance;
@@ -488,6 +615,10 @@ export class QuadTree {
     bounds: Box3;
     childCount: number;
     level: number;
+    isRoot: boolean;
+    isLeaf: boolean;
+    isSplit: boolean;
+    isBoundary: boolean;
   } {
     const nodeBuffer = this.nodeBuffer;
 
@@ -513,12 +644,79 @@ export class QuadTree {
       currentNode = parentIndex;
     }
 
+    const flags = nodeBuffer.getFlags(nodeIndex);
+
     return {
       center,
       size,
       bounds,
       childCount,
       level,
+      isRoot: (flags & FLAGS.IS_ROOT) !== 0,
+      isLeaf: (flags & FLAGS.IS_LEAF) !== 0,
+      isSplit: (flags & FLAGS.IS_SPLIT) !== 0,
+      isBoundary: (flags & FLAGS.IS_BOUNDARY) !== 0,
     };
+  }
+
+  /**
+   * Calculates the expected number of nodes for a given number of subdivision levels
+   * @param levels Number of subdivision levels (0 means just the root node)
+   * @returns {number} Total number of nodes
+   *
+   * Example:
+   * - levels = 0: 1 node (just root)
+   * - levels = 1: 5 nodes (root + 4 children)
+   * - levels = 2: 21 nodes (root + 4 + 16)
+   * - levels = 3: 85 nodes (root + 4 + 16 + 64)
+   */
+  static getExpectedNodeCount(levels: number): number {
+    if (levels < 0) return 0;
+    // Using the geometric series formula: (4^(n+1) - 1) / 3
+    return (Math.pow(4, levels + 1) - 1) / 3;
+  }
+
+  /**
+   * Returns the maximum number of nodes possible at a specific level
+   * @param level The level to calculate (0 is root)
+   * @returns {number} Number of nodes at that level
+   *
+   * Example:
+   * - level 0: 1 node
+   * - level 1: 4 nodes
+   * - level 2: 16 nodes
+   * - level 3: 64 nodes
+   */
+  static getNodesAtLevel(level: number): number {
+    if (level < 0) return 0;
+    return Math.pow(4, level);
+  }
+
+  // Add a new method to find neighbors at any level
+  public findNeighbors(nodeIndex: number, direction: number): number[] {
+    const neighbors: number[] = [];
+    const nodeBuffer = this.nodeBuffer;
+    const nodeSize = nodeBuffer.getSize(nodeIndex, this._tempVec3).x;
+
+    // First check direct neighbor
+    let neighbor = nodeBuffer.getNeighbor(nodeIndex, direction);
+    if (neighbor !== -1) {
+      neighbors.push(neighbor);
+    }
+
+    // Then check parent's neighbors if they exist
+    let current = nodeIndex;
+    while (true) {
+      const parent = nodeBuffer.getParent(current);
+      if (parent === -1) break;
+
+      const parentNeighbor = nodeBuffer.getNeighbor(parent, direction);
+      if (parentNeighbor !== -1) {
+        neighbors.push(parentNeighbor);
+      }
+      current = parent;
+    }
+
+    return neighbors;
   }
 }

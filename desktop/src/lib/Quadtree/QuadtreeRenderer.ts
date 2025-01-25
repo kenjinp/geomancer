@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { CubicQuadtree } from "./CubicQuadtree";
 
 import CustomShaderMaterial from "three-custom-shader-material/vanilla";
-import { MAX_NODES_PER_TREE } from "./constants";
+import { MAX_NODES_PER_TREE, NODE_INT_COUNT } from "./constants";
 
 const tempColor = new THREE.Color();
 
@@ -14,70 +14,18 @@ const createColorFromLevel = (level: number) => {
   return tempColor;
 };
 
-const getMaterial = (color: number) =>
+const getMaterial = () =>
   new CustomShaderMaterial({
     baseMaterial: THREE.MeshStandardMaterial,
     side: THREE.FrontSide,
     vertexShader: /* glsl */ `\
-
-    attribute int nodeBuffer;
     varying vec3 vLevelColor;
     uniform float uRadius;
     uniform int uSelectedNodeIndex;
+    uniform ivec4 uSelectedNodeChildIndices;
+    uniform ivec4 uSelectedNodeNeighbors;
 
-    int getFaceFromNodeIndex(int nodeIndex) {
-        const int nodesPerFace = 10000;
-        return nodeIndex / nodesPerFace;
-    }
-
-      // Node data structure
-      struct NodeData {
-          ivec4 childIndices;  // 4 child indices
-          int childCount;      // Number of children
-          int flags;          // Node flags
-          int parent;         // Parent index
-          ivec4 neighbors;    // 4 neighbors (left, right, top, bottom)
-      };
-
-      // Function to decode node data from the instance buffer
-      // NodeData decodeNodeData(int nodeIndex) {
-      //     // Constants from your TypeScript code
-      //     const int NODE_INT_COUNT = 11;
-          
-      //     // Calculate base offset for this node in the int buffer
-      //     int baseOffset = nodeIndex * NODE_INT_COUNT;
-          
-      //     NodeData data;
-          
-      //     // Read child indices (first 4 ints)
-      //     data.childIndices = ivec4(
-      //         nodeBuffer[baseOffset + 0],
-      //         nodeBuffer[baseOffset + 1],
-      //         nodeBuffer[baseOffset + 2],
-      //         nodeBuffer[baseOffset + 3]
-      //     );
-          
-      //     // Read child count (5th int)
-      //     data.childCount = nodeBuffer[baseOffset + 4];
-          
-      //     // Read flags (6th int)
-      //     data.flags = nodeBuffer[baseOffset + 5];
-          
-      //     // Read parent index (7th int)
-      //     data.parent = nodeBuffer[baseOffset + 6];
-          
-      //     // Read neighbors (last 4 ints)
-      //     data.neighbors = ivec4(
-      //         nodeBuffer[baseOffset + 7],
-      //         nodeBuffer[baseOffset + 8],
-      //         nodeBuffer[baseOffset + 9],
-      //         nodeBuffer[baseOffset + 10]
-      //     );
-          
-      //     return data;
-      // }
-
-     // Bend vertices of an instanced mesh into a spherical shape
+      // Bend vertices of an instanced mesh into a spherical shape
       vec3 bendInstancedToSphere(vec3 position, mat4 instanceMatrix, vec3 sphereCenter, float radius) {
           // First transform the vertex to world space using instance and model matrices
           mat4 worldMatrix = modelMatrix * instanceMatrix;
@@ -122,40 +70,32 @@ const getMaterial = (color: number) =>
 
       void main() {
         int instanceId = gl_InstanceID;
-        int faceIndex =  getFaceFromNodeIndex(instanceId);
 
         vLevelColor = getRandomColor(instanceId);
-        vec3 faceIndexColor = vec3(0.0, 0.0, 0.0);
+        vLevelColor = mix(vLevelColor, vec3(1.0, 1.0, 1.0), 0.3);
+        // vec3 faceIndexColor = vec3(0.0, 0.0, 0.0);
         vec3 selectedNodeIndexColor = vec3(0.0, 0.0, 1.0);
+        vec3 selectedNodeNeighborsColor = vec3(1.0, 0.0, 0.0);
+        vec3 selectedNodeChildIndicesColor = vec3(0.0, 1.0, 0.0);
 
-        if (faceIndex == 0) {
-          faceIndexColor = vec3(1.0, 0.0, 0.0);
-        }
 
-        if (faceIndex == 1) {
-          faceIndexColor = vec3(0.0, 1.0, 0.0);
-        }
 
-        if (faceIndex == 2) {
-          faceIndexColor = vec3(0.0, 0.0, 1.0);
-        }
-
-        if (faceIndex == 3) {
-          faceIndexColor = vec3(1.0, 1.0, 0.0);
-        }
-
-        if (faceIndex == 4) {
-          faceIndexColor = vec3(1.0, 1.0, 1.0);
-        }
-
-        if (faceIndex == 5) {
-          faceIndexColor = vec3(0.0, 1.0, 1.0);
-        }
-
-        vLevelColor = mix(vLevelColor, faceIndexColor, 0.8);
+        // vLevelColor = mix(vLevelColor, faceIndexColor, 0.8);
 
         if (uSelectedNodeIndex == instanceId) {
           vLevelColor = mix(vLevelColor, selectedNodeIndexColor, 0.8);
+        }
+
+        for (int i = 0; i < 4; i++) {
+          if (uSelectedNodeChildIndices[i] == instanceId) {
+            vLevelColor = selectedNodeChildIndicesColor;
+          }
+        }
+
+        for (int i = 0; i < 4; i++) {
+          if (uSelectedNodeNeighbors[i] == instanceId) {
+            vLevelColor = selectedNodeNeighborsColor;
+          }
         }
 
         // Apply the spherical bend
@@ -182,8 +122,11 @@ const getMaterial = (color: number) =>
         }
     `,
     uniforms: {
-      uTime: {
-        value: 0,
+      uSelectedNodeChildIndices: {
+        value: new Int32Array(4).fill(-1),
+      },
+      uSelectedNodeNeighbors: {
+        value: new Int32Array(4).fill(-1),
       },
       uRadius: {
         value: 1.0,
@@ -201,6 +144,7 @@ export class QuadtreeRenderer {
   private readonly tempMatrix4_3 = new THREE.Matrix4();
   private readonly tempVector = new THREE.Vector3();
   private readonly tempScale = new THREE.Vector3();
+  private nodeBufferTexture: THREE.DataTexture;
 
   constructor(private quadtree: CubicQuadtree) {
     // Create base plane geometry that will be instanced
@@ -212,19 +156,9 @@ export class QuadtreeRenderer {
       segmentsPerChunk
     );
 
-    // Create materials for each face with different colors
-    const material = getMaterial(0x000000);
-
     const maxInstanceCount = MAX_NODES_PER_TREE * 6;
 
-    const nodeBufferAttribute = new THREE.InstancedBufferAttribute(
-      this.quadtree.unifiedBuffer.intBuffer,
-      1
-    ); // 1 component per instance
-    nodeBufferAttribute.setUsage(THREE.DynamicDrawUsage);
-    nodeBufferAttribute.gpuType = THREE.IntType;
-    planeGeometry.setAttribute("nodeBuffer", nodeBufferAttribute);
-
+    const material = getMaterial();
     // Initialize instance matrices for each face
     material.uniforms["uRadius"].value = 2048.0;
 
@@ -259,7 +193,22 @@ export class QuadtreeRenderer {
     tempMatrix4_3.identity();
 
     let instanceCount = 0;
-    const nodeBuffer = mesh.geometry.getAttribute("nodeBuffer");
+    const nodeBuffer = this.quadtree.getCompactedIntBuffer();
+    const selectedNodeChildIndices = nodeBuffer.slice(
+      selectedNodeIndex * NODE_INT_COUNT,
+      selectedNodeIndex * NODE_INT_COUNT + 4
+    );
+    const selectedNodeNeighbors = nodeBuffer.slice(
+      selectedNodeIndex * NODE_INT_COUNT + 8,
+      selectedNodeIndex * NODE_INT_COUNT + 12
+    );
+
+    mesh.material.uniforms["uSelectedNodeChildIndices"].value =
+      selectedNodeChildIndices;
+    mesh.material.uniforms["uSelectedNodeNeighbors"].value =
+      selectedNodeNeighbors;
+
+    mesh.material.needsUpdate = true;
 
     for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
       const face = faces[faceIndex];
@@ -279,15 +228,20 @@ export class QuadtreeRenderer {
           .multiply(tempMatrix4_2.makeTranslation(center.x, center.y, center.z)) // Position
           .multiply(tempMatrix4_3.makeScale(size.x, size.y, 1)); // Scale (z=1 since we're using a plane)
 
+        // nodeBuffer.setComponent(
+        //   instanceCount,
+        //   1,
+        //   face.nodeBuffer.getFace(nodeIndex)
+        // );
         // Set the instance matrix
         mesh.setMatrixAt(instanceCount, tempMatrix4);
         instanceCount++;
       });
     }
+
     // Update instance count
     mesh.count = instanceCount;
     mesh.instanceMatrix.needsUpdate = true;
-    nodeBuffer.needsUpdate = true;
   }
 
   getMesh(): THREE.InstancedMesh {

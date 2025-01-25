@@ -19,6 +19,7 @@
     "sourceMap": true,
     "strict": false,
     "target": "ESNext",
+    "types": ["jest", "node"],
     "paths": {
       "@/*": ["src/*"],
       "@components/*": ["src/renderer/components/*"],
