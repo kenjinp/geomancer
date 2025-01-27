@@ -61,7 +61,6 @@ export class QuadTree {
     // Initialize buffers and root node
     this.nodeBuffer = params.nodeBuffer;
     this.reset();
-    // this.rootIndex = this.nodeBuffer.allocateNode();
   }
 
   public getNodeStartIndex() {
@@ -110,6 +109,10 @@ export class QuadTree {
     // Set up root node
     this.nodeBuffer.reset();
     this.rootIndex = this.nodeBuffer.allocateNode();
+
+    if (this.rootIndex !== 0) {
+      throw new Error("Root index cannot be other than  0");
+    }
 
     this._tempMin.set(-this.size, -this.size, 0);
     this._tempMax.set(this.size, this.size, 0);
@@ -201,20 +204,7 @@ export class QuadTree {
       // Set child flags: IS_LEAF by default, add IS_BOUNDARY for edge nodes
       let childFlags = FLAGS.IS_LEAF;
 
-      // Check if child is on boundary (based on index)
-      if (i === 0) {
-        // Bottom left
-        childFlags |= FLAGS.IS_BOUNDARY;
-      } else if (i === 1) {
-        // Bottom right
-        childFlags |= FLAGS.IS_BOUNDARY;
-      } else if (i === 2) {
-        // Top left
-        childFlags |= FLAGS.IS_BOUNDARY;
-      } else if (i === 3) {
-        // Top right
-        childFlags |= FLAGS.IS_BOUNDARY;
-      }
+      // TODO: Check if child is on boundary somehow
 
       nodeBuffer.setFlags(childIndex, childFlags);
     }
@@ -268,167 +258,7 @@ export class QuadTree {
       childIndices[1]
     ); // -> Bottom Right
 
-    // After setting up sibling relationships, we need to connect children across quadrants
-    // Get the node's neighbors
-    const parentNeighbors = this.getNodeNeighbors(nodeIndex);
-    const [leftNeighbor, rightNeighbor, topNeighbor, bottomNeighbor] =
-      parentNeighbors;
-
-    // Connect with existing subdivided neighbors
-    this.connectWithNeighbor(
-      nodeIndex,
-      childIndices,
-      rightNeighbor,
-      DIRECTION_NEIGHBOR_RIGHT
-    );
-    this.connectWithNeighbor(
-      nodeIndex,
-      childIndices,
-      leftNeighbor,
-      DIRECTION_NEIGHBOR_LEFT
-    );
-    this.connectWithNeighbor(
-      nodeIndex,
-      childIndices,
-      topNeighbor,
-      DIRECTION_NEIGHBOR_TOP
-    );
-    this.connectWithNeighbor(
-      nodeIndex,
-      childIndices,
-      bottomNeighbor,
-      DIRECTION_NEIGHBOR_BOTTOM
-    );
-
     nodeBuffer.setChildCount(nodeIndex, 4);
-  }
-
-  private connectWithNeighbor(
-    nodeIndex: number,
-    childIndices: number[],
-    neighbor: number,
-    direction: number
-  ): void {
-    if (neighbor === -1 || this.nodeBuffer.getChildCount(neighbor) === 0) {
-      return;
-    }
-
-    const nodeBuffer = this.nodeBuffer;
-
-    switch (direction) {
-      case DIRECTION_NEIGHBOR_RIGHT: {
-        // Connect bottom-right to bottom-left of right neighbor
-        const neighborBottomLeft = nodeBuffer.getChildIndex(neighbor, 0);
-        const neighborTopLeft = nodeBuffer.getChildIndex(neighbor, 2);
-
-        nodeBuffer.setNeighbor(
-          childIndices[1],
-          DIRECTION_NEIGHBOR_RIGHT,
-          neighborBottomLeft
-        );
-        nodeBuffer.setNeighbor(
-          neighborBottomLeft,
-          DIRECTION_NEIGHBOR_LEFT,
-          childIndices[1]
-        );
-
-        nodeBuffer.setNeighbor(
-          childIndices[3],
-          DIRECTION_NEIGHBOR_RIGHT,
-          neighborTopLeft
-        );
-        nodeBuffer.setNeighbor(
-          neighborTopLeft,
-          DIRECTION_NEIGHBOR_LEFT,
-          childIndices[3]
-        );
-        break;
-      }
-      case DIRECTION_NEIGHBOR_LEFT: {
-        // Connect bottom-left to bottom-right of left neighbor
-        const neighborBottomRight = nodeBuffer.getChildIndex(neighbor, 1);
-        const neighborTopRight = nodeBuffer.getChildIndex(neighbor, 3);
-
-        nodeBuffer.setNeighbor(
-          childIndices[0],
-          DIRECTION_NEIGHBOR_LEFT,
-          neighborBottomRight
-        );
-        nodeBuffer.setNeighbor(
-          neighborBottomRight,
-          DIRECTION_NEIGHBOR_RIGHT,
-          childIndices[0]
-        );
-
-        nodeBuffer.setNeighbor(
-          childIndices[2],
-          DIRECTION_NEIGHBOR_LEFT,
-          neighborTopRight
-        );
-        nodeBuffer.setNeighbor(
-          neighborTopRight,
-          DIRECTION_NEIGHBOR_RIGHT,
-          childIndices[2]
-        );
-        break;
-      }
-      case DIRECTION_NEIGHBOR_TOP: {
-        // Connect top children to bottom children of top neighbor
-        const neighborBottomLeft = nodeBuffer.getChildIndex(neighbor, 0);
-        const neighborBottomRight = nodeBuffer.getChildIndex(neighbor, 1);
-
-        nodeBuffer.setNeighbor(
-          childIndices[2],
-          DIRECTION_NEIGHBOR_TOP,
-          neighborBottomLeft
-        );
-        nodeBuffer.setNeighbor(
-          neighborBottomLeft,
-          DIRECTION_NEIGHBOR_BOTTOM,
-          childIndices[2]
-        );
-
-        nodeBuffer.setNeighbor(
-          childIndices[3],
-          DIRECTION_NEIGHBOR_TOP,
-          neighborBottomRight
-        );
-        nodeBuffer.setNeighbor(
-          neighborBottomRight,
-          DIRECTION_NEIGHBOR_BOTTOM,
-          childIndices[3]
-        );
-        break;
-      }
-      case DIRECTION_NEIGHBOR_BOTTOM: {
-        // Connect bottom children to top children of bottom neighbor
-        const neighborTopLeft = nodeBuffer.getChildIndex(neighbor, 2);
-        const neighborTopRight = nodeBuffer.getChildIndex(neighbor, 3);
-
-        nodeBuffer.setNeighbor(
-          childIndices[0],
-          DIRECTION_NEIGHBOR_BOTTOM,
-          neighborTopLeft
-        );
-        nodeBuffer.setNeighbor(
-          neighborTopLeft,
-          DIRECTION_NEIGHBOR_TOP,
-          childIndices[0]
-        );
-
-        nodeBuffer.setNeighbor(
-          childIndices[1],
-          DIRECTION_NEIGHBOR_BOTTOM,
-          neighborTopRight
-        );
-        nodeBuffer.setNeighbor(
-          neighborTopRight,
-          DIRECTION_NEIGHBOR_TOP,
-          childIndices[1]
-        );
-        break;
-      }
-    }
   }
 
   // Helper methods for traversing the tree structure
@@ -443,68 +273,6 @@ export class QuadTree {
 
   getNodeParent(nodeIndex: number): number {
     return this.nodeBuffer.getParent(nodeIndex);
-  }
-
-  // Method to find neighboring nodes at same or similar level
-  private findNeighborAtLevel(
-    nodeIndex: number,
-    direction: number,
-    targetSize: number
-  ): number {
-    const nodeBuffer = this.nodeBuffer;
-    let current = nodeIndex;
-    let currentSize = nodeBuffer.getSize(current, this._tempVec3).x;
-
-    // If we're too small, traverse up until we find a parent at the right size
-    while (currentSize < targetSize) {
-      const parent = nodeBuffer.getParent(current);
-      if (parent === -1) return -1;
-      current = parent;
-      currentSize = nodeBuffer.getSize(current, this._tempVec3).x;
-    }
-
-    // Get the neighbor at this level
-    let neighbor = nodeBuffer.getNeighbor(current, direction);
-    if (neighbor === -1) return -1;
-
-    // If the neighbor is the right size, return it
-    const neighborSize = nodeBuffer.getSize(neighbor, this._tempVec3).x;
-    if (Math.abs(neighborSize - targetSize) < this.minNodeSize) {
-      return neighbor;
-    }
-
-    // If the neighbor is larger, return -1 (no appropriate neighbor exists)
-    if (neighborSize > targetSize) {
-      return -1;
-    }
-
-    // If we get here, the neighbor is smaller and we need to traverse down
-    while (neighborSize < targetSize) {
-      const childIndex = this.getAppropriateChild(neighbor, direction);
-      if (childIndex === -1) break;
-      neighbor = childIndex;
-    }
-
-    return neighbor;
-  }
-
-  private getAppropriateChild(nodeIndex: number, direction: number): number {
-    const childCount = this.nodeBuffer.getChildCount(nodeIndex);
-    if (childCount === 0) return -1;
-
-    // Select appropriate child based on direction
-    switch (direction) {
-      case DIRECTION_NEIGHBOR_LEFT:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // left children (0 or 2)
-      case DIRECTION_NEIGHBOR_RIGHT:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 1); // right children (1 or 3)
-      case DIRECTION_NEIGHBOR_TOP:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 2); // top children (2 or 3)
-      case DIRECTION_NEIGHBOR_BOTTOM:
-        return this.nodeBuffer.getChildIndex(nodeIndex, 0); // bottom children (0 or 1)
-      default:
-        return -1;
-    }
   }
 
   iterateNodes(cb: (nodeIndex: number) => void) {
@@ -579,13 +347,14 @@ export class QuadTree {
     const center = _tempVector3;
     const size = _tempSize;
     const nodeBuffer = this.nodeBuffer;
+    const calculateSphereCenter = this.calculateSphereCenter.bind(this);
 
-    const searchNode = (nodeIndex: number) => {
+    function searchNode(nodeIndex: number) {
       nodeBuffer.getCenter(nodeIndex, center);
       nodeBuffer.getSize(nodeIndex, size);
 
       // convert the local-space center to world space, and place it on the sphere
-      const sphereCenter = this.calculateSphereCenter(center, _tempVector3_2);
+      const sphereCenter = calculateSphereCenter(center, _tempVector3_2);
 
       const distance = point.distanceTo(sphereCenter);
 
@@ -603,7 +372,7 @@ export class QuadTree {
           }
         }
       }
-    };
+    }
 
     searchNode(0);
     return { nodeIndex: closestNodeIndex, distance: closestDistance };
@@ -611,6 +380,7 @@ export class QuadTree {
 
   getNodeInfo(nodeIndex: number): {
     center: Vector3;
+    sphereCenter: Vector3;
     size: Vector3;
     bounds: Box3;
     childCount: number;
@@ -648,6 +418,7 @@ export class QuadTree {
 
     return {
       center,
+      sphereCenter: this.calculateSphereCenter(center, _tempVector3_2.clone()),
       size,
       bounds,
       childCount,

@@ -1,14 +1,13 @@
+import { useQuadtree } from "@/renderer/providers/QuadtreeProvider";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import { Group } from "three";
 import useSound from "use-sound";
-import { CubicQuadtree } from "./CubicQuadtree";
 import { QuadtreeRenderer } from "./QuadtreeRenderer";
-import { NODE_INT_COUNT } from "./constants";
+import { NODE_INT_COUNT, NodeIntIndex } from "./constants";
 
 // Interface for the props
 interface QuadtreeVisualizerProps {
-  quadtree: CubicQuadtree;
   wireframe?: boolean;
   opacity?: number;
   autoRotate?: boolean;
@@ -16,11 +15,12 @@ interface QuadtreeVisualizerProps {
 
 // Main component for visualizing the quadtree
 export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
-  quadtree,
   wireframe = true,
   opacity = 1,
 }) => {
+  const { quadtree } = useQuadtree();
   const [play, { sound }] = useSound("/sound/small-click.mp3");
+  const [playBig, { sound: soundBig }] = useSound("/sound/big-click.mp3");
   // Reference to our QuadtreeRenderer instance
   const rendererRef = useRef<QuadtreeRenderer | null>(null);
   const groupRef = useRef<Group>(null);
@@ -40,17 +40,27 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     });
 
     const nodeBuffer = quadtree.getCompactedIntBuffer();
-    const selectedNodeChildIndices = nodeBuffer.slice(
-      closestNode.incrementalNodeIndex * NODE_INT_COUNT,
-      closestNode.incrementalNodeIndex * NODE_INT_COUNT + 4
-    );
-    const selectedNodeNeighbors = nodeBuffer.slice(
-      closestNode.incrementalNodeIndex * NODE_INT_COUNT + 8,
-      closestNode.incrementalNodeIndex * NODE_INT_COUNT + 12
-    );
+    const selectedNodeChildIndices = [
+      ...nodeBuffer.slice(
+        closestNode.incrementalNodeIndex * NODE_INT_COUNT +
+          NodeIntIndex.CHILD_BOTTOM_LEFT,
+        closestNode.incrementalNodeIndex * NODE_INT_COUNT +
+          NodeIntIndex.CHILD_TOP_RIGHT +
+          1
+      ),
+    ];
+    const selectedNodeNeighbors = [
+      ...nodeBuffer.slice(
+        closestNode.incrementalNodeIndex * NODE_INT_COUNT +
+          NodeIntIndex.NEIGHBOR_LEFT,
+        closestNode.incrementalNodeIndex * NODE_INT_COUNT +
+          NodeIntIndex.NEIGHBOR_BOTTOM +
+          1
+      ),
+    ];
 
     element.innerHTML = `
-      <div class="bg-gray-800 bg-opacity-75 p-4 rounded-lg shadow-lg text-sm">
+      <div class="bg-dark bg-opacity-75 p-4 rounded-lg shadow-lg text-sm">
         <div class="grid grid-cols-2 gap-2">
           <div class="text-blue-300">Face Index:</div>
           <div class="text-white">${closestNode.faceIndex}</div>
@@ -63,9 +73,15 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
           
           <div class="text-blue-300">Absolute Index:</div>
           <div class="text-white">${closestNode.absoluteNodeIndex}</div>
+
+          <div class="text-blue-300">Incremental Index:</div>
+          <div class="text-white">${closestNode.incrementalNodeIndex}</div>
           
           <div class="text-blue-300">Level:</div>
           <div class="text-white">${closestNode.nodeInfo.level}</div>
+
+          <div class="text-blue-300">No children:</div>
+          <div class="text-white">${closestNode.nodeInfo.childCount}</div>
           
           <div class="text-blue-300">Child Indices:</div>
           <div class="text-white font-mono">${selectedNodeChildIndices}</div>
@@ -149,10 +165,20 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     rendererRef.current.update(nodeIndex.incrementalNodeIndex);
   });
 
+  const handleNodeClick = () => {
+    if (nodeIndex.incrementalNodeIndex < 0) return;
+    const node = quadtree.getNodeInfoFromIncrementalIndex(
+      nodeIndex.incrementalNodeIndex
+    );
+    window.moveToTarget(node.sphereCenter);
+    playBig();
+  };
+
   return (
     <>
       <mesh
         visible={false}
+        onClick={handleNodeClick}
         onPointerMove={handleDebugHover}
         onPointerEnter={() => setHover(true)}
         onPointerLeave={() => {

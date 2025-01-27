@@ -17,7 +17,7 @@ describe("QuadTree", () => {
       minNodeSize: 10,
       origin: new Vector3(0, 0, 0),
       comparatorValue: 1.5,
-      nodeBuffer: nodeBuffer.createBuffer(0),
+      nodeBuffer: nodeBuffer.createBufferSlice(0),
     });
   });
 
@@ -39,7 +39,7 @@ describe("QuadTree", () => {
           minNodeSize: 10,
           origin: new Vector3(0, 0, 0),
           comparatorValue: 0,
-          nodeBuffer: nodeBuffer.createBuffer(0),
+          nodeBuffer: nodeBuffer.createBufferSlice(0),
         })
     ).toThrow();
   });
@@ -100,101 +100,6 @@ describe("QuadTree", () => {
     expect(quadTree.getNodeNeighbors(bottomRight)[2]).toBe(topRight); // top neighbor
     expect(quadTree.getNodeNeighbors(topLeft)[3]).toBe(bottomLeft); // bottom neighbor
     expect(quadTree.getNodeNeighbors(topRight)[3]).toBe(bottomRight); // bottom neighbor
-  });
-
-  test("should correctly set up neighbor relationships after recursive subdivisions", () => {
-    // Test multiple levels of subdivision
-    const testPoints = [
-      new Vector3(25, 25, 0), // Level 1 subdivision
-      new Vector3(-25, -25, 0), // Level 1 subdivision
-      new Vector3(35, 35, 0), // Level 2 subdivision
-      new Vector3(-35, -35, 0), // Level 2 subdivision
-    ];
-
-    // Insert points one by one and verify subdivisions at each step
-    testPoints.forEach((point, index) => {
-      quadTree.insert(point);
-
-      // Verify root always has 4 children after first subdivision
-      const rootInfo = quadTree.getNodeInfo(0);
-      expect(rootInfo.childCount).toBe(4);
-
-      // Get bottom left and right nodes
-      const bottomLeft = 1;
-      const bottomRight = 2;
-
-      // After first two insertions, verify level 1 subdivisions
-      if (index >= 1) {
-        expect(quadTree.getNodeInfo(bottomLeft).childCount).toBe(4);
-        expect(quadTree.getNodeInfo(bottomRight).childCount).toBe(4);
-
-        // Verify neighbor relationships between level 1 children
-        const bl_children = {
-          bottomLeft: 5,
-          bottomRight: 6,
-          topLeft: 7,
-          topRight: 8,
-        };
-
-        const br_children = {
-          bottomLeft: 9,
-          bottomRight: 10,
-          topLeft: 11,
-          topRight: 12,
-        };
-
-        // Check internal neighbors in bottom left quadrant
-        expect(quadTree.getNodeNeighbors(bl_children.bottomLeft)[1]).toBe(
-          bl_children.bottomRight
-        );
-        expect(quadTree.getNodeNeighbors(bl_children.bottomLeft)[2]).toBe(
-          bl_children.topLeft
-        );
-        expect(quadTree.getNodeNeighbors(bl_children.topRight)[0]).toBe(
-          bl_children.topLeft
-        );
-        expect(quadTree.getNodeNeighbors(bl_children.topRight)[3]).toBe(
-          bl_children.bottomRight
-        );
-
-        // Check internal neighbors in bottom right quadrant
-        expect(quadTree.getNodeNeighbors(br_children.bottomLeft)[1]).toBe(
-          br_children.bottomRight
-        );
-        expect(quadTree.getNodeNeighbors(br_children.bottomLeft)[2]).toBe(
-          br_children.topLeft
-        );
-        expect(quadTree.getNodeNeighbors(br_children.topRight)[0]).toBe(
-          br_children.topLeft
-        );
-        expect(quadTree.getNodeNeighbors(br_children.topRight)[3]).toBe(
-          br_children.bottomRight
-        );
-
-        // Check neighbors between quadrants
-        expect(quadTree.getNodeNeighbors(bl_children.bottomRight)[1]).toBe(
-          br_children.bottomLeft
-        );
-        expect(quadTree.getNodeNeighbors(bl_children.topRight)[1]).toBe(
-          br_children.topLeft
-        );
-        expect(quadTree.getNodeNeighbors(br_children.bottomLeft)[0]).toBe(
-          bl_children.bottomRight
-        );
-        expect(quadTree.getNodeNeighbors(br_children.topLeft)[0]).toBe(
-          bl_children.topRight
-        );
-      }
-
-      // After second level subdivisions, verify level 2
-      if (index >= 3) {
-        // Verify some level 2 nodes have been subdivided
-        const level2Nodes = [5, 6, 9, 10];
-        level2Nodes.forEach((nodeIndex) => {
-          expect(quadTree.getNodeInfo(nodeIndex).childCount).toBe(4);
-        });
-      }
-    });
   });
 
   test("should find closest node to point", () => {

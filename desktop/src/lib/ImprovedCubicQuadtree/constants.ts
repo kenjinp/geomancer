@@ -7,10 +7,25 @@ export enum QuadtreeConstants {
 }
 
 export enum FloatBufferOffsets {
-  X = 0,
-  Y = 1,
-  SIZE = 2,
-  FLOAT_VALUES_PER_NODE = 3,
+  // Center coordinates
+  CENTER_X = 0,
+  CENTER_Y = 1,
+  CENTER_Z = 2,
+  // Sphere center coordinates
+  SPHERE_CENTER_X = 3,
+  SPHERE_CENTER_Y = 4,
+  SPHERE_CENTER_Z = 5,
+  // Size components
+  SIZE_X = 6,
+  SIZE_Y = 7,
+  SIZE_Z = 8,
+  // Bounds (min/max)
+  BOUNDS_MIN_X = 9,
+  BOUNDS_MIN_Y = 10,
+  BOUNDS_MIN_Z = 11,
+  BOUNDS_MAX_X = 12,
+  BOUNDS_MAX_Y = 13,
+  BOUNDS_MAX_Z = 14,
 }
 
 export enum IntBufferOffsets {

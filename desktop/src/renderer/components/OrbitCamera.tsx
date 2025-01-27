@@ -1,7 +1,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as React from "react";
-import { Vector3 } from "three";
+import { MathUtils, Spherical, Vector3 } from "three";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 export interface OrbitCameraProps {
@@ -12,10 +12,19 @@ export interface OrbitCameraProps {
   defaultCameraPosition?: Vector3;
 }
 
-// TODO put into some easing library / utils
 const quadtratic = (t: number) => t * (-(t * t) * t + 4 * t * t - 6 * t + 4);
 function easeOutExpo(x: number): number {
   return x === 1 ? 1 : 1 - Math.pow(4, -10 * x);
+}
+
+interface AnimationState {
+  isAnimating: boolean;
+  startPosition: Vector3;
+  targetPosition: Vector3;
+  startRotation: Spherical;
+  targetRotation: Spherical;
+  progress: number;
+  duration: number;
 }
 
 export const OrbitCamera: React.FC<
@@ -30,6 +39,15 @@ export const OrbitCamera: React.FC<
 }) => {
   const orbitControls = React.useRef<OrbitControlsImpl>(null);
   const altitude = React.useRef(0);
+  const animation = React.useRef<AnimationState>({
+    isAnimating: false,
+    startPosition: new Vector3(),
+    targetPosition: new Vector3(),
+    startRotation: new Spherical(),
+    targetRotation: new Spherical(),
+    progress: 0,
+    duration: 1000,
+  });
 
   const { camera, set } = useThree();
 
@@ -40,20 +58,113 @@ export const OrbitCamera: React.FC<
     );
   }, [planetRadius]);
 
-  useFrame(() => {
-    if (!orbitControls.current) {
-      return;
-    }
-    altitude.current =
-      camera.position.distanceTo(planetPosition) - planetRadius || 0;
-    orbitControls.current.zoomSpeed = easeOutExpo(
-      altitude.current / orbitControls.current.maxDistance
-    );
+  const moveToTarget = React.useCallback(
+    (targetPoint: Vector3, duration = 2000) => {
+      if (!orbitControls.current) return;
 
-    orbitControls.current.rotateSpeed = quadtratic(
-      altitude.current / orbitControls.current.maxDistance
-    );
-    set({ controls: orbitControls.current });
+      // Disable controls during animation
+      orbitControls.current.enabled = false;
+
+      // Calculate current distance from planet surface
+      const currentDistance =
+        camera.position.distanceTo(planetPosition) - planetRadius;
+
+      // Calculate target camera position
+      const directionToTarget = targetPoint
+        .clone()
+        .sub(planetPosition)
+        .normalize();
+      const targetPosition = directionToTarget
+        .multiplyScalar(planetRadius + currentDistance)
+        .add(planetPosition);
+
+      // Calculate spherical coordinates
+      const startSpherical = new Spherical().setFromVector3(
+        camera.position.clone().sub(planetPosition)
+      );
+      const targetSpherical = new Spherical().setFromVector3(
+        targetPosition.clone().sub(planetPosition)
+      );
+
+      // Set up animation state
+      animation.current = {
+        isAnimating: true,
+        startPosition: camera.position.clone(),
+        targetPosition: targetPosition,
+        startRotation: startSpherical,
+        targetRotation: targetSpherical,
+        progress: 0,
+        duration,
+      };
+    },
+    [planetPosition, planetRadius]
+  );
+
+  window.moveToTarget = moveToTarget;
+
+  // React.useEffect(() => {
+  //   set({
+  //     moveToTarget,
+  //   });
+  // }, [moveToTarget]);
+
+  useFrame((_, delta) => {
+    if (!orbitControls.current) return;
+
+    if (animation.current.isAnimating) {
+      animation.current.progress +=
+        (delta * animation.current.duration) / animation.current.duration;
+
+      if (animation.current.progress >= 1) {
+        animation.current.isAnimating = false;
+        orbitControls.current.enabled = true;
+        return;
+      }
+
+      // Smooth easing function
+      const t = easeOutExpo(animation.current.progress);
+
+      // Interpolate position
+      camera.position.lerpVectors(
+        animation.current.startPosition,
+        animation.current.targetPosition,
+        t
+      );
+
+      // Interpolate rotation
+      const currentSpherical = new Spherical(
+        MathUtils.lerp(
+          animation.current.startRotation.radius,
+          animation.current.targetRotation.radius,
+          t
+        ),
+        MathUtils.lerp(
+          animation.current.startRotation.phi,
+          animation.current.targetRotation.phi,
+          t
+        ),
+        MathUtils.lerp(
+          animation.current.startRotation.theta,
+          animation.current.targetRotation.theta,
+          t
+        )
+      );
+
+      // Update camera rotation
+      const targetRotation = new Vector3().setFromSpherical(currentSpherical);
+      camera.lookAt(planetPosition);
+    } else {
+      // Normal orbit controls behavior
+      altitude.current =
+        camera.position.distanceTo(planetPosition) - planetRadius || 0;
+      orbitControls.current.zoomSpeed = easeOutExpo(
+        altitude.current / orbitControls.current.maxDistance
+      );
+      orbitControls.current.rotateSpeed = quadtratic(
+        altitude.current / orbitControls.current.maxDistance
+      );
+      set({ controls: orbitControls.current });
+    }
   });
 
   return (

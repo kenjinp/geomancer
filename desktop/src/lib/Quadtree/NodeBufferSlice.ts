@@ -10,7 +10,7 @@ import {
 export class NodeBufferSlice {
   private floatBuffer: Float32Array;
   private intBuffer: Int32Array;
-  private nodeCount: number = 0;
+  private nodeCount: number = 1;
   readonly startIndex: number;
   readonly maxNodes: number;
 
@@ -24,7 +24,7 @@ export class NodeBufferSlice {
     this.intBuffer = intBuffer;
     this.startIndex = startIndex;
     this.maxNodes = maxNodes;
-    this.nodeCount = 1; // Start with root node
+    this.reset();
   }
 
   get size(): number {
@@ -173,6 +173,16 @@ export class NodeBufferSlice {
     childSlot: number,
     childIndex: number
   ): void {
+    if (childIndex === 0) {
+      console.error("Attempt to set child index to 0:", {
+        nodeIndex,
+        childSlot,
+        childIndex,
+        offset: this.getIntOffset(nodeIndex),
+        stack: new Error().stack,
+      });
+      throw new Error("Child index cannot be 0");
+    }
     const offset = this.getIntOffset(nodeIndex);
     this.intBuffer[offset + childSlot] = childIndex;
   }
@@ -227,6 +237,16 @@ export class NodeBufferSlice {
     direction: number,
     neighborIndex: number
   ): void {
+    if (neighborIndex === 0) {
+      console.log({
+        nodeBuffer: this.intBuffer,
+        nodeIndex,
+        direction,
+        neighborIndex,
+        offset: this.getIntOffset(nodeIndex),
+      });
+      throw new Error("Neighbor index cannot be 0: root node!");
+    }
     const offset = this.getIntOffset(nodeIndex);
     // Left is always first!!!
     this.intBuffer[offset + NodeIntIndex.NEIGHBOR_LEFT + direction] =

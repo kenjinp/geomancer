@@ -286,6 +286,22 @@ export class CubicQuadtree {
     }
   }
 
+  getNodeInfoFromIncrementalIndex(incrementalIndex: number): {
+    center: THREE.Vector3;
+    sphereCenter: THREE.Vector3;
+    size: THREE.Vector3;
+    bounds: THREE.Box3;
+    childCount: number;
+    level: number;
+    isRoot: boolean;
+    isLeaf: boolean;
+    isSplit: boolean;
+    isBoundary: boolean;
+  } {
+    const { faceIndex, nodeIndex } = this.getRelativeIndices(incrementalIndex);
+    return this.faces[faceIndex].getNodeInfo(nodeIndex);
+  }
+
   private getFaceIndexForPoint(point: THREE.Vector3): number {
     // Get normalized direction from origin to point
     this._tempVec3A.copy(point).sub(this.origin).normalize();

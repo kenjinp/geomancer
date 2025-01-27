@@ -1,3 +1,4 @@
+import { cn } from "@/lib/ui/utilts";
 import { useEffect, useState } from "react";
 
 interface MousePosition {
@@ -10,12 +11,20 @@ export const MouseFollower: React.FC<React.PropsWithChildren> = ({
 }) => {
   const [mousePos, setMousePos] = useState<MousePosition>({ x: 0, y: 0 });
 
+  const [isMouseOverCanvas, setIsMouseOverCanvas] = useState(false);
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
+      const followElement = document.getElementById("three-canvas");
+      const bounds = followElement.getBoundingClientRect();
       setMousePos({
         x: event.clientX,
         y: event.clientY,
       });
+      if (event.clientX < bounds.left || event.clientX > bounds.right) {
+        setIsMouseOverCanvas(true);
+        return;
+      }
+      setIsMouseOverCanvas(false);
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -28,7 +37,10 @@ export const MouseFollower: React.FC<React.PropsWithChildren> = ({
   return (
     <div
       id="mouse-follower"
-      className="fixed w-16 h-16 bg-blue-500 rounded-full opacity-50 pointer-events-none"
+      className={cn(
+        "fixed w-16 h-16 bg-foreground rounded-full opacity-50 pointer-events-none z-[100]",
+        isMouseOverCanvas ? "hidden" : "flex"
+      )}
       style={{
         top: `${mousePos.y - 32}px`,
         left: `${mousePos.x - 32}px`,

@@ -29,6 +29,8 @@ export class UnifiedNodeBuffer {
 
     this.floatBuffer = new Float32Array(floatMemory);
     this.intBuffer = new Int32Array(intMemory);
+
+    this.reset();
   }
 
   createBufferSlice(treeIndex: number): NodeBufferSlice {
@@ -48,7 +50,7 @@ export class UnifiedNodeBuffer {
   }
 
   reset(): void {
-    this.floatBuffer.fill(0);
-    this.intBuffer.fill(0);
+    this.floatBuffer.fill(-1);
+    this.intBuffer.fill(0 - 1);
   }
 }

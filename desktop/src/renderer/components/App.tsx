@@ -1,12 +1,14 @@
+import { CubicQuadtree } from "@/lib/Quadtree/CubicQuadtree";
 import { NextUIProvider } from "@nextui-org/react";
-import { Panel, PanelGroup } from "react-resizable-panels";
+import { useMemo } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Vector3 } from "three";
+import { QuadtreeProvider } from "../providers/QuadtreeProvider";
 import "../styles/app.css";
-import { Home } from "../views/Home";
+import { Home, radius } from "../views/Home";
 import { Canvas } from "./Canvas";
 import { ColorRamp } from "./ColorRamp";
 import { MouseFollower } from "./MouseFollower";
-import { QuadtreeProvider } from "./QuadtreeContext";
-import { QuadtreeControls } from "./QuadtreeControls";
 
 /**
  * Wrapper for the entire application.
@@ -14,16 +16,22 @@ import { QuadtreeControls } from "./QuadtreeControls";
  * @component
  */
 export function App() {
+  const qt = useMemo(() => {
+    return new CubicQuadtree({
+      size: radius,
+      minNodeSize: 10,
+      origin: new Vector3(),
+      comparatorValue: 1.5,
+    });
+  }, []);
+
   return (
     <NextUIProvider>
-      <QuadtreeProvider>
+      <QuadtreeProvider initialQuadtree={qt}>
         <div className="drag-region fixed w-full h-[32px] border-b border-dark bg-background"></div>
         <div className="relative top-[32px] h-screen w-screen flex bg-gradient-to-t from-[#1E201A] to-[#282A23]">
           <PanelGroup direction="horizontal">
-            <Panel minSize={25} collapsible>
-              <QuadtreeControls />
-            </Panel>
-            <Panel minSize={50} order={2}>
+            <Panel defaultSize={67} order={1}>
               <div className="relative w-full h-full bg-dark">
                 <MouseFollower>
                   <div id="mouse-node-debug"></div>
@@ -31,18 +39,14 @@ export function App() {
                 <Canvas>
                   <Home />
                 </Canvas>
-                <div className="absolute right-0 top-0 h-full border-l border-dark">
+                <div className="z-[3] absolute right-0 top-0 h-full border-l border-dark">
                   <ColorRamp />
                 </div>
               </div>
             </Panel>
-            <Panel minSize={25} collapsible>
-              <div className="p-4">
-                <div
-                  id="node-debug"
-                  className="bg-black p-2 min-h-20 rounded-sm"
-                ></div>
-              </div>
+            <PanelResizeHandle className="w-1 bg-dark" />
+            <Panel defaultSize={33} collapsible order={2}>
+              <div id="node-debug" className="p-2"></div>
             </Panel>
           </PanelGroup>
         </div>

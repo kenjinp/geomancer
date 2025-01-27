@@ -68,6 +68,27 @@ const getMaterial = () =>
           );
       }
 
+      vec3 orthogonal(vec3 v) {
+        return normalize(abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0)
+        : vec3(0.0, -v.z, v.y));
+      }
+
+      vec3 recalcNormals(vec3 newPos) {
+        float offset = 0.001;
+        vec3 tangent = orthogonal(normal);
+        vec3 bitangent = normalize(cross(normal, tangent));
+        vec3 neighbour1 = position + tangent * offset;
+        vec3 neighbour2 = position + bitangent * offset;
+
+        vec3 displacedNeighbour1 = bendInstancedToSphere(neighbour1, instanceMatrix, vec3(0.0), uRadius);
+        vec3 displacedNeighbour2 =  bendInstancedToSphere(neighbour2, instanceMatrix, vec3(0.0), uRadius);
+
+        vec3 displacedTangent = displacedNeighbour1 - newPos;
+        vec3 displacedBitangent = displacedNeighbour2 - newPos;
+
+        return normalize(cross(displacedTangent, displacedBitangent));
+      }
+
       void main() {
         int instanceId = gl_InstanceID;
 
@@ -108,7 +129,10 @@ const getMaterial = () =>
         csm_Position = bentPosition;
         // csm_Position = position;
 
-        // csm_Normal = recalcNormals(csm_Position);
+        // Recalculate normals for spherical bending by normalizing position vector
+        // This makes normals point outward from sphere center
+        // csm_Normal = normalize(bentPosition - vec3(0.0));
+        csm_Normal = recalcNormals(bentPosition);
       }
     
   `,
