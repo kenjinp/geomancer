@@ -115,6 +115,7 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     if (nodeIndex.incrementalNodeIndex >= 0 && sound && play) {
       const playbackFudgeRate = nodeIndex.faceIndex * 0.1;
       sound.stop();
+      navigator.vibrate([10]);
       play({
         playbackRate: 0.6 + Math.random() * playbackFudgeRate,
       });
@@ -170,6 +171,7 @@ export const QuadtreeVisualizer: React.FC<QuadtreeVisualizerProps> = ({
     const node = quadtree.getNodeInfoFromIncrementalIndex(
       nodeIndex.incrementalNodeIndex
     );
+    navigator.vibrate(20);
     window.moveToTarget(node.sphereCenter);
     playBig();
   };

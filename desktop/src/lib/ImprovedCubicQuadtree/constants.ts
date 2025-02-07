@@ -28,6 +28,8 @@ export enum FloatBufferOffsets {
   BOUNDS_MAX_Z = 14,
 }
 
+export const FLOAT_VALUES_PER_NODE = 15;
+
 export enum IntBufferOffsets {
   LEVEL = 0,
   CHILD_INDEX_TL = 1, // Top-left child
@@ -40,8 +42,9 @@ export enum IntBufferOffsets {
   NEIGHBOR_SOUTH = 8,
   NEIGHBOR_EAST = 9,
   NEIGHBOR_WEST = 10,
-  INT_VALUES_PER_NODE = 11,
 }
+
+export const INT_VALUES_PER_NODE = 11;
 
 export enum ChildIndex {
   TOP_LEFT = 0,

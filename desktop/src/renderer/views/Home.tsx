@@ -1,64 +1,64 @@
-import { QuadtreeVisualizer } from "@/lib/Quadtree/Quadthree";
+import { H3TextureGenerator } from "@/lib/Hextree/indexTexture";
+import { Planet } from "@/lib/planetary/Planet";
 import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useThree } from "@react-three/fiber";
 import { Perf } from "r3f-perf";
 import { useRef, useState } from "react";
 import { Group, Vector3 } from "three";
-import { useQuadtree } from "../providers/QuadtreeProvider";
 
 const origin = new Vector3();
 const temp = new Vector3();
 export const radius = 2048;
 
 export const Home: React.FC = () => {
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const camera = useThree((state) => state.camera);
   const groupRef = useRef<Group>(null);
   const groupRefY = useRef<Group>(null);
   const groupRefZ = useRef<Group>(null);
 
-  const { quadtree } = useQuadtree();
+  // const { quadtree } = useQuadtree();
 
-  useFrame(() => {
-    if (playing) {
-      groupRef.current.rotateY(0.01);
-      groupRef.current.rotateX(0.01);
-      groupRefY.current.rotateX(0.025);
-      groupRefZ.current.rotateY(-0.05);
-      groupRefZ.current.rotateX(-0.05);
-      // const timeBefore = performance.now();
-      quadtree.reset();
-      groupRef.current.children.forEach((child) => {
-        child && quadtree.insert(child.getWorldPosition(temp));
-      });
-      groupRefY.current.children.forEach((child) => {
-        child && quadtree.insert(child.getWorldPosition(temp));
-      });
-      groupRefZ.current.children.forEach((child) => {
-        child && quadtree.insert(child.getWorldPosition(temp));
-      });
-      // quadtree.insert(
-      //   groupRefZ.current.children[0].getWorldPosition(temp)
-      // );
-      // const timeAfter = performance.now();
+  // useFrame(() => {
+  //   if (playing) {
+  //     groupRef.current.rotateY(0.01);
+  //     groupRef.current.rotateX(0.01);
+  //     groupRefY.current.rotateX(0.025);
+  //     groupRefZ.current.rotateY(-0.05);
+  //     groupRefZ.current.rotateX(-0.05);
+  //     // const timeBefore = performance.now();
+  //     quadtree.reset();
+  //     groupRef.current.children.forEach((child) => {
+  //       child && quadtree.insert(child.getWorldPosition(temp));
+  //     });
+  //     groupRefY.current.children.forEach((child) => {
+  //       child && quadtree.insert(child.getWorldPosition(temp));
+  //     });
+  //     groupRefZ.current.children.forEach((child) => {
+  //       child && quadtree.insert(child.getWorldPosition(temp));
+  //     });
+  //     // quadtree.insert(
+  //     //   groupRefZ.current.children[0].getWorldPosition(temp)
+  //     // );
+  //     // const timeAfter = performance.now();
 
-      const trees = quadtree
-        .getFaces()
-        .map((face) => {
-          return face.getTreeSummary();
-        })
-        .reduce((prevValue, currentValue) => {
-          return (prevValue += currentValue.totalNodes);
-        }, 0);
-      document.getElementById("debug").innerText = `
-      nodes: ${trees}
-      distanceToCenter: ${camera.position.distanceTo(origin).toFixed(2)}
-      `;
-    }
+  //     const trees = quadtree
+  //       .getFaces()
+  //       .map((face) => {
+  //         return face.getTreeSummary();
+  //       })
+  //       .reduce((prevValue, currentValue) => {
+  //         return (prevValue += currentValue.totalNodes);
+  //       }, 0);
+  //     document.getElementById("debug").innerText = `
+  //     nodes: ${trees}
+  //     distanceToCenter: ${camera.position.distanceTo(origin).toFixed(2)}
+  //     `;
+  //   }
 
-    window.quadTree = quadtree;
-  });
+  //   window.quadTree = quadtree;
+  // });
 
   return (
     <group>
@@ -70,6 +70,7 @@ export const Home: React.FC = () => {
             <Button onPress={() => setPlaying(!playing)}>
               {playing ? "stop" : "play"}
             </Button>
+            <H3TextureGenerator />
           </div>
         </Html>
       </group>
@@ -124,7 +125,9 @@ export const Home: React.FC = () => {
         <meshStandardMaterial color="pink" />
       </mesh> */}
 
-      <QuadtreeVisualizer quadtree={quadtree} wireframe={false} />
+      {/* <QuadtreeVisualizer quadtree={quadtree} wireframe={false} /> */}
+      {/* <H3Geometry resolution={4} radius={radius} /> */}
+      <Planet radius={radius} />
     </group>
   );
 };

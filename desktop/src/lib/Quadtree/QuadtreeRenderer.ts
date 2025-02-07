@@ -107,17 +107,17 @@ const getMaterial = () =>
           vLevelColor = mix(vLevelColor, selectedNodeIndexColor, 0.8);
         }
 
-        for (int i = 0; i < 4; i++) {
-          if (uSelectedNodeChildIndices[i] == instanceId) {
-            vLevelColor = selectedNodeChildIndicesColor;
-          }
-        }
+        // for (int i = 0; i < 4; i++) {
+        //   if (uSelectedNodeChildIndices[i] == instanceId) {
+        //     vLevelColor = selectedNodeChildIndicesColor;
+        //   }
+        // }
 
-        for (int i = 0; i < 4; i++) {
-          if (uSelectedNodeNeighbors[i] == instanceId) {
-            vLevelColor = selectedNodeNeighborsColor;
-          }
-        }
+        // for (int i = 0; i < 4; i++) {
+        //   if (uSelectedNodeNeighbors[i] == instanceId) {
+        //     vLevelColor = selectedNodeNeighborsColor;
+        //   }
+        // }
 
         // Apply the spherical bend
         vec3 bentPosition = bendInstancedToSphere(
