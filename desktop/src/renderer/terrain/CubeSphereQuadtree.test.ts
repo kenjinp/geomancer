@@ -2,6 +2,19 @@ import * as THREE from "three";
 import { beforeEach, describe, expect, test } from "vitest";
 import { CubeSphereQuadtree, FaceIndex } from "./CubeSphereQuadtree";
 
+// Add this interface declaration at the top of the test file to access private methods
+interface TestCubeSphereQuadtree extends CubeSphereQuadtree {
+  splitNode: (index: number) => void;
+  updateNodeLOD: (
+    index: number,
+    cameraPos: THREE.Vector3,
+    radius: number,
+    offset: THREE.Vector3,
+    maxDepth: number,
+    threshold: number
+  ) => void;
+}
+
 describe("CubeSphereQuadtree", () => {
   let quadtree: CubeSphereQuadtree;
 
@@ -18,18 +31,20 @@ describe("CubeSphereQuadtree", () => {
 
   test("cubeToSphere projection for front face", () => {
     const pos = quadtree["cubeToSphere"](0, 0, 0, 0);
-    expect(pos).toEqual(new Float32Array([1, 0, 0]));
+    expect(pos).toEqual(new Float32Array([0, 0, 1]));
   });
 
   test("cubeToSphere projection for right face", () => {
     const pos = quadtree["cubeToSphere"](2, 0, 0, 0);
-    const expected = new THREE.Vector3(0, 1, 0).normalize();
+    const expected = new THREE.Vector3(1, 0, 0).normalize();
     expect(pos[0]).toBeCloseTo(expected.x);
     expect(pos[1]).toBeCloseTo(expected.y);
     expect(pos[2]).toBeCloseTo(expected.z);
   });
 
   test("neighbor resolution within same face", () => {
+    const quadtree =
+      new CubeSphereQuadtree() as unknown as TestCubeSphereQuadtree;
     const rootIndex = quadtree["indexMap"].get("0:0:0:0")!;
     const node = quadtree["getNodeView"](rootIndex);
 
@@ -98,11 +113,13 @@ describe("CubeSphereQuadtree", () => {
     quadtree["updateNodeLOD"] = function (
       index: number,
       cameraPos: THREE.Vector3,
+      radius: number,
+      offset: THREE.Vector3,
       maxDepth: number,
       threshold: number
     ) {
       if (index === face0Root) {
-        originalUpdate(index, cameraPos, maxDepth, threshold);
+        originalUpdate(index, cameraPos, radius, offset, maxDepth, threshold);
       }
     };
 
@@ -251,35 +268,35 @@ describe("CubeSphereQuadtree > Node Positions", () => {
       return quadtree["getNodeView"](index).spherePos;
     });
 
-    // Front (+X)
-    expect(positions[0][0]).toBeCloseTo(1);
+    // Front (+Z)
+    expect(positions[0][0]).toBeCloseTo(0);
     expect(positions[0][1]).toBeCloseTo(0);
-    expect(positions[0][2]).toBeCloseTo(0);
+    expect(positions[0][2]).toBeCloseTo(1);
 
-    // Back (-X)
-    expect(positions[1][0]).toBeCloseTo(-1);
+    // Back (-Z)
+    expect(positions[1][0]).toBeCloseTo(0);
     expect(positions[1][1]).toBeCloseTo(0);
-    expect(positions[1][2]).toBeCloseTo(0);
+    expect(positions[1][2]).toBeCloseTo(-1);
 
-    // Right (+Y)
-    expect(positions[2][0]).toBeCloseTo(0);
-    expect(positions[2][1]).toBeCloseTo(1);
+    // Right (+X)
+    expect(positions[2][0]).toBeCloseTo(1);
+    expect(positions[2][1]).toBeCloseTo(0);
     expect(positions[2][2]).toBeCloseTo(0);
 
-    // Left (-Y)
-    expect(positions[3][0]).toBeCloseTo(0);
-    expect(positions[3][1]).toBeCloseTo(-1);
+    // Left (-X)
+    expect(positions[3][0]).toBeCloseTo(-1);
+    expect(positions[3][1]).toBeCloseTo(0);
     expect(positions[3][2]).toBeCloseTo(0);
 
-    // Top (+Z)
+    // Top (+Y)
     expect(positions[4][0]).toBeCloseTo(0);
-    expect(positions[4][1]).toBeCloseTo(0);
-    expect(positions[4][2]).toBeCloseTo(1);
+    expect(positions[4][1]).toBeCloseTo(1);
+    expect(positions[4][2]).toBeCloseTo(0);
 
-    // Bottom (-Z)
+    // Bottom (-Y)
     expect(positions[5][0]).toBeCloseTo(0);
-    expect(positions[5][1]).toBeCloseTo(0);
-    expect(positions[5][2]).toBeCloseTo(-1);
+    expect(positions[5][1]).toBeCloseTo(-1);
+    expect(positions[5][2]).toBeCloseTo(0);
   });
 
   test("child node positions", () => {

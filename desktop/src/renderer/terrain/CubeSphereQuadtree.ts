@@ -19,6 +19,8 @@ export interface CubeSphereNode {
 
 const NODE_STRIDE = 64; // 64 bytes per node (16 elements)
 const MAX_NODES = 1_000_000; // Pre-allocated buffer size
+const tempVector = new THREE.Vector3();
+const origin = new THREE.Vector3();
 
 export class CubeSphereQuadtree {
   private nodeBuffer: Float32Array;
@@ -40,18 +42,18 @@ export class CubeSphereQuadtree {
     type EdgeInfo = { face: FaceIndex; rotation: number };
     const faceMap = new Map<FaceIndex, Map<string, EdgeInfo>>();
 
-    // Front face (+X)
+    // Front face (+Z)
     faceMap.set(
       0,
       new Map([
         ["left", { face: 3, rotation: 0 }],
         ["right", { face: 2, rotation: 0 }],
-        ["top", { face: 4, rotation: 1 }],
-        ["bottom", { face: 5, rotation: 3 }],
+        ["top", { face: 4, rotation: 1 }], // Y+ is up
+        ["bottom", { face: 5, rotation: 3 }], // Y- is down
       ])
     );
 
-    // Back face (-X)
+    // Back face (-Z)
     faceMap.set(
       1,
       new Map([
@@ -62,47 +64,47 @@ export class CubeSphereQuadtree {
       ])
     );
 
-    // Right face (+Y)
+    // Right face (+X)
     faceMap.set(
       2,
       new Map([
-        ["left", { face: 0, rotation: 0 }],
-        ["right", { face: 1, rotation: 0 }],
+        ["left", { face: 1, rotation: 0 }],
+        ["right", { face: 0, rotation: 0 }],
         ["top", { face: 4, rotation: 2 }],
         ["bottom", { face: 5, rotation: 0 }],
       ])
     );
 
-    // Left face (-Y)
+    // Left face (-X)
     faceMap.set(
       3,
       new Map([
-        ["left", { face: 1, rotation: 0 }],
-        ["right", { face: 0, rotation: 0 }],
+        ["left", { face: 0, rotation: 0 }],
+        ["right", { face: 1, rotation: 0 }],
         ["top", { face: 4, rotation: 0 }],
         ["bottom", { face: 5, rotation: 2 }],
       ])
     );
 
-    // Top face (+Z)
+    // Top face (+Y)
     faceMap.set(
       4,
       new Map([
         ["left", { face: 3, rotation: 3 }],
         ["right", { face: 2, rotation: 1 }],
-        ["top", { face: 1, rotation: 2 }],
-        ["bottom", { face: 0, rotation: 2 }],
+        ["top", { face: 1, rotation: 2 }], // Back face is above
+        ["bottom", { face: 0, rotation: 2 }], // Front face is below
       ])
     );
 
-    // Bottom face (-Z)
+    // Bottom face (-Y)
     faceMap.set(
       5,
       new Map([
         ["left", { face: 3, rotation: 1 }],
         ["right", { face: 2, rotation: 3 }],
-        ["top", { face: 0, rotation: 0 }],
-        ["bottom", { face: 1, rotation: 0 }],
+        ["top", { face: 0, rotation: 0 }], // Front face is above
+        ["bottom", { face: 1, rotation: 0 }], // Back face is below
       ])
     );
 
@@ -149,39 +151,51 @@ export class CubeSphereQuadtree {
     y: number,
     level: number
   ): Float32Array {
+    // For root nodes, return exact unit vectors
+    if (level === 0 && x === 0 && y === 0) {
+      switch (face) {
+        case 0:
+          return new Float32Array([0, 0, 1]); // +Z front
+        case 1:
+          return new Float32Array([0, 0, -1]); // -Z back
+        case 2:
+          return new Float32Array([1, 0, 0]); // +X right
+        case 3:
+          return new Float32Array([-1, 0, 0]); // -X left
+        case 4:
+          return new Float32Array([0, 1, 0]); // +Y top
+        case 5:
+          return new Float32Array([0, -1, 0]); // -Y bottom
+      }
+    }
+
     const scale = Math.pow(0.5, level);
-    // Calculate UV coordinates in [-1, 1] range
     const u = (x + 0.5) * scale * 2 - 1;
     const v = (y + 0.5) * scale * 2 - 1;
 
     let vec = new Float32Array(3);
     switch (face) {
-      case 0: // +X face (front)
+      case 0: // +Z face (front)
+        vec.set([u, v, 1]);
+        break;
+      case 1: // -Z face (back)
+        vec.set([-u, v, -1]);
+        break;
+      case 2: // +X face (right)
         vec.set([1, v, -u]);
         break;
-      case 1: // -X face (back)
+      case 3: // -X face (left)
         vec.set([-1, v, u]);
         break;
-      case 2: // +Y face (right)
+      case 4: // +Y face (top)
         vec.set([u, 1, -v]);
         break;
-      case 3: // -Y face (left)
-        vec.set([-u, -1, -v]);
-        break;
-      case 4: // +Z face (top)
-        vec.set([u, -v, 1]);
-        break;
-      case 5: // -Z face (bottom)
-        vec.set([u, v, -1]);
+      case 5: // -Y face (bottom)
+        vec.set([u, -1, v]);
         break;
     }
 
-    // Normalize to unit sphere
     const length = Math.sqrt(vec[0] ** 2 + vec[1] ** 2 + vec[2] ** 2);
-    // Handle special case for root nodes to avoid negative zeros
-    if (level === 0 && x === 0 && y === 0) {
-      return new Float32Array(vec.map((n) => Math.abs(n / length) || 0));
-    }
     return new Float32Array(vec.map((n) => n / length));
   }
 
@@ -260,7 +274,7 @@ export class CubeSphereQuadtree {
 
     // Ensure neighbor exists at target position
     return this.findOrCreateNeighbor(
-      edgeInfo.face,
+      edgeInfo.face as FaceIndex,
       node.level,
       rotatedX,
       rotatedY
@@ -346,31 +360,31 @@ export class CubeSphereQuadtree {
     switch (direction) {
       case "left":
         if (nx > 0) return [nx - 1, ny, node.face];
-        nface =
-          this.faceAdjacency.get(node.face)?.get("left")?.face ?? node.face;
+        nface = (this.faceAdjacency.get(node.face)?.get("left")?.face ??
+          node.face) as FaceIndex;
         nx = maxCoord;
         break;
       case "right":
         if (nx < maxCoord) return [nx + 1, ny, node.face];
-        nface =
-          this.faceAdjacency.get(node.face)?.get("right")?.face ?? node.face;
+        nface = (this.faceAdjacency.get(node.face)?.get("right")?.face ??
+          node.face) as FaceIndex;
         nx = 0;
         break;
       case "top":
         if (ny < maxCoord) return [nx, ny + 1, node.face];
-        nface =
-          this.faceAdjacency.get(node.face)?.get("top")?.face ?? node.face;
+        nface = (this.faceAdjacency.get(node.face)?.get("top")?.face ??
+          node.face) as FaceIndex;
         ny = 0;
         break;
       case "bottom":
         if (ny > 0) return [nx, ny - 1, node.face];
-        nface =
-          this.faceAdjacency.get(node.face)?.get("bottom")?.face ?? node.face;
+        nface = (this.faceAdjacency.get(node.face)?.get("bottom")?.face ??
+          node.face) as FaceIndex;
         ny = maxCoord;
         break;
     }
 
-    return [nx, ny, nface];
+    return [nx, ny, nface as FaceIndex];
   }
 
   private rotateCoordinates(
@@ -404,26 +418,37 @@ export class CubeSphereQuadtree {
   }
 
   private retireNode(nodeIndex: number) {
-    const node = this.getNodeView(nodeIndex);
+    const stack: number[] = [nodeIndex];
 
-    // Only process valid nodes
-    if (node.level === -1) return;
+    while (stack.length > 0) {
+      const currentIndex = stack.pop()!;
+      const node = this.getNodeView(currentIndex);
 
-    // Clear children first
-    node.children.forEach((child) => {
-      if (child !== -1) this.retireNode(child);
-    });
+      // Skip already retired nodes
+      if (node.level === -1) continue;
 
-    // Mark as free
-    this.freeIndices.push(nodeIndex);
-    this.indexMap.delete(`${node.face}:${node.level}:${node.x}:${node.y}`);
+      // Collect children first
+      const children = node.children.filter((c) => c !== -1);
 
-    // Reset node data
-    const offset = nodeIndex * (NODE_STRIDE / 4);
-    this.nodeBuffer.fill(-1, offset, offset + 16);
+      // Mark as free before clearing children
+      this.freeIndices.push(currentIndex);
+      this.indexMap.delete(`${node.face}:${node.level}:${node.x}:${node.y}`);
+
+      // Clear node data
+      const offset = currentIndex * (NODE_STRIDE / 4);
+      this.nodeBuffer.fill(-1, offset, offset + 16);
+
+      // Push children to stack (process them next)
+      stack.push(...children);
+    }
   }
 
-  public updateLOD(cameraPos: THREE.Vector3, maxDepth: number = this.maxDepth) {
+  public updateLOD(
+    cameraPos: THREE.Vector3,
+    radius: number = 1,
+    offset: THREE.Vector3 = origin,
+    maxDepth: number = this.maxDepth
+  ) {
     this.maxDepth = maxDepth;
     const threshold = this.calculateLODThreshold(cameraPos);
 
@@ -431,7 +456,14 @@ export class CubeSphereQuadtree {
     for (let face = 0; face < 6; face++) {
       const rootIndex = this.indexMap.get(`${face}:0:0:0`);
       if (rootIndex !== undefined) {
-        this.updateNodeLOD(rootIndex, cameraPos, maxDepth, threshold);
+        this.updateNodeLOD(
+          rootIndex,
+          cameraPos,
+          radius,
+          offset,
+          maxDepth,
+          threshold
+        );
       }
     }
   }
@@ -439,32 +471,61 @@ export class CubeSphereQuadtree {
   private updateNodeLOD(
     nodeIndex: number,
     cameraPos: THREE.Vector3,
+    radius: number,
+    offset: THREE.Vector3,
     maxDepth: number,
     threshold: number
   ) {
     const node = this.getNodeView(nodeIndex);
-    const distance = cameraPos.distanceTo(new THREE.Vector3(...node.spherePos));
-    const lodMetric = (node.errorMetric || 1 / (1 << node.level)) / distance;
 
-    if (lodMetric > threshold && node.level < maxDepth) {
-      this.splitNode(nodeIndex);
+    // Calculate distance to camera
+    tempVector.set(node.spherePos[0], node.spherePos[1], node.spherePos[2]);
+    tempVector.multiplyScalar(radius);
+    tempVector.add(offset);
+    const distance = cameraPos.distanceTo(tempVector);
+
+    // Calculate node size in world space
+    const nodeSize = (radius * 2) / (1 << node.level);
+
+    // Split condition: close enough and not at max depth
+    if (distance < nodeSize * 2 && node.level < maxDepth) {
+      // Split if not already split
+      if (node.children[0] === -1) {
+        this.splitNode(nodeIndex);
+      }
+
+      // Update children
       node.children.forEach((child) => {
-        if (child !== -1)
-          this.updateNodeLOD(child, cameraPos, maxDepth, threshold);
+        if (child !== -1) {
+          this.updateNodeLOD(
+            child,
+            cameraPos,
+            radius,
+            offset,
+            maxDepth,
+            threshold
+          );
+        }
       });
     } else {
-      // Only retire children, not the node itself
-      node.children.forEach((child) => {
-        if (child !== -1) this.retireNode(child);
-      });
-      this.nodeBuffer.set([-1, -1, -1, -1], nodeIndex * NODE_STRIDE + 4);
+      // Merge condition: too far or at max depth
+      if (node.children[0] !== -1) {
+        // Retire all children recursively
+        node.children.forEach((child) => {
+          if (child !== -1) {
+            this.retireNode(child);
+          }
+        });
+        // Clear children references
+        const offset = nodeIndex * (NODE_STRIDE / 4) + 4;
+        this.nodeBuffer.set([-1, -1, -1, -1], offset);
+      }
     }
   }
 
   private calculateLODThreshold(cameraPos: THREE.Vector3): number {
-    // Base threshold on camera height
-    const height = cameraPos.length();
-    return Math.min(0.1, 0.01 * height);
+    // Base threshold on camera distance
+    return 0.1 * cameraPos.length();
   }
 
   public getVisibleNodes(): number[] {
