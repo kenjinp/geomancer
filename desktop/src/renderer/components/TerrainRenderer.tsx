@@ -14,7 +14,7 @@ interface TerrainRendererProps {
 export function TerrainRenderer({
   radius = 1,
   position = new THREE.Vector3(),
-  maxDepth = 6,
+  maxDepth = 8,
 }: TerrainRendererProps) {
   const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
   const instancerRef = useRef<TerrainInstancer>(null);

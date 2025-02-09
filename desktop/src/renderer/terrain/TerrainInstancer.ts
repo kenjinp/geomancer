@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
+import { terrainFragmentShader, terrainVertexShader } from "./terrainShaders";
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
@@ -18,18 +19,20 @@ export class TerrainInstancer {
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
 
-    // Create base geometry (subdivided plane for better normal calculations)
-    const geometry = new THREE.PlaneGeometry(1, 1, 16, 16);
-
-    // Create material with sphere-oriented shading
-    const material = new THREE.MeshBasicMaterial({
-      // color: 0x00ff00,
-      // wireframe: true, // Helps see geometry
+    // Create shader material
+    const material = new THREE.ShaderMaterial({
+      vertexShader: terrainVertexShader,
+      fragmentShader: terrainFragmentShader,
+      uniforms: {
+        uRadius: { value: this.radius },
+        uOffset: { value: this.offset },
+      },
+      vertexColors: true,
     });
 
-    // Initialize with fixed capacity
+    // Initialize instanced mesh
     this.instancedMesh = new THREE.InstancedMesh(
-      geometry,
+      new THREE.PlaneGeometry(1, 1, 16, 16),
       material,
       TerrainInstancer.INITIAL_CAPACITY
     );
@@ -117,6 +120,7 @@ export class TerrainInstancer {
     // Update instance count
     this.instancedMesh.count = instanceCount;
     this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.instancedMesh.instanceColor!.needsUpdate = true;
   }
 
   private addInstance(nodeIndex: number) {
@@ -140,12 +144,15 @@ export class TerrainInstancer {
     const faceMatrix = new THREE.Matrix4();
     const facePosition = new THREE.Vector3();
 
+    // Corrected face orientation and position mapping
     switch (node.face) {
       case 0: // Front (+Z)
         facePosition.set(0, 0, this.radius);
-        faceMatrix
-          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationY(0));
+        faceMatrix.makeTranslation(
+          facePosition.x,
+          facePosition.y,
+          facePosition.z
+        );
         break;
       case 1: // Back (-Z)
         facePosition.set(0, 0, -this.radius);
@@ -188,44 +195,39 @@ export class TerrainInstancer {
     );
     localMatrix.makeTranslation(localOffset.x, localOffset.y, localOffset.z);
 
-    // Combine transformations: face position/orientation -> local offset -> world offset -> scale
+    // Correct matrix composition order: (offset) × (face) × (local)
     matrix
-      .copy(faceMatrix)
+      .makeTranslation(this.offset.x, this.offset.y, this.offset.z)
+      .multiply(faceMatrix)
       .multiply(localMatrix)
-      .premultiply(
-        new THREE.Matrix4().makeTranslation(
-          this.offset.x,
-          this.offset.y,
-          this.offset.z
-        )
-      )
       .scale(scale);
+
+    // Set color based on face and level
+    const faceColors = [
+      new THREE.Color(0xff4444), // Front
+      new THREE.Color(0x4444ff), // Back
+      new THREE.Color(0x44ff44), // Right
+      new THREE.Color(0xffff44), // Left
+      new THREE.Color(0x44ffff), // Top
+      new THREE.Color(0xff44ff), // Bottom
+    ];
+
+    // Create color gradient based on subdivision level (0 = dark, maxDepth = bright)
+    const baseColor = faceColors[node.face].clone();
+    const depthFactor = node.level / this.quadtree.maxDepth;
+
+    // Mix with white based on depth
+    baseColor.lerp(new THREE.Color(0xffffff), depthFactor * 0.7);
+
+    // Add variation based on level
+    const levelIntensity = 0.2 + depthFactor * 0.8;
+    baseColor.multiplyScalar(levelIntensity);
+
+    this.color.copy(baseColor);
+    this.instancedMesh.setColorAt(instanceId, this.color);
 
     // Apply final matrix to instance
     this.instancedMesh.setMatrixAt(instanceId, matrix);
-
-    // Set color based on cube face
-    switch (node.face) {
-      case 0:
-        this.color.setHex(0xff4444);
-        break;
-      case 1:
-        this.color.setHex(0x4444ff);
-        break;
-      case 2:
-        this.color.setHex(0x44ff44);
-        break;
-      case 3:
-        this.color.setHex(0xffff44);
-        break;
-      case 4:
-        this.color.setHex(0x44ffff);
-        break;
-      case 5:
-        this.color.setHex(0xff44ff);
-        break;
-    }
-    this.instancedMesh.setColorAt(instanceId, this.color);
   }
 
   public dispose() {
@@ -236,9 +238,15 @@ export class TerrainInstancer {
 
   public setRadius(radius: number) {
     this.radius = radius;
+    (
+      this.instancedMesh.material as THREE.ShaderMaterial
+    ).uniforms.uRadius.value = radius;
   }
 
   public setPosition(position: THREE.Vector3) {
     this.offset.copy(position);
+    (
+      this.instancedMesh.material as THREE.ShaderMaterial
+    ).uniforms.uOffset.value = position;
   }
 }
