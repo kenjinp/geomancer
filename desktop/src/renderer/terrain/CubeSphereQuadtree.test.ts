@@ -257,6 +257,35 @@ describe("CubeSphereQuadtree", () => {
     // Should not split beyond max depth
     expect(quadtree["getNodeView"](current).children[0]).toBe(-1);
   });
+
+  test("root nodes have correct neighbors", () => {
+    for (let face = 0; face < 6; face++) {
+      const rootIndex = quadtree["indexMap"].get(`${face}:0:0:0`)!;
+      const rootNode = quadtree["getNodeView"](rootIndex);
+
+      // Should have 4 neighbors (one for each direction)
+      expect(rootNode.neighbors).toHaveLength(4);
+
+      // All neighbors should be other root nodes
+      rootNode.neighbors.forEach((neighborIndex) => {
+        expect(neighborIndex).not.toBe(-1);
+
+        const neighbor = quadtree["getNodeView"](neighborIndex);
+        expect(neighbor.level).toBe(0);
+        expect(neighbor.x).toBe(0);
+        expect(neighbor.y).toBe(0);
+
+        // Verify neighbor face matches adjacency configuration
+        const directions = ["left", "right", "top", "bottom"];
+        const direction = directions[rootNode.neighbors.indexOf(neighborIndex)];
+        const expectedFace = quadtree["faceAdjacency"]
+          .get(face as FaceIndex)
+          ?.get(direction)?.face;
+
+        expect(neighbor.face).toBe(expectedFace);
+      });
+    }
+  });
 });
 
 describe("CubeSphereQuadtree > Node Positions", () => {

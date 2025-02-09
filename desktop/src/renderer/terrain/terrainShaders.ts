@@ -5,6 +5,7 @@ uniform vec3 uOffset;
 varying vec3 vNormal;
 varying vec3 vPosition;
 varying vec3 vInstanceColor;
+// attribute vec3 instanceColor;
 
 float hash(float n) {
     return fract(sin(n) * 43758.5453123);
@@ -36,7 +37,7 @@ void main() {
     // Pass varyings
     vNormal = normalize(normalMatrix * sphereDirection);
     vPosition = spherePosition;
-    vInstanceColor = color;
+    vInstanceColor = instanceColor;
 }
 `;
 

@@ -1,6 +1,6 @@
 import { Html } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "../terrain/CubeSphereQuadtree";
 import { TerrainInstancer } from "../terrain/TerrainInstancer";
@@ -20,7 +20,17 @@ export function TerrainRenderer({
   const instancerRef = useRef<TerrainInstancer>(null);
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
   const scene = useThree((state) => state.scene);
+  const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const [hovering, setHovering] = useState(false);
+  const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
 
+  console.log({
+    hoveredNodeIndex,
+    hoveredNode: quadtreeRef.current?.getNodeView(hoveredNodeIndex)?.toObject(),
+    hoverPosition: sphereWorldPosition.current,
+  });
+
+  const positionKey = position.toArray().join(",");
   useEffect(() => {
     console.log("Initializing terrain with:", {
       radius,
@@ -43,21 +53,24 @@ export function TerrainRenderer({
       console.log("Disposing terrain");
       instancerRef.current?.dispose();
       axesHelperRef.current?.dispose();
+      scene.remove(instancerRef.current?.mesh);
     };
-  }, [radius, position]);
+  }, [radius, positionKey]);
 
   useFrame(({ camera }) => {
     if (!instancerRef.current || !quadtreeRef.current) return;
 
     quadtreeRef.current.maxDepth = maxDepth;
     quadtreeRef.current.updateLOD(camera.position, radius, position);
-    instancerRef.current.update();
+    instancerRef.current.update(hoveredNodeIndex);
 
     const debugDiv = document.getElementById("debug-thingy");
     if (debugDiv) {
       debugDiv.innerHTML = `
         <p>Visible Nodes: ${quadtreeRef.current.getVisibleNodes().length}</p>
         <p>Max Depth: ${maxDepth}</p>
+        <p>Hovered Node: ${hoveredNodeIndex}</p>
+
       `;
     }
   });
@@ -74,11 +87,39 @@ export function TerrainRenderer({
     }
   }, [radius, position]);
 
+  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
+    sphereWorldPosition.current.copy(event.point);
+    const nodeIndex = quadtreeRef.current.findNodeAtPosition(
+      event.point,
+      radius,
+      position,
+      true
+    );
+    setHoveredNodeIndex(nodeIndex);
+  };
+
+  const handlePointerLeave = () => {
+    setHovering(true);
+  };
+
+  const handlePointerEnter = () => {
+    setHovering(true);
+  };
+
   return (
     <>
       <Html>
         <div id="debug-thingy"></div>
       </Html>
+      <mesh
+        visible={false}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onPointerEnter={handlePointerEnter}
+      >
+        <sphereGeometry args={[radius, 32, 32]} />
+        <meshBasicMaterial color="red" />
+      </mesh>
     </>
   );
 }

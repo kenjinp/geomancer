@@ -36,6 +36,14 @@ export class TerrainInstancer {
       material,
       TerrainInstancer.INITIAL_CAPACITY
     );
+
+    // Add instance color attribute
+    // const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
+    // this.instancedMesh.geometry.setAttribute(
+    //   "instanceColor",
+    //   new THREE.InstancedBufferAttribute(colors, 3, false, 1)
+    // );
+
     this.instancedMesh.count = 0; // Start with 0 visible instances
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   }
@@ -87,16 +95,16 @@ export class TerrainInstancer {
     }
   }
 
-  public update() {
+  public update(hoveredNodeIndex: number | null = null) {
     const visibleNodes = this.quadtree.getVisibleNodes();
-
-    // Ensure we have enough capacity
     this.ensureCapacity(visibleNodes.length);
-
-    this.processNodeUpdates(visibleNodes);
+    this.processNodeUpdates(visibleNodes, hoveredNodeIndex);
   }
 
-  private processNodeUpdates(nodeIndices: number[]) {
+  private processNodeUpdates(
+    nodeIndices: number[],
+    hoveredNodeIndex: number | null
+  ) {
     // Track used instances
     const usedInstances = new Set<number>();
     let instanceCount = 0;
@@ -106,7 +114,7 @@ export class TerrainInstancer {
         this.addInstance(nodeIndex);
       }
       usedInstances.add(nodeIndex);
-      this.updateInstanceTransform(nodeIndex, instanceCount);
+      this.updateInstanceTransform(nodeIndex, instanceCount, hoveredNodeIndex);
       instanceCount++;
     });
 
@@ -128,7 +136,11 @@ export class TerrainInstancer {
     this.nodeTransforms.set(nodeIndex, matrix);
   }
 
-  private updateInstanceTransform(nodeIndex: number, instanceId: number) {
+  private updateInstanceTransform(
+    nodeIndex: number,
+    instanceId: number,
+    hoveredNodeIndex: number | null
+  ) {
     const node = this.quadtree.getNodeView(nodeIndex);
     const matrix = this.nodeTransforms.get(nodeIndex)!;
 
@@ -202,28 +214,39 @@ export class TerrainInstancer {
       .multiply(localMatrix)
       .scale(scale);
 
-    // Set color based on face and level
-    const faceColors = [
-      new THREE.Color(0xff4444), // Front
-      new THREE.Color(0x4444ff), // Back
-      new THREE.Color(0x44ff44), // Right
-      new THREE.Color(0xffff44), // Left
-      new THREE.Color(0x44ffff), // Top
-      new THREE.Color(0xff44ff), // Bottom
-    ];
+    // Set color based on hover state
+    if (nodeIndex === hoveredNodeIndex) {
+      this.color.set(0xff0000); // Red for hovered node
+    } else {
+      // Create color gradient based on subdivision level (0 = dark, maxDepth = bright)
+      const faceColors = [
+        new THREE.Color(0xff4444), // Front
+        new THREE.Color(0x4444ff), // Back
+        new THREE.Color(0x44ff44), // Right
+        new THREE.Color(0xffff44), // Left
+        new THREE.Color(0x44ffff), // Top
+        new THREE.Color(0xff44ff), // Bottom
+      ];
+      const baseColor = faceColors[node.face].clone();
+      const depthFactor = node.level / this.quadtree.maxDepth;
 
-    // Create color gradient based on subdivision level (0 = dark, maxDepth = bright)
-    const baseColor = faceColors[node.face].clone();
-    const depthFactor = node.level / this.quadtree.maxDepth;
+      // Mix with white based on depth
+      baseColor.lerp(new THREE.Color(0xffffff), depthFactor * 0.7);
 
-    // Mix with white based on depth
-    baseColor.lerp(new THREE.Color(0xffffff), depthFactor * 0.7);
+      // Add variation based on level
+      const levelIntensity = 0.2 + depthFactor * 0.8;
+      baseColor.multiplyScalar(levelIntensity);
 
-    // Add variation based on level
-    const levelIntensity = 0.2 + depthFactor * 0.8;
-    baseColor.multiplyScalar(levelIntensity);
+      this.color.copy(baseColor);
+    }
 
-    this.color.copy(baseColor);
+    for (let neighborIndex of node.neighbors) {
+      if (neighborIndex === hoveredNodeIndex) {
+        this.color.set(0x4444ff);
+        break;
+      }
+    }
+
     this.instancedMesh.setColorAt(instanceId, this.color);
 
     // Apply final matrix to instance

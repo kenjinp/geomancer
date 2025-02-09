@@ -113,8 +113,25 @@ export class CubeSphereQuadtree {
 
   private createRootNodes() {
     // Initialize 6 root nodes with proper coordinates
+    const rootIndices = new Map<FaceIndex, number>();
+
+    // First create all root nodes
     for (let face = 0; face < 6; face++) {
-      this.createNode(face as FaceIndex, 0, 0, 0);
+      const index = this.createNode(face as FaceIndex, 0, 0, 0);
+      rootIndices.set(face as FaceIndex, index);
+    }
+
+    // Now set up neighbor relationships
+    for (const [face, index] of rootIndices) {
+      const neighbors: NeighborIndices = [
+        rootIndices.get(this.faceAdjacency.get(face)?.get("left")?.face!)!,
+        rootIndices.get(this.faceAdjacency.get(face)?.get("right")?.face!)!,
+        rootIndices.get(this.faceAdjacency.get(face)?.get("top")?.face!)!,
+        rootIndices.get(this.faceAdjacency.get(face)?.get("bottom")?.face!)!,
+      ];
+
+      const offset = index * (NODE_STRIDE / 4) + 11; // Neighbors start at index 11
+      this.nodeBuffer.set(neighbors, offset);
     }
   }
 
@@ -179,19 +196,19 @@ export class CubeSphereQuadtree {
         vec.set([u, v, 1]);
         break;
       case 1: // -Z face (back)
-        vec.set([-u, v, -1]); // Flip X for back face
+        vec.set([-u, v, -1]);
         break;
       case 2: // +X face (right)
-        vec.set([1, v, -u]); // Fix right face mapping
+        vec.set([1, v, -u]);
         break;
       case 3: // -X face (left)
-        vec.set([-1, v, u]); // Fix left face mapping
+        vec.set([-1, v, u]);
         break;
       case 4: // +Y face (top)
-        vec.set([u, 1, -v]); // Fix top face mapping
+        vec.set([u, 1, -v]);
         break;
       case 5: // -Y face (bottom)
-        vec.set([u, -1, v]); // Fix bottom face mapping
+        vec.set([u, -1, v]);
         break;
     }
 
@@ -544,9 +561,108 @@ export class CubeSphereQuadtree {
     return visibleNodes;
   }
 
-  private getChildIndex(childX: number, childY: number): number {
-    // Determine quadrant (0=bottom-left, 1=bottom-right, 2=top-left, 3=top-right)
-    return (childX % 2) + (childY % 2) * 2;
+  public findNodeAtPosition(
+    worldPos: THREE.Vector3,
+    radius: number,
+    offset: THREE.Vector3,
+    onlyLeafNodes: boolean = true
+  ): number | null {
+    const direction = new THREE.Vector3()
+      .subVectors(worldPos, offset)
+      .normalize();
+
+    // Determine which face the position is on
+    const abs = new THREE.Vector3(
+      Math.abs(direction.x),
+      Math.abs(direction.y),
+      Math.abs(direction.z)
+    );
+    let face: FaceIndex;
+    if (abs.z >= abs.x && abs.z >= abs.y) {
+      face = direction.z > 0 ? 0 : 1;
+    } else if (abs.x >= abs.y && abs.x >= abs.z) {
+      face = direction.x > 0 ? 2 : 3;
+    } else {
+      face = direction.y > 0 ? 4 : 5;
+    }
+
+    // Convert to face coordinates
+    let u: number, v: number;
+    switch (face) {
+      case 0:
+        u = direction.x / direction.z;
+        v = direction.y / direction.z;
+        break;
+      case 1:
+        u = direction.x / direction.z;
+        v = -direction.y / direction.z;
+        break;
+      case 2:
+        u = -direction.z / direction.x;
+        v = direction.y / direction.x;
+        break;
+      case 3:
+        u = direction.z / -direction.x;
+        v = direction.y / -direction.x;
+        break;
+      case 4:
+        u = direction.x / direction.y;
+        v = -direction.z / direction.y;
+        break;
+      case 5:
+        u = direction.x / -direction.y;
+        v = -direction.z / direction.y;
+        break;
+      default:
+        return null;
+    }
+
+    // Search through visible nodes on this face
+    let closestNode: number | null = null;
+    let closestDistance = Infinity;
+
+    this.indexMap.forEach((index) => {
+      const node = this.getNodeView(index);
+      if (node.face !== face) return;
+
+      // Calculate node bounds in face coordinates
+      const scale = 1 << node.level;
+      const minX = (node.x / scale) * 2 - 1;
+      const maxX = ((node.x + 1) / scale) * 2 - 1;
+      const minY = (node.y / scale) * 2 - 1;
+      const maxY = ((node.y + 1) / scale) * 2 - 1;
+
+      if (u >= minX && u <= maxX && v >= minY && v <= maxY) {
+        const distance = Math.hypot(
+          u - (minX + maxX) / 2,
+          v - (minY + maxY) / 2
+        );
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestNode = index;
+        }
+      }
+    });
+
+    // Drill down to leaf node if requested
+    if (onlyLeafNodes && closestNode !== null) {
+      let currentNode = this.getNodeView(closestNode);
+      while (currentNode.children[0] !== -1) {
+        const childScale = 1 << (currentNode.level + 1);
+        const childX = Math.floor((u + 1) * 0.5 * childScale) % childScale;
+        const childY = Math.floor((v + 1) * 0.5 * childScale) % childScale;
+
+        const childKey = `${face}:${currentNode.level + 1}:${childX}:${childY}`;
+        const childIndex = this.indexMap.get(childKey);
+
+        if (!childIndex) break;
+
+        closestNode = childIndex;
+        currentNode = this.getNodeView(childIndex);
+      }
+    }
+
+    return closestNode;
   }
 }
 
