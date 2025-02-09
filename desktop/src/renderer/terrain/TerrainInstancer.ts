@@ -24,7 +24,7 @@ export class TerrainInstancer {
     // Create material with sphere-oriented shading
     const material = new THREE.MeshBasicMaterial({
       // color: 0x00ff00,
-      wireframe: true, // Helps see geometry
+      // wireframe: true, // Helps see geometry
     });
 
     // Initialize with fixed capacity
@@ -125,78 +125,107 @@ export class TerrainInstancer {
   }
 
   private updateInstanceTransform(nodeIndex: number, instanceId: number) {
-    const node = this.quadtree["getNodeView"](nodeIndex);
+    const node = this.quadtree.getNodeView(nodeIndex);
     const matrix = this.nodeTransforms.get(nodeIndex)!;
-
-    // Get sphere position
-    const spherePos = new THREE.Vector3(...node.spherePos);
-
-    // Scale and offset
-    const worldPosition = spherePos
-      .clone()
-      .multiplyScalar(this.radius)
-      .add(this.offset);
 
     // Calculate tile size based on level
     const tileSize = (this.radius * 2) / (1 << node.level);
-
-    // Create orientation quaternion pointing away from sphere center
-    const up = spherePos.clone().normalize();
-    const rotation = new THREE.Quaternion();
-    rotation.setFromUnitVectors(new THREE.Vector3(0, 0, 1), up);
-
-    // Apply face-specific rotation
-    const faceRotation = this.getFaceRotation(node.face);
-    rotation.multiply(new THREE.Quaternion().setFromEuler(faceRotation));
-
-    // Set scale
     const scale = new THREE.Vector3(tileSize, tileSize, 1);
 
-    // Compose final matrix
-    matrix.compose(worldPosition, rotation, scale);
+    // Calculate normalized position within face (0 to 1)
+    const u = (node.x + 0.5) / (1 << node.level);
+    const v = (node.y + 0.5) / (1 << node.level);
+
+    // Create face transformation matrix
+    const faceMatrix = new THREE.Matrix4();
+    const facePosition = new THREE.Vector3();
+
+    switch (node.face) {
+      case 0: // Front (+Z)
+        facePosition.set(0, 0, this.radius);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationY(0));
+        break;
+      case 1: // Back (-Z)
+        facePosition.set(0, 0, -this.radius);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationY(Math.PI));
+        break;
+      case 2: // Right (+X)
+        facePosition.set(this.radius, 0, 0);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2));
+        break;
+      case 3: // Left (-X)
+        facePosition.set(-this.radius, 0, 0);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2));
+        break;
+      case 4: // Top (+Y)
+        facePosition.set(0, this.radius, 0);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+        break;
+      case 5: // Bottom (-Y)
+        facePosition.set(0, -this.radius, 0);
+        faceMatrix
+          .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
+          .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+        break;
+    }
+
+    // Create matrix for local position within face
+    const localMatrix = new THREE.Matrix4();
+    const localOffset = new THREE.Vector3(
+      (u - 0.5) * 2 * this.radius,
+      (v - 0.5) * 2 * this.radius,
+      0
+    );
+    localMatrix.makeTranslation(localOffset.x, localOffset.y, localOffset.z);
+
+    // Combine transformations: face position/orientation -> local offset -> world offset -> scale
+    matrix
+      .copy(faceMatrix)
+      .multiply(localMatrix)
+      .premultiply(
+        new THREE.Matrix4().makeTranslation(
+          this.offset.x,
+          this.offset.y,
+          this.offset.z
+        )
+      )
+      .scale(scale);
+
+    // Apply final matrix to instance
     this.instancedMesh.setMatrixAt(instanceId, matrix);
 
     // Set color based on cube face
     switch (node.face) {
-      case 0: // +X (front) - Red
+      case 0:
         this.color.setHex(0xff4444);
         break;
-      case 1: // -X (back) - Blue
+      case 1:
         this.color.setHex(0x4444ff);
         break;
-      case 2: // +Y (right) - Green
+      case 2:
         this.color.setHex(0x44ff44);
         break;
-      case 3: // -Y (left) - Yellow
+      case 3:
         this.color.setHex(0xffff44);
         break;
-      case 4: // +Z (top) - Cyan
+      case 4:
         this.color.setHex(0x44ffff);
         break;
-      case 5: // -Z (bottom) - Magenta
+      case 5:
         this.color.setHex(0xff44ff);
         break;
     }
     this.instancedMesh.setColorAt(instanceId, this.color);
-  }
-
-  private getFaceRotation(face: number): THREE.Euler {
-    switch (face) {
-      case 0: // +Z front
-        return new THREE.Euler(0, 0, 0);
-      case 1: // -Z back
-        return new THREE.Euler(0, Math.PI, 0);
-      case 2: // +X right
-        return new THREE.Euler(0, Math.PI / 2, 0);
-      case 3: // -X left
-        return new THREE.Euler(0, -Math.PI / 2, 0);
-      case 4: // +Y top
-        return new THREE.Euler(-Math.PI / 2, 0, 0);
-      case 5: // -Y bottom
-        return new THREE.Euler(Math.PI / 2, 0, 0);
-      default:
-        return new THREE.Euler();
-    }
   }
 
   public dispose() {

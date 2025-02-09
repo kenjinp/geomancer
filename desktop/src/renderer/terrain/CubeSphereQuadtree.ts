@@ -179,19 +179,19 @@ export class CubeSphereQuadtree {
         vec.set([u, v, 1]);
         break;
       case 1: // -Z face (back)
-        vec.set([-u, v, -1]);
+        vec.set([-u, v, -1]); // Flip X for back face
         break;
       case 2: // +X face (right)
-        vec.set([1, v, -u]);
+        vec.set([1, v, -u]); // Fix right face mapping
         break;
       case 3: // -X face (left)
-        vec.set([-1, v, u]);
+        vec.set([-1, v, u]); // Fix left face mapping
         break;
       case 4: // +Y face (top)
-        vec.set([u, 1, -v]);
+        vec.set([u, 1, -v]); // Fix top face mapping
         break;
       case 5: // -Y face (bottom)
-        vec.set([u, -1, v]);
+        vec.set([u, -1, v]); // Fix bottom face mapping
         break;
     }
 
