@@ -1,11 +1,11 @@
 import { H3TextureGenerator } from "@/lib/Hextree/indexTexture";
-import { Planet } from "@/lib/planetary/Planet";
 import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { Perf } from "r3f-perf";
 import { useRef, useState } from "react";
 import { Group, Vector3 } from "three";
+import { TerrainRenderer } from "../components/TerrainRenderer";
 
 const origin = new Vector3();
 const temp = new Vector3();
@@ -59,6 +59,24 @@ export const Home: React.FC = () => {
 
   //   window.quadTree = quadtree;
   // });
+
+  // useEffect(() => {
+  //   const instancer = planet.terrainInstancer;
+
+  //   // Test LOD updates
+  //   let angle = 0;
+  //   const animate = () => {
+  //     angle += 0.01;
+  //     camera.position.set(
+  //       Math.sin(angle) * 10000000,
+  //       Math.cos(angle) * 10000000,
+  //       Math.cos(angle) * 10000000
+  //     );
+  //     instancer.update(camera);
+  //     requestAnimationFrame(animate);
+  //   };
+  //   animate();
+  // }, []);
 
   return (
     <group>
@@ -125,9 +143,9 @@ export const Home: React.FC = () => {
         <meshStandardMaterial color="pink" />
       </mesh> */}
 
-      {/* <QuadtreeVisualizer quadtree={quadtree} wireframe={false} /> */}
       {/* <H3Geometry resolution={4} radius={radius} /> */}
-      <Planet radius={radius} />
+
+      <TerrainRenderer radius={radius} />
     </group>
   );
 };
