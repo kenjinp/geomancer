@@ -1,11 +1,10 @@
+import { H3Geometry } from "@/lib/Hextree/Geometry";
 import { H3TextureGenerator } from "@/lib/Hextree/indexTexture";
 import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
 import { Perf } from "r3f-perf";
 import { useRef, useState } from "react";
 import { Group, Vector3 } from "three";
-import { TerrainRenderer } from "../components/TerrainRenderer";
 
 const origin = new Vector3();
 const temp = new Vector3();
@@ -13,7 +12,7 @@ export const radius = 2048;
 
 export const Home: React.FC = () => {
   const [playing, setPlaying] = useState(false);
-  const camera = useThree((state) => state.camera);
+  // const camera = useThree((state) => state.camera);
   const groupRef = useRef<Group>(null);
   const groupRefY = useRef<Group>(null);
   const groupRefZ = useRef<Group>(null);
@@ -25,7 +24,7 @@ export const Home: React.FC = () => {
   //     groupRef.current.rotateY(0.01);
   //     groupRef.current.rotateX(0.01);
   //     groupRefY.current.rotateX(0.025);
-  //     groupRefZ.current.rotateY(-0.05);
+  //     groupRefZ.current.ro tateY(-0.05);
   //     groupRefZ.current.rotateX(-0.05);
   //     // const timeBefore = performance.now();
   //     quadtree.reset();
@@ -143,9 +142,9 @@ export const Home: React.FC = () => {
         <meshStandardMaterial color="pink" />
       </mesh> */}
 
-      {/* <H3Geometry resolution={4} radius={radius} /> */}
+      <H3Geometry resolution={3} radius={radius} seedCount={40} />
 
-      <TerrainRenderer radius={radius} />
+      {/* <TerrainRenderer radius={radius} /> */}
     </group>
   );
 };

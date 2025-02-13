@@ -4212,10 +4212,15 @@
     loupe "^3.1.2"
     tinyrainbow "^2.0.0"
 
-"@webgpu/types@*", "@webgpu/types@^0.1.53":
+"@webgpu/types@*":
   version "0.1.53"
   resolved "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.53.tgz#19a607eceefe90dadb49209a5fbd0fd60289fffa"
   integrity sha512-x+BLw/opaz9LiVyrMsP75nO1Rg0QfrACUYIbVSfGwY/w0DiWIPYYrpte6us//KZXinxFAOJl0+C17L1Vi2vmDw==
+
+"@webgpu/types@^0.1.54":
+  version "0.1.54"
+  resolved "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.54.tgz#0e692514314d910da56f43e17f5fff9bbd153607"
+  integrity sha512-81oaalC8LFrXjhsczomEQ0u3jG+TqE6V9QHLA8GNZq/Rnot0KDugu3LhSYSlie8tSdooAN1Hov05asrUUp9qgg==
 
 "@xmldom/xmldom@^0.8.8":
   version "0.8.10"

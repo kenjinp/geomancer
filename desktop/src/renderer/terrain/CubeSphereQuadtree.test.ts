@@ -249,7 +249,7 @@ describe("CubeSphereQuadtree", () => {
     const rootIndex = quadtree["indexMap"].get("0:0:0:0")!;
 
     let current = rootIndex;
-    for (let i = 0; i < maxDepth; i++) {
+    for (let i = 0; i <= maxDepth; i++) {
       current = quadtree["getNodeView"](current).children[0];
       expect(current).not.toBe(-1);
     }
@@ -341,6 +341,343 @@ describe("CubeSphereQuadtree > Node Positions", () => {
       const [x, y, z] = pos;
       const length = Math.sqrt(x ** 2 + y ** 2 + z ** 2);
       expect(length).toBeCloseTo(1);
+    });
+  });
+});
+
+describe("CubeSphereQuadtree > Face Coordinate Mapping", () => {
+  const testCases = [
+    {
+      face: 0,
+      name: "Front face (+Z)",
+      position: new THREE.Vector3(0, 0, 1),
+      expected: { face: 0, x: 0, y: 0 },
+    },
+    {
+      face: 1,
+      name: "Back face (-Z)",
+      position: new THREE.Vector3(0, 0, -1),
+      expected: { face: 1, x: 0, y: 0 },
+    },
+    {
+      face: 2,
+      name: "Right face (+X)",
+      position: new THREE.Vector3(1, 0, 0),
+      expected: { face: 2, x: 0, y: 0 },
+    },
+    {
+      face: 3,
+      name: "Left face (-X)",
+      position: new THREE.Vector3(-1, 0, 0),
+      expected: { face: 3, x: 0, y: 0 },
+    },
+    {
+      face: 4,
+      name: "Top face (+Y)",
+      position: new THREE.Vector3(0, 1, 0),
+      expected: { face: 4, x: 0, y: 0 },
+    },
+    {
+      face: 5,
+      name: "Bottom face (-Y)",
+      position: new THREE.Vector3(0, -1, 0),
+      expected: { face: 5, x: 0, y: 0 },
+    },
+  ];
+
+  test.each(testCases)("$name center detection", ({ position, expected }) => {
+    const quadtree = new CubeSphereQuadtree();
+    const nodeIndex = quadtree.findNodeAtPosition(
+      position,
+      1,
+      new THREE.Vector3()
+    );
+    expect(nodeIndex).not.toBeNull();
+
+    const node = quadtree["getNodeView"](nodeIndex!);
+    expect(node.face).toBe(expected.face);
+    expect(node.x).toBe(expected.x);
+    expect(node.y).toBe(expected.y);
+  });
+
+  test("Child node detection on right face", () => {
+    const quadtree = new CubeSphereQuadtree();
+    const rootIndex = quadtree["indexMap"].get("2:0:0:0")!;
+    quadtree.splitNode(rootIndex);
+
+    // Test positions in each quadrant
+    const testPositions = [
+      { pos: new THREE.Vector3(1, 0.25, 0.25), expected: { x: 0, y: 1 } }, // -Z, +Y
+      { pos: new THREE.Vector3(1, 0.25, -0.25), expected: { x: 1, y: 1 } }, // +Z, +Y
+      { pos: new THREE.Vector3(1, -0.25, 0.25), expected: { x: 0, y: 0 } }, // -Z, -Y
+      { pos: new THREE.Vector3(1, -0.25, -0.25), expected: { x: 1, y: 0 } }, // +Z, -Y
+    ];
+
+    for (const { pos, expected } of testPositions) {
+      const nodeIndex = quadtree.findNodeAtPosition(
+        pos,
+        1,
+        new THREE.Vector3(),
+        true
+      );
+      expect(nodeIndex).not.toBeNull();
+
+      const node = quadtree["getNodeView"](nodeIndex!);
+      expect(node.face).toBe(2);
+      expect(node.x).toBe(expected.x);
+      expect(node.y).toBe(expected.y);
+    }
+  });
+
+  test("Leaf node detection across faces", () => {
+    const quadtree = new CubeSphereQuadtree();
+    const cameraPos = new THREE.Vector3(0.001, 0.001, 0.001);
+    quadtree.updateLOD(cameraPos, 3); // Force subdivision
+
+    const testPositions = [
+      new THREE.Vector3(0, 0, 1), // Front
+      new THREE.Vector3(0, 0, -1), // Back
+      new THREE.Vector3(1, 0, 0), // Right
+      new THREE.Vector3(-1, 0, 0), // Left
+      new THREE.Vector3(0, 1, 0), // Top
+      new THREE.Vector3(0, -1, 0), // Bottom
+    ];
+
+    for (const pos of testPositions) {
+      const nodeIndex = quadtree.findNodeAtPosition(
+        pos,
+        1,
+        new THREE.Vector3(),
+        true
+      );
+      expect(nodeIndex).not.toBeNull();
+
+      const node = quadtree["getNodeView"](nodeIndex!);
+      // Verify we're at maximum depth
+      expect(node.level).toBe(3);
+      expect(node.children[0]).toBe(-1);
+    }
+  });
+
+  test("Mirroring check for adjacent faces", () => {
+    const quadtree = new CubeSphereQuadtree();
+    const epsilon = 0.01;
+
+    // Test border between front and right faces
+    const testPositions = [
+      { pos: new THREE.Vector3(epsilon, 0, 1 - epsilon), expectedFace: 0 }, // Front face
+      { pos: new THREE.Vector3(1 - epsilon, 0, epsilon), expectedFace: 2 }, // Right face
+    ];
+
+    for (const { pos, expectedFace } of testPositions) {
+      const nodeIndex = quadtree.findNodeAtPosition(
+        pos,
+        1,
+        new THREE.Vector3()
+      );
+      expect(nodeIndex).not.toBeNull();
+
+      const node = quadtree["getNodeView"](nodeIndex!);
+      expect(node.face).toBe(expectedFace);
+    }
+  });
+});
+
+describe("CubeSphereQuadtree > Neighbor Connections", () => {
+  const testFace: FaceIndex = 0; // Front face
+  let quadtree: TestCubeSphereQuadtree;
+
+  // Helper function to validate neighbor relationships
+  function validateNeighbors(
+    nodeIndex: number,
+    expected: {
+      left: number | { face: FaceIndex; x: number; y: number };
+      right: number | { face: FaceIndex; x: number; y: number };
+      top: number | { face: FaceIndex; x: number; y: number };
+      bottom: number | { face: FaceIndex; x: number; y: number };
+    }
+  ) {
+    const node = quadtree["getNodeView"](nodeIndex);
+    const neighbors = node.neighbors;
+
+    const resolveExpected = (
+      expected: number | { face: FaceIndex; x: number; y: number }
+    ): number => {
+      if (typeof expected === "number") return expected;
+      const key = `${expected.face}:${node.level}:${expected.x}:${expected.y}`;
+      return quadtree["indexMap"].get(key)!;
+    };
+
+    expect(neighbors[0]).toBe(resolveExpected(expected.left));
+    expect(neighbors[1]).toBe(resolveExpected(expected.right));
+    expect(neighbors[2]).toBe(resolveExpected(expected.top));
+    expect(neighbors[3]).toBe(resolveExpected(expected.bottom));
+  }
+
+  beforeEach(() => {
+    quadtree = new CubeSphereQuadtree() as unknown as TestCubeSphereQuadtree;
+  });
+
+  test("Level 1 subdivision neighbors", () => {
+    const rootIndex = quadtree["indexMap"].get(`${testFace}:0:0:0`)!;
+    quadtree.splitNode(rootIndex);
+    const children = quadtree["getNodeView"](rootIndex).children;
+
+    // Test all 4 children
+    children.forEach((childIndex, quadrant) => {
+      const child = quadtree["getNodeView"](childIndex);
+      const [x, y] = [child.x, child.y];
+
+      // Expected same-face neighbors
+      const expected = {
+        left: x > 0 ? children[quadrant - 1] : { face: 3, x: 1, y }, // Left face
+        right: x < 1 ? children[quadrant + 1] : { face: 2, x: 0, y }, // Right face
+        top:
+          y < 1 ? children[quadrant + 2] : { face: 4, x: x, y: 0, rotation: 1 }, // Top face
+        bottom: y > 0 ? children[quadrant - 2] : { face: 5, x, y: 1 }, // Bottom face
+      };
+
+      validateNeighbors(childIndex, expected);
+    });
+  });
+
+  test("Level 2 subdivision with cross-face neighbors", () => {
+    const rootIndex = quadtree["indexMap"].get(`${testFace}:0:0:0`)!;
+    quadtree.splitNode(rootIndex);
+
+    // Split the top-right child (quadrant 3)
+    const level1Child = quadtree["getNodeView"](rootIndex).children[3];
+    quadtree.splitNode(level1Child);
+    const level2Children = quadtree["getNodeView"](level1Child).children;
+
+    // Test all 4 level-2 children
+    level2Children.forEach((childIndex, quadrant) => {
+      const child = quadtree["getNodeView"](childIndex);
+      const [x, y] = [child.x, child.y]; // Level 2 coordinates (0-3)
+
+      // Expected neighbors
+      const expected = {
+        left:
+          x > 0
+            ? level2Children[quadrant - 1]
+            : y < 2
+            ? quadtree["indexMap"].get(`${testFace}:1:1:${y + 1}`)!
+            : { face: 4, x: 3 - y, y: 0, rotation: 0 },
+        right:
+          x < 3
+            ? level2Children[quadrant + 1]
+            : { face: 2, x: 0, y: 3 - y, rotation: 0 },
+        top:
+          y < 3
+            ? level2Children[quadrant + 2]
+            : { face: 4, x: 3 - x, y: 0, rotation: 1 },
+        bottom:
+          y > 0
+            ? level2Children[quadrant - 2]
+            : x < 2
+            ? quadtree["indexMap"].get(`${testFace}:1:${x + 1}:0`)!
+            : { face: 5, x: 3 - x, y: 1, rotation: 0 },
+      };
+
+      validateNeighbors(childIndex, expected);
+    });
+  });
+
+  test("Level 3 subdivision with complex rotations", () => {
+    const rootIndex = quadtree["indexMap"].get(`${testFace}:0:0:0`)!;
+
+    // Split to level 3
+    quadtree.splitNode(rootIndex); // Level 1
+    const level1Child = quadtree["getNodeView"](rootIndex).children[3];
+    quadtree.splitNode(level1Child); // Level 2
+    const level2Child = quadtree["getNodeView"](level1Child).children[3];
+    quadtree.splitNode(level2Child); // Level 3
+
+    const level3Children = quadtree["getNodeView"](level2Child).children;
+
+    // Test edge cases
+    const testCases = [
+      {
+        childIndex: level3Children[3], // Rightmost child
+        expected: {
+          right: {
+            face: 2,
+            x: 7 - quadtree["getNodeView"](level3Children[3]).y,
+            y: 3 - quadtree["getNodeView"](level3Children[3]).y,
+            rotation: 0,
+          },
+        },
+      },
+      {
+        childIndex: level3Children[2], // Topmost child
+        expected: {
+          top: {
+            face: 4,
+            x: quadtree["getNodeView"](level3Children[2]).y,
+            y: 0,
+            rotation: 1,
+          },
+        },
+      },
+    ];
+
+    testCases.forEach(({ childIndex, expected }) => {
+      const child = quadtree["getNodeView"](childIndex);
+      const neighborIndex = child.neighbors[1]; // Right neighbor
+      const neighbor = quadtree["getNodeView"](neighborIndex);
+
+      // Verify face and coordinates
+      expect(neighbor.face).toBe(expected.right.face);
+
+      // Verify rotated coordinates
+      const [rotatedX, rotatedY] = quadtree["rotateCoordinates"](
+        child.x,
+        child.y,
+        child.level,
+        expected.right.rotation
+      );
+      expect(neighbor.x).toBe(rotatedX);
+      expect(neighbor.y).toBe(rotatedY);
+
+      // Verify bidirectional relationship
+      const reverseNeighborIndex = neighbor.neighbors[0]; // Left neighbor of right neighbor
+      expect(reverseNeighborIndex).toBe(childIndex);
+    });
+  });
+
+  test("Deep subdivision consistency check", () => {
+    const rootIndex = quadtree["indexMap"].get(`${testFace}:0:0:0`)!;
+    let currentParent = rootIndex;
+
+    // Split 5 levels deep
+    for (let level = 1; level <= 5; level++) {
+      quadtree.splitNode(currentParent);
+      currentParent = quadtree["getNodeView"](currentParent).children[0];
+    }
+
+    // Test leaf node neighbors
+    const leafNode = quadtree["getNodeView"](currentParent);
+    const maxCoord = (1 << leafNode.level) - 1;
+
+    // Expected neighbors based on position (0,0 at max depth)
+    const expected = {
+      left: { face: 3, x: maxCoord, y: 0, rotation: 0 },
+      right: { face: 2, x: 0, y: maxCoord, rotation: 0 },
+      top: quadtree["indexMap"].get(`${testFace}:${leafNode.level}:0:1`),
+      bottom: { face: 5, x: 0, y: maxCoord, rotation: 0 },
+    };
+
+    validateNeighbors(currentParent, expected);
+
+    // Verify all neighbors exist and reference back
+    leafNode.neighbors.forEach((neighborIndex, direction) => {
+      if (neighborIndex === -1) return;
+
+      const neighbor = quadtree["getNodeView"](neighborIndex);
+      const reverseDirection = [1, 0, 3, 2][direction]; // Opposite direction
+      const reverseNeighborIndex = neighbor.neighbors[reverseDirection];
+
+      expect(reverseNeighborIndex).toBe(currentParent);
     });
   });
 });

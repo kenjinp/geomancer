@@ -24,7 +24,7 @@ const origin = new THREE.Vector3();
 
 export class CubeSphereQuadtree {
   private nodeBuffer: Float32Array;
-  private indexMap: Map<string, number>;
+  private indexMap: Map<number, number>;
   private faceAdjacency: Map<FaceIndex, Map<string, EdgeInfo>>;
   private nextIndex = 0;
   private freeIndices: number[] = [];
@@ -156,7 +156,7 @@ export class CubeSphereQuadtree {
     this.nodeBuffer[offset + 15] = 0; // errorMetric
 
     // Store in index map
-    const key = `${face}:${level}:${x}:${y}`;
+    const key = this.getNodeHash(face, level, x, y);
     this.indexMap.set(key, index);
 
     return index;
@@ -168,6 +168,14 @@ export class CubeSphereQuadtree {
     y: number,
     level: number
   ): Float32Array {
+    const maxCoord = (1 << level) - 1;
+    let u = ((x + 0.5) / (1 << level)) * 2 - 1;
+    let v = ((y + 0.5) / (1 << level)) * 2 - 1;
+
+    // Normalize edge cases
+    u = Math.min(Math.max(u, -1), 1);
+    v = Math.min(Math.max(v, -1), 1);
+
     // For root nodes, return exact unit vectors
     if (level === 0 && x === 0 && y === 0) {
       switch (face) {
@@ -185,10 +193,6 @@ export class CubeSphereQuadtree {
           return new Float32Array([0, -1, 0]); // -Y bottom
       }
     }
-
-    const scale = Math.pow(0.5, level);
-    const u = (x + 0.5) * scale * 2 - 1;
-    const v = (y + 0.5) * scale * 2 - 1;
 
     let vec = new Float32Array(3);
     switch (face) {
@@ -269,13 +273,36 @@ export class CubeSphereQuadtree {
     const [nx, ny, nface] = this.getNeighborCoordinates(node, direction);
 
     if (nface === node.face) {
-      // Same face neighbor
-      const key = `${nface}:${node.level}:${nx}:${ny}`;
-      return this.indexMap.get(key) ?? -1;
+      // Same face neighbor - find existing ancestor
+      return this.findExistingAncestor(nface, node.level, nx, ny);
     } else {
       // Cross-face neighbor - requires adjacency resolution
       return this.resolveCrossFaceNeighbor(node, direction);
     }
+  }
+
+  private findExistingAncestor(
+    face: FaceIndex,
+    targetLevel: number,
+    targetX: number,
+    targetY: number
+  ): number {
+    let currentLevel = targetLevel;
+    let currentX = targetX;
+    let currentY = targetY;
+
+    while (currentLevel >= 0) {
+      const key = this.getNodeHash(face, currentLevel, currentX, currentY);
+      const index = this.indexMap.get(key);
+      if (index !== undefined) {
+        return index;
+      }
+      // Move up to parent level
+      currentLevel--;
+      currentX = Math.floor(currentX / 2);
+      currentY = Math.floor(currentY / 2);
+    }
+    return -1; // Shouldn't happen as root nodes exist
   }
 
   private resolveCrossFaceNeighbor(node: NodeView, direction: string): number {
@@ -286,65 +313,19 @@ export class CubeSphereQuadtree {
       node.x,
       node.y,
       node.level,
-      edgeInfo.rotation
+      edgeInfo.rotation,
+      direction
     );
 
-    // Ensure neighbor exists at target position
-    return this.findOrCreateNeighbor(
-      edgeInfo.face as FaceIndex,
-      node.level,
-      rotatedX,
-      rotatedY
-    );
-  }
+    // Calculate the actual coordinates based on edge position
+    const maxCoord = (1 << node.level) - 1;
+    const actualX =
+      direction === "left" ? maxCoord : direction === "right" ? 0 : rotatedX;
+    const actualY =
+      direction === "bottom" ? maxCoord : direction === "top" ? 0 : rotatedY;
 
-  private findOrCreateNeighbor(
-    face: FaceIndex,
-    level: number,
-    x: number,
-    y: number
-  ): number {
-    let currentFace = face;
-    let currentLevel = level;
-    let currentX = x;
-    let currentY = y;
-
-    while (currentLevel >= 0) {
-      const key = this.generateAdjacentKey(
-        currentFace,
-        currentLevel,
-        currentX,
-        currentY
-      );
-      const index = this.indexMap.get(key);
-
-      if (index !== undefined) {
-        return this.ensureSplitToLevel(index, level - currentLevel);
-      }
-
-      // Move up one level
-      currentLevel--;
-      currentX = Math.floor(currentX / 2);
-      currentY = Math.floor(currentY / 2);
-    }
-
-    return -1;
-  }
-
-  private ensureSplitToLevel(nodeIndex: number, depth: number): number {
-    if (depth <= 0) return nodeIndex;
-
-    let currentIndex = nodeIndex;
-    for (let i = 0; i < depth; i++) {
-      const node = this.getNodeView(currentIndex);
-      if (node.children[0] === -1) {
-        this.splitNode(currentIndex);
-      }
-      // Get the first child index directly from the parent's children array
-      currentIndex = node.children[0];
-      if (currentIndex === -1) break;
-    }
-    return currentIndex;
+    const key = this.getNodeHash(edgeInfo.face, node.level, actualX, actualY);
+    return this.indexMap.get(key) ?? -1;
   }
 
   private findFreeIndex(): number {
@@ -408,30 +389,40 @@ export class CubeSphereQuadtree {
     x: number,
     y: number,
     level: number,
-    rotation: number
+    rotation: number,
+    edgeDirection?: string
   ): [number, number] {
     const maxCoord = (1 << level) - 1;
+    let rotatedX = x;
+    let rotatedY = y;
 
-    // Apply rotation transforms
-    switch (rotation) {
-      case 1: // 90° counter-clockwise
-        return [y, maxCoord - x];
-      case 2: // 180°
-        return [maxCoord - x, maxCoord - y];
-      case 3: // 270° counter-clockwise (90° clockwise)
-        return [maxCoord - y, x];
-      default: // 0°
-        return [x, y];
+    // Apply rotation transformation
+    switch (rotation % 4) {
+      case 1: // 90 degrees
+        [rotatedX, rotatedY] = [maxCoord - y, x];
+        break;
+      case 2: // 180 degrees
+        [rotatedX, rotatedY] = [maxCoord - x, maxCoord - y];
+        break;
+      case 3: // 270 degrees
+        [rotatedX, rotatedY] = [y, maxCoord - x];
+        break;
     }
-  }
 
-  private generateAdjacentKey(
-    face: FaceIndex,
-    level: number,
-    x: number,
-    y: number
-  ): string {
-    return `${face}:${level}:${x}:${y}`;
+    // Adjust coordinates based on edge direction
+    if (edgeDirection) {
+      switch (edgeDirection) {
+        case "left":
+          return [maxCoord, rotatedY];
+        case "right":
+          return [0, rotatedY];
+        case "top":
+          return [rotatedX, 0];
+        case "bottom":
+          return [rotatedX, maxCoord];
+      }
+    }
+    return [rotatedX, rotatedY];
   }
 
   private retireNode(nodeIndex: number) {
@@ -449,7 +440,9 @@ export class CubeSphereQuadtree {
 
       // Mark as free before clearing children
       this.freeIndices.push(currentIndex);
-      this.indexMap.delete(`${node.face}:${node.level}:${node.x}:${node.y}`);
+      this.indexMap.delete(
+        this.getNodeHash(node.face, node.level, node.x, node.y)
+      );
 
       // Clear node data
       const offset = currentIndex * (NODE_STRIDE / 4);
@@ -471,7 +464,7 @@ export class CubeSphereQuadtree {
 
     // Process all root nodes
     for (let face = 0; face < 6; face++) {
-      const rootIndex = this.indexMap.get(`${face}:0:0:0`);
+      const rootIndex = this.indexMap.get(this.getNodeHash(face, 0, 0, 0));
       if (rootIndex !== undefined) {
         this.updateNodeLOD(
           rootIndex,
@@ -652,7 +645,12 @@ export class CubeSphereQuadtree {
         const childX = Math.floor((u + 1) * 0.5 * childScale) % childScale;
         const childY = Math.floor((v + 1) * 0.5 * childScale) % childScale;
 
-        const childKey = `${face}:${currentNode.level + 1}:${childX}:${childY}`;
+        const childKey = this.getNodeHash(
+          face,
+          currentNode.level + 1,
+          childX,
+          childY
+        );
         const childIndex = this.indexMap.get(childKey);
 
         if (!childIndex) break;
@@ -664,49 +662,69 @@ export class CubeSphereQuadtree {
 
     return closestNode;
   }
+
+  public reset() {
+    // Re-initialize buffer and indices
+    this.nodeBuffer = new Float32Array(MAX_NODES * NODE_STRIDE);
+    this.indexMap = new Map();
+    this.nextIndex = 0;
+    this.freeIndices = [];
+
+    // Rebuild adjacency map and root nodes
+    this.initFaceAdjacency();
+    this.createRootNodes();
+  }
+
+  private getNodeHash(
+    face: FaceIndex,
+    level: number,
+    x: number,
+    y: number
+  ): number {
+    // Bit packing: 3 bits face (0-5), 5 bits level (0-31), 12 bits x (0-4095), 12 bits y (0-4095)
+    return (face << 29) | (level << 24) | (x << 12) | y;
+  }
 }
 
 // Helper class for buffer access
 class NodeView {
-  constructor(private buffer: Float32Array, private index: number) {}
+  private readonly offset: number;
+
+  constructor(private buffer: Float32Array, private index: number) {
+    this.offset = index * (NODE_STRIDE / 4);
+  }
 
   get face() {
-    return this.buffer[this.index * (NODE_STRIDE / 4)];
+    return this.buffer[this.offset];
   }
   get level() {
-    return this.buffer[this.index * (NODE_STRIDE / 4) + 1];
+    return this.buffer[this.offset + 1];
   }
   get x() {
-    return this.buffer[this.index * (NODE_STRIDE / 4) + 2];
+    return this.buffer[this.offset + 2];
   }
   get y() {
-    return this.buffer[this.index * (NODE_STRIDE / 4) + 3];
+    return this.buffer[this.offset + 3];
   }
   get children() {
     return Array.from(
-      this.buffer.subarray(
-        this.index * (NODE_STRIDE / 4) + 4,
-        this.index * (NODE_STRIDE / 4) + 8
-      )
+      this.buffer.subarray(this.offset + 4, this.offset + 8)
     ) as ChildIndices;
   }
   get neighbors() {
     return Array.from(
-      this.buffer.subarray(
-        this.index * (NODE_STRIDE / 4) + 11,
-        this.index * (NODE_STRIDE / 4) + 15
-      )
+      this.buffer.subarray(this.offset + 11, this.offset + 15)
     ) as NeighborIndices;
   }
   get spherePos() {
     return [
-      this.buffer[this.index * (NODE_STRIDE / 4) + 8],
-      this.buffer[this.index * (NODE_STRIDE / 4) + 9],
-      this.buffer[this.index * (NODE_STRIDE / 4) + 10],
+      this.buffer[this.offset + 8],
+      this.buffer[this.offset + 9],
+      this.buffer[this.offset + 10],
     ] as SpherePos;
   }
   get errorMetric() {
-    return this.buffer[this.index * NODE_STRIDE + 16];
+    return this.buffer[this.offset + 16];
   }
 
   set(buffer: Float32Array, index: number) {
