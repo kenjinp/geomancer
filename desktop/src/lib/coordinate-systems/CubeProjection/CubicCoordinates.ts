@@ -261,4 +261,42 @@ export class CubicCoordinates {
   public toFloat32Array(): Float32Array {
     return new Float32Array(this.toVector3().toArray());
   }
+
+  /**
+   * Reorders an array of cube face textures or data based on the custom CubicCoordinates ordering.
+   *
+   * Our CubicCoordinates enum order is:
+   *   FRONT = 0, BACK = 1, RIGHT = 2, LEFT = 3, TOP = 4, BOTTOM = 5.
+   * However, due to generation differences, the top and bottom faces are swapped relative to the standard.
+   *
+   * Three.js CubeTexture expects faces in the order:
+   *   0: posX, 1: negX, 2: posY, 3: negY, 4: posZ, 5: negZ.
+   *
+   * Therefore, the mapping from our order to Three.js order is:
+   *   - custom RIGHT (2) -> posX (slot 0)
+   *   - custom LEFT  (3) -> negX (slot 1)
+   *   - custom BOTTOM(5) -> posY (slot 2)
+   *   - custom TOP   (4) -> negY (slot 3)
+   *   - custom FRONT (0) -> posZ (slot 4)
+   *   - custom BACK  (1) -> negZ (slot 5)
+   *
+   * Usage:
+   *   const reordered = CubicCoordinates.reorderCubeFaces(yourFacesArray);
+   *
+   * @param faces An array of six cube face textures or data, ordered as per CubicCoordinates enum.
+   * @returns The reordered array matching Three.js CubeTexture expected ordering.
+   */
+  static reorderCubeFaces<T>(faces: T[]): T[] {
+    if (faces.length !== 6) {
+      throw new Error("Expected an array of 6 cube face textures.");
+    }
+    return [
+      faces[2], // RIGHT -> posX
+      faces[3], // LEFT  -> negX
+      faces[5], // BOTTOM -> posY (swapped from generation)
+      faces[4], // TOP    -> negY (swapped from generation)
+      faces[0], // FRONT  -> posZ
+      faces[1], // BACK   -> negZ
+    ];
+  }
 }
