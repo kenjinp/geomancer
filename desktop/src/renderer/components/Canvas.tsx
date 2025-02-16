@@ -2,6 +2,7 @@ import { Canvas as ThreeCanvas, useThree } from "@react-three/fiber";
 import { PropsWithChildren, Suspense, useState } from "react";
 import { Color } from "three";
 // @ts-expect-error
+import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { OrbitCamera } from "./OrbitCamera";
 
 const Background: React.FC = () => {
@@ -13,6 +14,7 @@ const Background: React.FC = () => {
 
 export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
   const [frameloop, setFrameloop] = useState<"never" | "always">("never");
+  const radius = EARTH_AUTHALIC_RADIUS;
 
   return (
     <ThreeCanvas
@@ -42,10 +44,10 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
     >
       <Suspense fallback={null}>
         {children}
-        <OrbitCamera planetRadius={2048} />
+        <OrbitCamera planetRadius={radius} />
         <ambientLight intensity={Math.PI / 2} />
         <spotLight
-          position={[2048 * 10, 2048 * 10, 2048 * 10]}
+          position={[radius * 10, radius * 10, radius * 10]}
           angle={0.15}
           penumbra={1}
           decay={0}

@@ -1,5 +1,4 @@
-import { H3TextureGenerator } from "@/lib/Hextree/indexTexture";
-import { Button } from "@nextui-org/react";
+import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { Html } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { useRef, useState } from "react";
@@ -8,10 +7,11 @@ import { TerrainRenderer } from "../components/TerrainRenderer";
 
 const origin = new Vector3();
 const temp = new Vector3();
-export const radius = 2048;
+// radius of earth in meters
 
 export const Home: React.FC = () => {
   const [playing, setPlaying] = useState(false);
+  const radius = EARTH_AUTHALIC_RADIUS;
   // const camera = useThree((state) => state.camera);
   const groupRef = useRef<Group>(null);
   const groupRefY = useRef<Group>(null);
@@ -84,10 +84,10 @@ export const Home: React.FC = () => {
         <Html key="yes">
           <div id="debug" className="text-azure"></div>
           <div>
-            <Button onPress={() => setPlaying(!playing)}>
+            {/* <Button onPress={() => setPlaying(!playing)}>
               {playing ? "stop" : "play"}
-            </Button>
-            <H3TextureGenerator resolution={5} seedCount={40} />
+            </Button> */}
+            {/* <H3TextureGenerator resolution={5} seedCount={40} /> */}
           </div>
         </Html>
       </group>
@@ -145,6 +145,8 @@ export const Home: React.FC = () => {
       {/* <H3Geometry resolution={4} radius={radius} seedCount={40} /> */}
 
       <TerrainRenderer radius={radius} />
+      <axesHelper args={[radius]} />
+      {/* <CubeVisualizer scale={radius} /> */}
     </group>
   );
 };

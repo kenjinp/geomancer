@@ -51,14 +51,18 @@ uniform float uRadius;
 uniform vec3 uOffset;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
+// attribute vec3 instanceColor;
+varying vec3 vColor;
+
 void main() {
     vec4 worldPosition = instanceMatrix * vec4(position, 1.0);
         // Convert cube position to sphere
     vec3 sphereDirection = normalize(worldPosition.xyz - uOffset);
     vec3 spherePosition = uOffset + sphereDirection * uRadius;
-    
+    vInstanceId = float(gl_InstanceID);
     // Transform to view space
     vec4 modelViewPosition = modelViewMatrix * vec4(spherePosition, 1.0);
     gl_Position = projectionMatrix * modelViewPosition;
     vWorldPosition = (instanceMatrix * vec4(position, 1.0));
+    vColor = instanceColor;
 }

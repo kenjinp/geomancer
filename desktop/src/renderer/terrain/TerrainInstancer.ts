@@ -87,7 +87,7 @@ export class TerrainInstancer {
 
     // Initialize instanced mesh
     this.instancedMesh = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(1, 1, 8, 16),
+      new THREE.PlaneGeometry(1, 1, 16, 16),
       this.material,
       TerrainInstancer.INITIAL_CAPACITY
     );

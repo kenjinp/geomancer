@@ -106,53 +106,6 @@ function h3ToColor(h3Index: string): [number, number, number] {
   ];
 }
 
-export function generateH3IndexTexture(resolution = 4) {
-  const faceSize = 128;
-  const buffer = new Uint8Array(6 * faceSize * faceSize * 4);
-
-  for (let face = 0; face < 6; face++) {
-    for (let y = 0; y < faceSize; y++) {
-      for (let x = 0; x < faceSize; x++) {
-        const cubicCoords = new CubicCoordinates(
-          face,
-          x / faceSize,
-          y / faceSize
-        );
-        const latLong = cubicCoords.toLatLong();
-        const index = h3.latLngToCell(latLong.lat, latLong.lon, resolution);
-
-        const color = h3ToColor(index);
-        // Store the 24 bits across 3 bytes
-        const offset = (face * faceSize * faceSize + y * faceSize + x) * 4;
-        buffer[offset] = color[0];
-        buffer[offset + 1] = color[1];
-        buffer[offset + 2] = color[2];
-        buffer[offset + 3] = 255;
-      }
-    }
-  }
-
-  const texture = new DataTexture(
-    buffer,
-    faceSize,
-    faceSize * 6,
-    RGBAFormat, // Use RGBA format instead of RGB
-    UnsignedByteType
-  );
-  texture.minFilter = NearestFilter;
-  texture.magFilter = NearestFilter;
-  texture.generateMipmaps = false;
-  texture.needsUpdate = true;
-
-  console.log("H3 Index Texture:", {
-    format: texture.format,
-    type: texture.type,
-    data: new Uint8Array(texture.image.data.slice(0, 100)), // First 100 bytes
-  });
-
-  return texture;
-}
-
 export function generateH3NeighborTexture(resolution = 4) {
   const res = resolution;
   const allIndices = new Set(

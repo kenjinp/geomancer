@@ -6,17 +6,13 @@ import { LatLong } from "../LatLong";
  */
 const tempVector = new Vector3();
 
-/**
- * Enumeration of cube faces in a standard right-handed coordinate system.
- * The order matches the WebGL/Three.js cubemap convention.
- */
 export enum CubeFace {
-  POSITIVE_X = 0, // Right face (+X)
-  NEGATIVE_X = 1, // Left face (-X)
-  POSITIVE_Y = 2, // Top face (+Y)
-  NEGATIVE_Y = 3, // Bottom face (-Y)
-  POSITIVE_Z = 4, // Front face (+Z)
-  NEGATIVE_Z = 5, // Back face (-Z)
+  FRONT = 0, // Front face (+Z)
+  BACK = 1, // Back face (-Z)
+  RIGHT = 2, // Right face (+X)
+  LEFT = 3, // Left face (-X)
+  TOP = 4, // Top face (+Y)
+  BOTTOM = 5, // Bottom face (-Y)
 }
 
 /**
@@ -76,18 +72,18 @@ export class CubicCoordinates {
 
     // Map 2D face coordinates to 3D direction based on face index
     switch (this.face) {
-      case 0:
-        return new Vector3(1, t, -s); // Right face: fix X=1
-      case 1:
-        return new Vector3(-1, t, s); // Left face: fix X=-1
-      case 2:
-        return new Vector3(s, 1, -t); // Top face: fix Y=1
-      case 3:
-        return new Vector3(s, -1, t); // Bottom face: fix Y=-1
-      case 4:
-        return new Vector3(s, t, 1); // Front face: fix Z=1
-      case 5:
-        return new Vector3(-s, t, -1); // Back face: fix Z=-1
+      case CubeFace.FRONT:
+        return new Vector3(s, t, 1); // Front face (+Z)
+      case CubeFace.BACK:
+        return new Vector3(-s, t, -1); // Back face (-Z)
+      case CubeFace.RIGHT:
+        return new Vector3(1, t, -s); // Right face (+X)
+      case CubeFace.LEFT:
+        return new Vector3(-1, t, s); // Left face (-X)
+      case CubeFace.TOP:
+        return new Vector3(s, 1, -t); // Top face (+Y)
+      case CubeFace.BOTTOM:
+        return new Vector3(s, -1, t); // Bottom face (-Y)
       default:
         throw new Error(`Invalid face: ${this.face}`);
     }
@@ -135,35 +131,35 @@ export class CubicCoordinates {
       // X-axis dominant
       maxAxis = absX;
       if (x > 0) {
-        face = CubeFace.POSITIVE_X;
+        face = CubeFace.RIGHT;
         uc = z; // Map Z to U
         vc = y; // Map Y to V
       } else {
-        face = CubeFace.NEGATIVE_X;
-        uc = -z; // Flip Z for negative face
+        face = CubeFace.LEFT;
+        uc = -z; // Flip Z for left face
         vc = y;
       }
     } else if (absY >= absZ) {
       // Y-axis dominant
       maxAxis = absY;
       if (y > 0) {
-        face = CubeFace.POSITIVE_Y;
+        face = CubeFace.TOP;
         uc = x; // Map X to U
         vc = z; // Map Z to V
       } else {
-        face = CubeFace.NEGATIVE_Y;
+        face = CubeFace.BOTTOM;
         uc = x;
-        vc = -z; // Flip Z for negative face
+        vc = -z; // Flip Z for bottom face
       }
     } else {
       // Z-axis dominant
       maxAxis = absZ;
       if (z > 0) {
-        face = CubeFace.POSITIVE_Z;
-        uc = -x; // Flip X for positive face
+        face = CubeFace.FRONT;
+        uc = -x; // Flip X for front face
         vc = y; // Map Y to V
       } else {
-        face = CubeFace.NEGATIVE_Z;
+        face = CubeFace.BACK;
         uc = x;
         vc = y;
       }

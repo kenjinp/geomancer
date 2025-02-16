@@ -21,17 +21,17 @@ export interface CubeSphereNode {
 }
 
 const NODE_STRIDE = 64; // 64 bytes per node (16 elements)
-const MAX_NODES = 1_000_000; // Pre-allocated buffer size
+const MAX_NODES = 2_000_000 * 4; // Still insufficient for high subdivisions
 const tempVector = new THREE.Vector3();
 const origin = new THREE.Vector3();
 
 export class CubeSphereQuadtree {
   private nodeBuffer: Float32Array;
-  private indexMap: Map<number, number>;
+  private indexMap: Map<string, number>;
   private faceAdjacency: Map<CubeFace, Map<string, EdgeInfo>>;
   private nextIndex = 0;
   private freeIndices: number[] = [];
-  public maxDepth = 8; // Configurable depth limit
+  public maxDepth = 20; // Changed from 8 to 20 for 1m resolution
 
   constructor() {
     this.nodeBuffer = new Float32Array(MAX_NODES * NODE_STRIDE);
@@ -44,64 +44,64 @@ export class CubeSphereQuadtree {
   private initFaceAdjacency() {
     const faceMap = new Map<CubeFace, Map<string, EdgeInfo>>();
 
-    // Update face mappings to use CubeFace enum
+    // Update face mappings based on new CubeFace enum
     faceMap.set(
-      CubeFace.POSITIVE_Z,
+      CubeFace.FRONT,
       new Map([
-        ["left", { face: CubeFace.NEGATIVE_X, rotation: 0 }],
-        ["right", { face: CubeFace.POSITIVE_X, rotation: 0 }],
-        ["top", { face: CubeFace.POSITIVE_Y, rotation: 1 }],
-        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 3 }],
+        ["left", { face: CubeFace.LEFT, rotation: 0 }],
+        ["right", { face: CubeFace.RIGHT, rotation: 0 }],
+        ["top", { face: CubeFace.TOP, rotation: 1 }],
+        ["bottom", { face: CubeFace.BOTTOM, rotation: 3 }],
       ])
     );
 
     faceMap.set(
-      CubeFace.NEGATIVE_Z,
+      CubeFace.BACK,
       new Map([
-        ["left", { face: CubeFace.POSITIVE_X, rotation: 0 }],
-        ["right", { face: CubeFace.NEGATIVE_X, rotation: 0 }],
-        ["top", { face: CubeFace.POSITIVE_Y, rotation: 3 }],
-        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 1 }],
+        ["left", { face: CubeFace.RIGHT, rotation: 0 }],
+        ["right", { face: CubeFace.LEFT, rotation: 0 }],
+        ["top", { face: CubeFace.TOP, rotation: 3 }],
+        ["bottom", { face: CubeFace.BOTTOM, rotation: 1 }],
       ])
     );
 
     faceMap.set(
-      CubeFace.POSITIVE_X,
+      CubeFace.RIGHT,
       new Map([
-        ["left", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
-        ["right", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
-        ["top", { face: CubeFace.POSITIVE_Y, rotation: 2 }],
-        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 0 }],
+        ["left", { face: CubeFace.BACK, rotation: 0 }],
+        ["right", { face: CubeFace.FRONT, rotation: 0 }],
+        ["top", { face: CubeFace.TOP, rotation: 2 }],
+        ["bottom", { face: CubeFace.BOTTOM, rotation: 0 }],
       ])
     );
 
     faceMap.set(
-      CubeFace.NEGATIVE_X,
+      CubeFace.LEFT,
       new Map([
-        ["left", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
-        ["right", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
-        ["top", { face: CubeFace.POSITIVE_Y, rotation: 0 }],
-        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 2 }],
+        ["left", { face: CubeFace.FRONT, rotation: 0 }],
+        ["right", { face: CubeFace.BACK, rotation: 0 }],
+        ["top", { face: CubeFace.TOP, rotation: 0 }],
+        ["bottom", { face: CubeFace.BOTTOM, rotation: 2 }],
       ])
     );
 
     faceMap.set(
-      CubeFace.POSITIVE_Y,
+      CubeFace.TOP,
       new Map([
-        ["left", { face: CubeFace.NEGATIVE_X, rotation: 3 }],
-        ["right", { face: CubeFace.POSITIVE_X, rotation: 1 }],
-        ["top", { face: CubeFace.NEGATIVE_Z, rotation: 2 }],
-        ["bottom", { face: CubeFace.POSITIVE_Z, rotation: 2 }],
+        ["left", { face: CubeFace.LEFT, rotation: 3 }],
+        ["right", { face: CubeFace.RIGHT, rotation: 1 }],
+        ["top", { face: CubeFace.BACK, rotation: 2 }],
+        ["bottom", { face: CubeFace.FRONT, rotation: 2 }],
       ])
     );
 
     faceMap.set(
-      CubeFace.NEGATIVE_Y,
+      CubeFace.BOTTOM,
       new Map([
-        ["left", { face: CubeFace.NEGATIVE_X, rotation: 1 }],
-        ["right", { face: CubeFace.POSITIVE_X, rotation: 3 }],
-        ["top", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
-        ["bottom", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
+        ["left", { face: CubeFace.LEFT, rotation: 1 }],
+        ["right", { face: CubeFace.RIGHT, rotation: 3 }],
+        ["top", { face: CubeFace.FRONT, rotation: 0 }],
+        ["bottom", { face: CubeFace.BACK, rotation: 0 }],
       ])
     );
 
@@ -451,8 +451,10 @@ export class CubeSphereQuadtree {
     // Calculate node size in world space
     const nodeSize = (radius * 2) / (1 << node.level);
 
+    const nodeSizeHypotenuse = Math.sqrt(nodeSize * nodeSize * 2);
+
     // Split condition: close enough and not at max depth
-    if (distance < nodeSize * 2 && node.level < maxDepth) {
+    if (distance < nodeSizeHypotenuse * 1.5 && node.level < maxDepth) {
       // Split if not already split
       if (node.children[0] === -1) {
         this.splitNode(nodeIndex);
@@ -596,9 +598,26 @@ export class CubeSphereQuadtree {
     level: number,
     x: number,
     y: number
-  ): number {
-    // Bit packing: 3 bits face (0-5), 5 bits level (0-31), 12 bits x (0-4095), 12 bits y (0-4095)
-    return (face << 29) | (level << 24) | (x << 12) | y;
+  ): string {
+    // String-based hash that supports arbitrary depths
+    return `${face}|${level}|${x}|${y}`;
+  }
+
+  public getCurrentDepth(): number {
+    let currentDepth = 0;
+    this.indexMap.forEach((index) => {
+      const node = this.getNodeView(index);
+      if (node.level > currentDepth) {
+        currentDepth = node.level;
+      }
+    });
+    return currentDepth;
+  }
+
+  public estimateNodeSize(radius: number): number {
+    const currentDepth = this.getCurrentDepth();
+    // Calculate node size as (2 * radius) / 2^depth
+    return (2 * radius) / (1 << currentDepth);
   }
 }
 

@@ -228,6 +228,12 @@ void main() {
     if(length(rawPos) < 0.01) {
         color = vec3(1.0, 1.0, 0.0);
     }
-    
-    gl_FragColor = vec4(color, 1.0);
+
+    vec3 instanceColor = vec3(
+        hash(vInstanceId), 
+        hash(vInstanceId + 1.0), 
+        hash(vInstanceId + 2.0)
+    );
+
+    gl_FragColor = vec4(instanceColor, 1.0);
 }

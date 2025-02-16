@@ -1,0 +1,1 @@
+export const EARTH_AUTHALIC_RADIUS = 6_371_007.2;

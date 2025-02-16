@@ -11,10 +11,17 @@ interface TerrainRendererProps {
   maxDepth?: number;
 }
 
+const makeHumanReadableMeters = (meters: number) => {
+  if (meters > 1000) {
+    return `${(meters / 1000).toLocaleString()} km`;
+  }
+  return `${meters.toLocaleString()} m`;
+};
+
 export function TerrainRenderer({
   radius = 1,
   position = new THREE.Vector3(),
-  maxDepth = 8,
+  maxDepth = 20,
 }: TerrainRendererProps) {
   const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
   const instancerRef = useRef<TerrainInstancer>(null);
@@ -67,19 +74,21 @@ export function TerrainRenderer({
     const debugDiv = document.getElementById("debug-thingy");
     if (debugDiv) {
       debugDiv.innerHTML = `
-        <p>Visible Nodes: ${quadtreeRef.current.getVisibleNodes().length}</p>
-        <p>Max Depth: ${maxDepth}</p>
-        <p>Hovered Node: ${hoveredNodeIndex}</p>
+      <div width="400">
 
-      `;
+        <p>Visible Nodes: ${quadtreeRef.current.getVisibleNodes().length}</p>
+        <br/>
+        <p>Max Depth: ${maxDepth}</p>
+        <br/>
+        <p>Current Depth: ${quadtreeRef.current.getCurrentDepth()}</p>
+        <br/>
+        <p>Node Size: ${makeHumanReadableMeters(
+          quadtreeRef.current.estimateNodeSize(radius)
+        )}</p>
+      </div>
+        `;
     }
   });
-
-  useEffect(() => {
-    if (instancerRef.current) {
-      instancerRef.current.init();
-    }
-  }, []);
 
   // Optional: Update instancer without recreation
   useEffect(() => {
@@ -126,6 +135,7 @@ export function TerrainRenderer({
         <sphereGeometry args={[radius, 32, 32]} />
         <meshBasicMaterial color="red" />
       </mesh>
+      <axesHelper args={[radius * 4]} />
     </>
   );
 }
