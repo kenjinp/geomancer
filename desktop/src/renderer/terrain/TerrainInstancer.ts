@@ -1,6 +1,21 @@
 import * as THREE from "three";
+import {
+  generateH3CubeMap,
+  generateH3NeighborTexture,
+  generateH3PositionTexture,
+} from "./CubeMap";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
-import { terrainFragmentShader, terrainVertexShader } from "./terrainShaders";
+import fragmentShader from "./terrain.frag";
+import vertexShader from "./terrain.vert";
+
+const faceColors = [
+  new THREE.Color(0xff4444), // Front
+  new THREE.Color(0x4444ff), // Back
+  new THREE.Color(0x44ff44), // Right
+  new THREE.Color(0xffff44), // Left
+  new THREE.Color(0x44ffff), // Top
+  new THREE.Color(0xff44ff), // Bottom
+];
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
@@ -10,7 +25,7 @@ export class TerrainInstancer {
   private quadtree: CubeSphereQuadtree;
   private radius: number;
   private offset: THREE.Vector3;
-
+  private material: THREE.Material;
   constructor(
     quadtree: CubeSphereQuadtree,
     options: { radius?: number; position?: THREE.Vector3 } = {}
@@ -19,30 +34,70 @@ export class TerrainInstancer {
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
 
+    // if (!hexCubeMap) {
+    //   hexCubeMap = generateH3CubeMap();
+    // }
+
+    console.log({
+      fragmentShader,
+      vertexShader,
+    });
+
+    const time1 = performance.now();
+    const { cubeTexture: h3IndexMap, h3Indices } = generateH3CubeMap();
+    console.log(`h3IndexMap generation time: ${performance.now() - time1}ms`);
+
+    const time2 = performance.now();
+    const h3NeighborMap = generateH3NeighborTexture();
+    console.log(
+      `h3NeighborMap generation time: ${performance.now() - time2}ms`
+    );
+
+    const time3 = performance.now();
+    const h3PositionMap = generateH3PositionTexture(4);
+    console.log(
+      `h3PositionMap generation time: ${performance.now() - time3}ms`
+    );
+
+    console.log(
+      "Position texture size:",
+      h3PositionMap.image.width,
+      h3PositionMap.image.height
+    );
+
     // Create shader material
-    const material = new THREE.ShaderMaterial({
-      vertexShader: terrainVertexShader,
-      fragmentShader: terrainFragmentShader,
+    this.material = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader,
       uniforms: {
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
+        h3IndexMap: { value: h3IndexMap },
+        h3NeighborMap: { value: h3NeighborMap },
+        h3PositionMap: { value: h3PositionMap },
+        uModelMatrix: { value: new THREE.Matrix4() },
       },
       vertexColors: true,
     });
+    // this.material = new THREE.MeshBasicMaterial();
+    // (this.material as THREE.ShaderMaterial).uniforms = {
+    //   uRadius: { value: this.radius },
+    //   uOffset: { value: this.offset },
+    // };
 
     // Initialize instanced mesh
     this.instancedMesh = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(1, 1, 16, 16),
-      material,
+      new THREE.PlaneGeometry(1, 1, 8, 16),
+      this.material,
       TerrainInstancer.INITIAL_CAPACITY
     );
 
     // Add instance color attribute
-    // const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
-    // this.instancedMesh.geometry.setAttribute(
-    //   "instanceColor",
-    //   new THREE.InstancedBufferAttribute(colors, 3, false, 1)
-    // );
+    const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
+    this.instancedMesh.geometry.setAttribute(
+      "instanceColor",
+      new THREE.InstancedBufferAttribute(colors, 3, false, 1)
+    );
 
     this.instancedMesh.count = 0; // Start with 0 visible instances
     this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -99,6 +154,7 @@ export class TerrainInstancer {
     const visibleNodes = this.quadtree.getVisibleNodes();
     this.ensureCapacity(visibleNodes.length);
     this.processNodeUpdates(visibleNodes, hoveredNodeIndex);
+    this.material.uniforms.uModelMatrix.value = this.instancedMesh.matrixWorld;
   }
 
   private processNodeUpdates(
@@ -219,14 +275,7 @@ export class TerrainInstancer {
       this.color.set(0xff0000); // Red for hovered node
     } else {
       // Create color gradient based on subdivision level (0 = dark, maxDepth = bright)
-      const faceColors = [
-        new THREE.Color(0xff4444), // Front
-        new THREE.Color(0x4444ff), // Back
-        new THREE.Color(0x44ff44), // Right
-        new THREE.Color(0xffff44), // Left
-        new THREE.Color(0x44ffff), // Top
-        new THREE.Color(0xff44ff), // Bottom
-      ];
+
       const baseColor = faceColors[node.face].clone();
       const depthFactor = node.level / this.quadtree.maxDepth;
 
@@ -264,6 +313,8 @@ export class TerrainInstancer {
     (
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uRadius.value = radius;
+    // Force update neighbor calculations
+    this.processNodeUpdates(this.quadtree.getVisibleNodes(), null);
   }
 
   public setPosition(position: THREE.Vector3) {

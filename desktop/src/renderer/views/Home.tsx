@@ -1,10 +1,10 @@
-import { H3Geometry } from "@/lib/Hextree/Geometry";
 import { H3TextureGenerator } from "@/lib/Hextree/indexTexture";
 import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { useRef, useState } from "react";
 import { Group, Vector3 } from "three";
+import { TerrainRenderer } from "../components/TerrainRenderer";
 
 const origin = new Vector3();
 const temp = new Vector3();
@@ -87,7 +87,7 @@ export const Home: React.FC = () => {
             <Button onPress={() => setPlaying(!playing)}>
               {playing ? "stop" : "play"}
             </Button>
-            <H3TextureGenerator />
+            <H3TextureGenerator resolution={5} seedCount={40} />
           </div>
         </Html>
       </group>
@@ -142,9 +142,9 @@ export const Home: React.FC = () => {
         <meshStandardMaterial color="pink" />
       </mesh> */}
 
-      <H3Geometry resolution={3} radius={radius} seedCount={40} />
+      {/* <H3Geometry resolution={4} radius={radius} seedCount={40} /> */}
 
-      {/* <TerrainRenderer radius={radius} /> */}
+      <TerrainRenderer radius={radius} />
     </group>
   );
 };

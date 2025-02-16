@@ -1,6 +1,5 @@
 import { cellToBoundary, cellToChildren, getRes0Cells } from "h3-js";
 import { useEffect, useMemo, useState } from "react";
-import { Color, MathUtils, Vector3 } from "three";
 import { FloodFillResult, HexGridFloodFill } from "./FloodFill";
 
 function getAllCellsAtRes(res) {
@@ -31,12 +30,12 @@ export function H3Geometry({ resolution = 3, radius = 1, seedCount = 4 }) {
       // Now get all H3 cells at the same resolution
       const h3Cells: string[] = HexGridFloodFill.getAllH3Cells(resolution);
 
+      // TODO somehow prebake this, maybe as a texture
       console.log("hex fill 2 (all cells)", h3Cells);
       const timeStart = performance.now();
       await floodFill.precomputeNeighbors(h3Cells);
       const timeEnd = performance.now();
       console.log(`hex fill 3: precompute ${timeEnd - timeStart}ms`);
-      console.log("hex fill 3: precompute");
 
       // choose random cells
       const seedCells: string[] = [];
@@ -55,9 +54,7 @@ export function H3Geometry({ resolution = 3, radius = 1, seedCount = 4 }) {
       const timeEnd2 = performance.now();
       console.log(`hex fill 5: fill ${timeEnd2 - timeStart2}ms`);
 
-      console.log("hex fill 5 (result)", result);
       floodFill.destroy();
-
       console.log("hex fill 6 destroy");
 
       // Save the flood fill result so that the attribute buffer can be updated.
@@ -68,95 +65,87 @@ export function H3Geometry({ resolution = 3, radius = 1, seedCount = 4 }) {
     floodfill().catch(console.error);
   }, [resolution]);
 
-  const [positions, cellIndices] = useMemo(() => {
-    const positions = [];
-    const cellIndices = [];
+  const { positions, cellIndices, floodFillAssignments } = useMemo(() => {
     const cells = getAllCellsAtRes(resolution);
+    const numCells = cells.length;
 
-    cells.forEach((cell, cellIndex) => {
-      const vertices = cellToBoundary(cell).map(([lat, lng]) => {
-        const theta = MathUtils.degToRad(lng);
-        const phi = MathUtils.degToRad(90 - lat);
-        return new Vector3().setFromSphericalCoords(radius, phi, theta);
-      });
+    const positions: number[] = [];
+    const cellIndices: number[] = [];
+    const floodFillAssignments: number[] = [];
 
-      // Create triangle fan (one cell becomes a series of triangles)
-      for (let i = 0; i < vertices.length; i++) {
-        positions.push(
-          ...vertices[0].toArray(), // Center
-          ...vertices[i].toArray(),
-          ...vertices[(i + 1) % vertices.length].toArray()
-        );
-        cellIndices.push(cellIndex, cellIndex, cellIndex);
-      }
-    });
-
-    return [positions, cellIndices];
-  }, [resolution, radius]);
-
-  // New useMemo to build an assignment attribute array based on the flood fill result.
-  const floodFillAssignments = useMemo(() => {
-    const cells = getAllCellsAtRes(resolution);
-    const assignments: number[] = [];
-
-    // Build a map from H3 cell to its assigned seed index.
+    // Build a map from H3 cell to its assigned seed index if flood fill has run.
+    const assignmentMapTimeStart = performance.now();
     const assignmentMap = new Map<string, number>();
     if (result) {
       result.forEach(({ seedIndex, cells: floodCells }) => {
         floodCells.forEach((cell) => assignmentMap.set(cell, seedIndex));
       });
-    }
-
-    cells.forEach((cell) => {
-      // If the cell was not reached by flood fill, assign -1.
-      const assign = assignmentMap.has(cell) ? assignmentMap.get(cell)! : -1;
-      const vertices = cellToBoundary(cell);
-      // For each triangle (each cell's fan is composed of vertices.length triangles)
-      for (let i = 0; i < vertices.length; i++) {
-        // Each triangle has 3 vertices
-        assignments.push(assign, assign, assign);
-      }
-    });
-
-    console.log("hex fill 7 (assignments)", assignments);
-
-    return assignments;
-  }, [resolution, result]);
-
-  const colorAssignments = useMemo(() => {
-    const colors: number[] = [];
-    const colorMap = new Map<number, [number, number, number]>();
-    const assignmentCounts = new Map<number, number>();
-    // For each vertex in the floodFillAssignments array, choose a random color.
-    for (let i = 0; i < floodFillAssignments.length; i++) {
-      const assignment = floodFillAssignments[i];
-      if (!colorMap.has(assignment)) {
-        // For unassigned cells, use red.
-        if (assignment === -1) {
-          colorMap.set(assignment, [0, 0, 1]);
-        } else {
-          const color = new Color(Math.random() * 0xffffff);
-
-          // Otherwise, generate a random color.
-          colorMap.set(assignment, [color.r, color.g, color.b]);
-        }
-      }
-      assignmentCounts.set(
-        assignment,
-        (assignmentCounts.get(assignment) ?? 0) + 1
+      const assignmentMapTimeEnd = performance.now();
+      console.log(
+        `useMemo: assignmentMap ${
+          assignmentMapTimeEnd - assignmentMapTimeStart
+        }ms`
       );
-      const [r, g, b] = colorMap.get(assignment)!;
-      colors.push(r, g, b);
     }
-    console.log("colorAssignments", colors);
 
-    console.log("assignmentCounts", assignmentCounts);
-    console.log("colorMap", colorMap);
-    return colors;
-  }, [floodFillAssignments]);
+    // Optimized loop for computing vertices, cellIndices, and floodFillAssignments.
+
+    const degToRad = Math.PI / 180;
+
+    const computeVerticesTimeStart = performance.now();
+    for (let cellIndex = 0; cellIndex < numCells; cellIndex++) {
+      const cell = cells[cellIndex];
+
+      // Get the boundary coordinates (lat, lng) for the cell.
+      const boundary = cellToBoundary(cell); // e.g., [ [lat, lng], ... ]
+      const numVertices = boundary.length;
+      const vertices = new Array<number[]>(numVertices);
+
+      // Compute vertices directly from spherical coordinates.
+      // Converting: theta = lng in radians; phi = (90 - lat) in radians.
+      for (let i = 0; i < numVertices; i++) {
+        const [lat, lng] = boundary[i];
+        const theta = lng * degToRad;
+        const phi = (90 - lat) * degToRad;
+        const sinPhi = Math.sin(phi);
+        const cosPhi = Math.cos(phi);
+        // These formulas replicate THREE's spherical conversion:
+        // x = r*sin(phi)*cos(theta), y = r*sin(phi)*sin(theta), z = r*cos(phi)
+        vertices[i] = [
+          radius * sinPhi * Math.cos(theta),
+          radius * sinPhi * Math.sin(theta),
+          radius * cosPhi,
+        ];
+      }
+
+      // Determine the flood fill assignment (-1 if not reached).
+      const assign = assignmentMap.has(cell) ? assignmentMap.get(cell)! : -1;
+
+      // Create the triangle fan for the cell.
+      for (let i = 0; i < numVertices; i++) {
+        // Each cell is drawn as a fan: center, vertex[i], vertex[(i+1) % numVertices]
+        positions.push(
+          ...vertices[0], // Center vertex
+          ...vertices[i], // Current vertex
+          ...vertices[(i + 1) % numVertices] // Next vertex (wraps around)
+        );
+        // Push the cell index for each vertex
+        cellIndices.push(cellIndex, cellIndex, cellIndex);
+        // Each triangle's vertices take the same flood fill assignment.
+        floodFillAssignments.push(assign, assign, assign);
+      }
+    }
+    const computeVerticesTimeEnd = performance.now();
+    console.log(
+      `useMemo:  computeVertices ${
+        computeVerticesTimeEnd - computeVerticesTimeStart
+      }ms`
+    );
+    return { positions, cellIndices, floodFillAssignments };
+  }, [resolution, radius, result]);
 
   return (
-    <mesh key={colorAssignments.slice(0, 10).join(",")}>
+    <mesh key={floodFillAssignments.slice(0, 10).join(",")}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
@@ -177,27 +166,34 @@ export function H3Geometry({ resolution = 3, radius = 1, seedCount = 4 }) {
           itemSize={1}
           normalized={false}
         />
-        <bufferAttribute
+        {/* <bufferAttribute
           attach="attributes-color"
           count={colorAssignments.length / 3}
           array={new Float32Array(colorAssignments)}
           itemSize={3}
-        />
+        /> */}
       </bufferGeometry>
       <shaderMaterial
         vertexShader={`
           precision highp float;
           attribute float cellId;
           attribute float floodId;
-          attribute vec3 color;
           varying float vCellId;
           varying vec3 vColor;
           varying vec3 vPosition;
           varying vec4 vScreenPosition;
+
+          float hash(float n) {
+            return fract(sin(n) * 43758.5453);
+          }
+
+          vec3 color(float n) {
+            return vec3(hash(n), hash(n + 1.0), hash(n + 2.0));
+          }
           
           void main() {
             vCellId = cellId;
-            vColor = color;
+            vColor = color(floodId);
             vPosition = position;
             vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
             gl_Position = projectionMatrix * mvPosition;

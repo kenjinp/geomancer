@@ -1,13 +1,16 @@
 import * as THREE from "three";
+import {
+  CubeFace,
+  CubicCoordinates,
+} from "../../lib/coordinate-systems/CubeProjection/CubicCoordinates";
 
-export type FaceIndex = 0 | 1 | 2 | 3 | 4 | 5;
 export type NeighborIndices = [number, number, number, number]; // [left, right, top, bottom]
 export type ChildIndices = [number, number, number, number]; // [left, right, top, bottom]
-export type EdgeInfo = { face: FaceIndex; rotation: number };
+export type EdgeInfo = { face: CubeFace; rotation: number };
 export type SpherePos = [number, number, number];
 
 export interface CubeSphereNode {
-  face: FaceIndex;
+  face: CubeFace;
   level: number;
   x: number;
   y: number;
@@ -25,7 +28,7 @@ const origin = new THREE.Vector3();
 export class CubeSphereQuadtree {
   private nodeBuffer: Float32Array;
   private indexMap: Map<number, number>;
-  private faceAdjacency: Map<FaceIndex, Map<string, EdgeInfo>>;
+  private faceAdjacency: Map<CubeFace, Map<string, EdgeInfo>>;
   private nextIndex = 0;
   private freeIndices: number[] = [];
   public maxDepth = 8; // Configurable depth limit
@@ -39,72 +42,66 @@ export class CubeSphereQuadtree {
   }
 
   private initFaceAdjacency() {
-    type EdgeInfo = { face: FaceIndex; rotation: number };
-    const faceMap = new Map<FaceIndex, Map<string, EdgeInfo>>();
+    const faceMap = new Map<CubeFace, Map<string, EdgeInfo>>();
 
-    // Front face (+Z)
+    // Update face mappings to use CubeFace enum
     faceMap.set(
-      0,
+      CubeFace.POSITIVE_Z,
       new Map([
-        ["left", { face: 3, rotation: 0 }],
-        ["right", { face: 2, rotation: 0 }],
-        ["top", { face: 4, rotation: 1 }], // Y+ is up
-        ["bottom", { face: 5, rotation: 3 }], // Y- is down
+        ["left", { face: CubeFace.NEGATIVE_X, rotation: 0 }],
+        ["right", { face: CubeFace.POSITIVE_X, rotation: 0 }],
+        ["top", { face: CubeFace.POSITIVE_Y, rotation: 1 }],
+        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 3 }],
       ])
     );
 
-    // Back face (-Z)
     faceMap.set(
-      1,
+      CubeFace.NEGATIVE_Z,
       new Map([
-        ["left", { face: 2, rotation: 0 }],
-        ["right", { face: 3, rotation: 0 }],
-        ["top", { face: 4, rotation: 3 }],
-        ["bottom", { face: 5, rotation: 1 }],
+        ["left", { face: CubeFace.POSITIVE_X, rotation: 0 }],
+        ["right", { face: CubeFace.NEGATIVE_X, rotation: 0 }],
+        ["top", { face: CubeFace.POSITIVE_Y, rotation: 3 }],
+        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 1 }],
       ])
     );
 
-    // Right face (+X)
     faceMap.set(
-      2,
+      CubeFace.POSITIVE_X,
       new Map([
-        ["left", { face: 1, rotation: 0 }],
-        ["right", { face: 0, rotation: 0 }],
-        ["top", { face: 4, rotation: 2 }],
-        ["bottom", { face: 5, rotation: 0 }],
+        ["left", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
+        ["right", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
+        ["top", { face: CubeFace.POSITIVE_Y, rotation: 2 }],
+        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 0 }],
       ])
     );
 
-    // Left face (-X)
     faceMap.set(
-      3,
+      CubeFace.NEGATIVE_X,
       new Map([
-        ["left", { face: 0, rotation: 0 }],
-        ["right", { face: 1, rotation: 0 }],
-        ["top", { face: 4, rotation: 0 }],
-        ["bottom", { face: 5, rotation: 2 }],
+        ["left", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
+        ["right", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
+        ["top", { face: CubeFace.POSITIVE_Y, rotation: 0 }],
+        ["bottom", { face: CubeFace.NEGATIVE_Y, rotation: 2 }],
       ])
     );
 
-    // Top face (+Y)
     faceMap.set(
-      4,
+      CubeFace.POSITIVE_Y,
       new Map([
-        ["left", { face: 3, rotation: 3 }],
-        ["right", { face: 2, rotation: 1 }],
-        ["top", { face: 1, rotation: 2 }], // Back face is above
-        ["bottom", { face: 0, rotation: 2 }], // Front face is below
+        ["left", { face: CubeFace.NEGATIVE_X, rotation: 3 }],
+        ["right", { face: CubeFace.POSITIVE_X, rotation: 1 }],
+        ["top", { face: CubeFace.NEGATIVE_Z, rotation: 2 }],
+        ["bottom", { face: CubeFace.POSITIVE_Z, rotation: 2 }],
       ])
     );
 
-    // Bottom face (-Y)
     faceMap.set(
-      5,
+      CubeFace.NEGATIVE_Y,
       new Map([
-        ["left", { face: 3, rotation: 1 }],
-        ["right", { face: 2, rotation: 3 }],
-        ["top", { face: 0, rotation: 0 }], // Front face is above
-        ["bottom", { face: 1, rotation: 0 }], // Back face is below
+        ["left", { face: CubeFace.NEGATIVE_X, rotation: 1 }],
+        ["right", { face: CubeFace.POSITIVE_X, rotation: 3 }],
+        ["top", { face: CubeFace.POSITIVE_Z, rotation: 0 }],
+        ["bottom", { face: CubeFace.NEGATIVE_Z, rotation: 0 }],
       ])
     );
 
@@ -113,12 +110,12 @@ export class CubeSphereQuadtree {
 
   private createRootNodes() {
     // Initialize 6 root nodes with proper coordinates
-    const rootIndices = new Map<FaceIndex, number>();
+    const rootIndices = new Map<CubeFace, number>();
 
     // First create all root nodes
     for (let face = 0; face < 6; face++) {
-      const index = this.createNode(face as FaceIndex, 0, 0, 0);
-      rootIndices.set(face as FaceIndex, index);
+      const index = this.createNode(face as CubeFace, 0, 0, 0);
+      rootIndices.set(face as CubeFace, index);
     }
 
     // Now set up neighbor relationships
@@ -136,7 +133,7 @@ export class CubeSphereQuadtree {
   }
 
   private createNode(
-    face: FaceIndex,
+    face: CubeFace,
     level: number,
     x: number,
     y: number
@@ -163,61 +160,18 @@ export class CubeSphereQuadtree {
   }
 
   private cubeToSphere(
-    face: FaceIndex,
+    face: CubeFace,
     x: number,
     y: number,
     level: number
   ): Float32Array {
-    const maxCoord = (1 << level) - 1;
-    let u = ((x + 0.5) / (1 << level)) * 2 - 1;
-    let v = ((y + 0.5) / (1 << level)) * 2 - 1;
-
-    // Normalize edge cases
-    u = Math.min(Math.max(u, -1), 1);
-    v = Math.min(Math.max(v, -1), 1);
-
-    // For root nodes, return exact unit vectors
-    if (level === 0 && x === 0 && y === 0) {
-      switch (face) {
-        case 0:
-          return new Float32Array([0, 0, 1]); // +Z front
-        case 1:
-          return new Float32Array([0, 0, -1]); // -Z back
-        case 2:
-          return new Float32Array([1, 0, 0]); // +X right
-        case 3:
-          return new Float32Array([-1, 0, 0]); // -X left
-        case 4:
-          return new Float32Array([0, 1, 0]); // +Y top
-        case 5:
-          return new Float32Array([0, -1, 0]); // -Y bottom
-      }
-    }
-
-    let vec = new Float32Array(3);
-    switch (face) {
-      case 0: // +Z face (front)
-        vec.set([u, v, 1]);
-        break;
-      case 1: // -Z face (back)
-        vec.set([-u, v, -1]);
-        break;
-      case 2: // +X face (right)
-        vec.set([1, v, -u]);
-        break;
-      case 3: // -X face (left)
-        vec.set([-1, v, u]);
-        break;
-      case 4: // +Y face (top)
-        vec.set([u, 1, -v]);
-        break;
-      case 5: // -Y face (bottom)
-        vec.set([u, -1, v]);
-        break;
-    }
-
-    const length = Math.sqrt(vec[0] ** 2 + vec[1] ** 2 + vec[2] ** 2);
-    return new Float32Array(vec.map((n) => n / length));
+    const scale = 1 << level;
+    const u = (x + 0.5) / scale;
+    const v = (y + 0.5) / scale;
+    return CubicCoordinates.fromUV(face, u, v)
+      .toVector3()
+      .normalize()
+      .toArray();
   }
 
   private splitNode(nodeIndex: number) {
@@ -282,7 +236,7 @@ export class CubeSphereQuadtree {
   }
 
   private findExistingAncestor(
-    face: FaceIndex,
+    face: CubeFace,
     targetLevel: number,
     targetX: number,
     targetY: number
@@ -349,7 +303,7 @@ export class CubeSphereQuadtree {
   private getNeighborCoordinates(
     node: NodeView,
     direction: "left" | "right" | "top" | "bottom"
-  ): [number, number, FaceIndex] {
+  ): [number, number, CubeFace] {
     const maxCoord = (1 << node.level) - 1;
     let nx = node.x;
     let ny = node.y;
@@ -359,30 +313,30 @@ export class CubeSphereQuadtree {
       case "left":
         if (nx > 0) return [nx - 1, ny, node.face];
         nface = (this.faceAdjacency.get(node.face)?.get("left")?.face ??
-          node.face) as FaceIndex;
+          node.face) as CubeFace;
         nx = maxCoord;
         break;
       case "right":
         if (nx < maxCoord) return [nx + 1, ny, node.face];
         nface = (this.faceAdjacency.get(node.face)?.get("right")?.face ??
-          node.face) as FaceIndex;
+          node.face) as CubeFace;
         nx = 0;
         break;
       case "top":
         if (ny < maxCoord) return [nx, ny + 1, node.face];
         nface = (this.faceAdjacency.get(node.face)?.get("top")?.face ??
-          node.face) as FaceIndex;
+          node.face) as CubeFace;
         ny = 0;
         break;
       case "bottom":
         if (ny > 0) return [nx, ny - 1, node.face];
         nface = (this.faceAdjacency.get(node.face)?.get("bottom")?.face ??
-          node.face) as FaceIndex;
+          node.face) as CubeFace;
         ny = maxCoord;
         break;
     }
 
-    return [nx, ny, nface as FaceIndex];
+    return [nx, ny, nface as CubeFace];
   }
 
   private rotateCoordinates(
@@ -563,52 +517,7 @@ export class CubeSphereQuadtree {
     const direction = new THREE.Vector3()
       .subVectors(worldPos, offset)
       .normalize();
-
-    // Determine which face the position is on
-    const abs = new THREE.Vector3(
-      Math.abs(direction.x),
-      Math.abs(direction.y),
-      Math.abs(direction.z)
-    );
-    let face: FaceIndex;
-    if (abs.z >= abs.x && abs.z >= abs.y) {
-      face = direction.z > 0 ? 0 : 1;
-    } else if (abs.x >= abs.y && abs.x >= abs.z) {
-      face = direction.x > 0 ? 2 : 3;
-    } else {
-      face = direction.y > 0 ? 4 : 5;
-    }
-
-    // Convert to face coordinates
-    let u: number, v: number;
-    switch (face) {
-      case 0:
-        u = direction.x / direction.z;
-        v = direction.y / direction.z;
-        break;
-      case 1:
-        u = direction.x / direction.z;
-        v = -direction.y / direction.z;
-        break;
-      case 2:
-        u = -direction.z / direction.x;
-        v = direction.y / direction.x;
-        break;
-      case 3:
-        u = direction.z / -direction.x;
-        v = direction.y / -direction.x;
-        break;
-      case 4:
-        u = direction.x / direction.y;
-        v = -direction.z / direction.y;
-        break;
-      case 5:
-        u = direction.x / -direction.y;
-        v = -direction.z / direction.y;
-        break;
-      default:
-        return null;
-    }
+    const coords = CubicCoordinates.fromDirection(direction);
 
     // Search through visible nodes on this face
     let closestNode: number | null = null;
@@ -616,7 +525,7 @@ export class CubeSphereQuadtree {
 
     this.indexMap.forEach((index) => {
       const node = this.getNodeView(index);
-      if (node.face !== face) return;
+      if (node.face !== coords.face) return;
 
       // Calculate node bounds in face coordinates
       const scale = 1 << node.level;
@@ -625,10 +534,15 @@ export class CubeSphereQuadtree {
       const minY = (node.y / scale) * 2 - 1;
       const maxY = ((node.y + 1) / scale) * 2 - 1;
 
-      if (u >= minX && u <= maxX && v >= minY && v <= maxY) {
+      if (
+        coords.u >= minX &&
+        coords.u <= maxX &&
+        coords.v >= minY &&
+        coords.v <= maxY
+      ) {
         const distance = Math.hypot(
-          u - (minX + maxX) / 2,
-          v - (minY + maxY) / 2
+          coords.u - (minX + maxX) / 2,
+          coords.v - (minY + maxY) / 2
         );
         if (distance < closestDistance) {
           closestDistance = distance;
@@ -642,11 +556,13 @@ export class CubeSphereQuadtree {
       let currentNode = this.getNodeView(closestNode);
       while (currentNode.children[0] !== -1) {
         const childScale = 1 << (currentNode.level + 1);
-        const childX = Math.floor((u + 1) * 0.5 * childScale) % childScale;
-        const childY = Math.floor((v + 1) * 0.5 * childScale) % childScale;
+        const childX =
+          Math.floor((coords.u + 1) * 0.5 * childScale) % childScale;
+        const childY =
+          Math.floor((coords.v + 1) * 0.5 * childScale) % childScale;
 
         const childKey = this.getNodeHash(
-          face,
+          coords.face,
           currentNode.level + 1,
           childX,
           childY
@@ -676,7 +592,7 @@ export class CubeSphereQuadtree {
   }
 
   private getNodeHash(
-    face: FaceIndex,
+    face: CubeFace,
     level: number,
     x: number,
     y: number
@@ -695,7 +611,7 @@ class NodeView {
   }
 
   get face() {
-    return this.buffer[this.offset];
+    return this.buffer[this.offset] as CubeFace;
   }
   get level() {
     return this.buffer[this.offset + 1];
@@ -743,5 +659,13 @@ class NodeView {
       spherePos: this.spherePos,
       errorMetric: this.errorMetric,
     };
+  }
+
+  get cubicCoordinates(): CubicCoordinates {
+    return CubicCoordinates.fromUV(
+      this.face,
+      (this.x + 0.5) / (1 << this.level),
+      (this.y + 0.5) / (1 << this.level)
+    );
   }
 }

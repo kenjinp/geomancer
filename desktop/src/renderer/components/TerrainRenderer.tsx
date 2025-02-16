@@ -75,6 +75,12 @@ export function TerrainRenderer({
     }
   });
 
+  useEffect(() => {
+    if (instancerRef.current) {
+      instancerRef.current.init();
+    }
+  }, []);
+
   // Optional: Update instancer without recreation
   useEffect(() => {
     if (instancerRef.current) {

@@ -1,6 +1,7 @@
-import { defineConfig } from "vite";
-import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
+import tailwindcss from "tailwindcss";
+import { defineConfig } from "vite";
+import glsl from "vite-plugin-glsl";
 // import topLevelAwait from "vite-plugin-top-level-await";
 import react from "@vitejs/plugin-react-swc";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -14,6 +15,7 @@ export default defineConfig({
   plugins: [
     react(),
     tsconfigPaths(),
+    glsl(),
     // topLevelAwait({
     //   promiseExportName: "__tla",
     //   promiseImportName: (i: any) => `__tla_${i}`,

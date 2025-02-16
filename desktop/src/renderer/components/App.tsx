@@ -41,9 +41,9 @@ export function App() {
             </div>
           </Panel>
           <PanelResizeHandle className="w-1 bg-dark" />
-          <Panel defaultSize={33} collapsible order={2}>
+          {/* <Panel defaultSize={33} collapsible order={2}>
             <div id="node-debug" className="p-2"></div>
-          </Panel>
+          </Panel> */}
         </PanelGroup>
       </div>
       {/* </QuadtreeProvider> */}

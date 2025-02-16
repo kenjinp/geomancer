@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CanvasTexture } from "three";
 
 import { cellToChildren, getRes0Cells, latLngToCell } from "h3-js";
+import { HexGridFloodFill } from "./FloodFill";
 
 // Get all cells at specified resolution
 function getAllCellsAtRes(res) {
@@ -48,34 +49,73 @@ function createH3Texture(resolution, size = 1024) {
 
 interface H3TextureGeneratorProps {
   resolution?: number;
-  size?: number;
+  seedCount?: number;
 }
 
 export function H3TextureGenerator({
-  resolution = 5,
-  size = 1024,
+  resolution = 3,
+  seedCount = 4,
 }: H3TextureGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      // Generate the texture
-      const texture = createH3Texture(resolution, size);
+      // Create a configuration for H3 resolution "resolution" with up to 50 seeds
+      // const config = HexGridFloodFill.configFromResolutionDynamic(
+      //   resolution,
+      //   seedCount + 1
+      // );
 
-      // Get the canvas from the texture
-      const canvas = texture.image;
+      // const floodFill = await HexGridFloodFill.create(config);
+      // const h3Cells: string[] = HexGridFloodFill.getAllH3Cells(resolution);
+      // await floodFill.precomputeNeighbors(h3Cells);
+      // await floodFill.exportNeighborTexture(h3Cells, {
+      //   asImage: true,
+      //   square: true,
+      // });
+      // console.log("done");
 
-      // Create a download link
-      const link = document.createElement("a");
-      link.download = `h3-texture-res${resolution}-${size}x${size}.png`;
-      link.href = canvas.toDataURL("image/png");
+      // Create a configuration for H3 resolution "resolution" with up to 50 seeds
+      const config = HexGridFloodFill.configFromResolutionDynamic(
+        resolution,
+        seedCount + 1
+      );
 
-      // Trigger download
-      link.click();
+      console.log("hex fill 1", config);
+      const floodFill = await HexGridFloodFill.create(config);
 
-      // Cleanup
-      texture.dispose();
+      // Now get all H3 cells at the same resolution
+      const h3Cells: string[] = HexGridFloodFill.getAllH3Cells(resolution);
+
+      // TODO somehow prebake this, maybe as a texture
+      console.log("hex fill 2 (all cells)", h3Cells);
+      const timeStart = performance.now();
+      await floodFill.precomputeNeighbors(h3Cells);
+      const timeEnd = performance.now();
+      console.log(`hex fill 3: precompute ${timeEnd - timeStart}ms`);
+
+      // choose random cells
+      const seedCells: string[] = [];
+      const pickedIndices = new Set<number>();
+      while (seedCells.length < seedCount) {
+        const randomIndex = Math.floor(Math.random() * h3Cells.length);
+        if (!pickedIndices.has(randomIndex)) {
+          pickedIndices.add(randomIndex);
+          seedCells.push(h3Cells[randomIndex]);
+        }
+      }
+
+      console.log("hex fill 4 (seedCells)", seedCells);
+      const timeStart2 = performance.now();
+      await floodFill.fill(seedCells);
+
+      const timeEnd2 = performance.now();
+      console.log(`hex fill 5: fill ${timeEnd2 - timeStart2}ms`);
+
+      await floodFill.exportFloodFillResultsAsSquareImage();
+      floodFill.destroy();
+      console.log("hex fill 6 destroy");
     } catch (error) {
       console.error("Error generating texture:", error);
     } finally {

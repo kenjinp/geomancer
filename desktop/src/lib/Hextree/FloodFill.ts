@@ -6,8 +6,8 @@ const RESOLUTION_CELL_FACTORS: Record<number, number> = {
   1: 842,
   2: 5882,
   3: 41162,
-  4: 288122,
-  5: 2016842,
+  4: 288_122,
+  5: 2_016_842,
   6: 14117882,
   7: 98825162,
   8: 691776122,
@@ -19,6 +19,16 @@ export type FloodFillConfig = {
   maxCells: number;
   maxFrontierSize: number;
   maxSeeds?: number;
+  /**
+   * Optionally supply a precomputed neighbor texture.
+   * This texture should be square, using the same layout as produced by our export methods.
+   */
+  precomputedNeighborsTexture?: GPUTexture;
+  /**
+   * If using a precomputed neighbor texture, you may optionally supply its square size.
+   * (If not supplied, your compute shader must derive it from the texture view.)
+   */
+  neighborsTextureSquareSize?: number;
 };
 
 export type FloodFillResult = {
@@ -36,6 +46,7 @@ export class HexGridFloodFill {
   private bindGroups: GPUBindGroup[] = [];
   private seedBuffer: GPUBuffer;
   private uniformBuffer: GPUBuffer;
+  private neighborTexture: GPUTexture;
 
   private constructor(private config: FloodFillConfig) {}
 
@@ -106,6 +117,13 @@ export class HexGridFloodFill {
     this.uniformBuffer = this.device.createBuffer({
       size: 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    // Create neighbor texture for static data
+    this.neighborTexture = this.device.createTexture({
+      size: { width: 6, height: this.config.maxCells, depthOrArrayLayers: 1 },
+      format: "r32uint",
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
     });
   }
 
@@ -418,6 +436,46 @@ export class HexGridFloodFill {
     this.device.queue.writeBuffer(this.neighborBuffer, 0, neighborData);
   }
 
+  public async precomputeNeighborsAsTexture(h3Cells: string[]) {
+    this.h3Indices = new Map(h3Cells.map((h, i) => [h, i]));
+
+    const neighborData = new Uint32Array(h3Cells.length * 6);
+    neighborData.fill(0xffffffff);
+
+    for (let i = 0, cellCount = h3Cells.length; i < cellCount; i++) {
+      const cell = h3Cells[i];
+      const candidates = h3.gridDisk(cell, 1);
+      const baseIndex = i * 6;
+      let validCount = 0;
+
+      // Start from 1 to skip the center cell
+      for (
+        let j = 1, candCount = candidates.length;
+        j < candCount && validCount < 6;
+        j++
+      ) {
+        const candidate = candidates[j];
+        const neighborIndex = this.h3Indices.get(candidate);
+        if (neighborIndex !== undefined) {
+          neighborData[baseIndex + validCount] = neighborIndex;
+          validCount++;
+        }
+      }
+    }
+
+    // Upload neighborData to the texture.
+    this.device.queue.writeTexture(
+      { texture: this.neighborTexture },
+      neighborData,
+      {
+        // bytesPerRow must be a multiple of 256 as per WebGPU spec. Depending on the
+        // total size, you might need to pad your neighborData accordingly.
+        bytesPerRow: 6 * 4,
+      },
+      { width: 6, height: h3Cells.length, depthOrArrayLayers: 1 }
+    );
+  }
+
   public destroy() {
     [this.neighborBuffer, this.filledBuffer, ...this.frontierBuffers].forEach(
       (b) => b.destroy()
@@ -467,5 +525,319 @@ export class HexGridFloodFill {
     const timeEnd = performance.now();
     console.info(`getAllH3Cells ${timeEnd - timeStart}ms`);
     return val;
+  }
+
+  public async exportNeighborTexture(
+    h3Cells: string[],
+    options?: { asImage?: boolean; square?: boolean }
+  ): Promise<void> {
+    let textureWidth: number, textureHeight: number, neighborData: Uint32Array;
+    const cellNeighborCount = 6;
+
+    if (options?.square) {
+      // --- Create a Square Texture ---
+      // Total required texels = number of cells × 6 (texels per cell)
+      const totalCells = h3Cells.length;
+      const requiredTexels = totalCells * cellNeighborCount;
+      // Compute the minimal square side in texels...
+      const side = Math.ceil(Math.sqrt(requiredTexels));
+      // Ensure the side is a multiple of 6 so that each cell's data is kept together.
+      const textureSize =
+        Math.ceil(side / cellNeighborCount) * cellNeighborCount;
+      textureWidth = textureSize;
+      textureHeight = textureSize;
+      // In a square layout, the number of cells per row is:
+      const cellsPerRow = textureWidth / cellNeighborCount;
+
+      // Allocate neighbor data for the entire square texture.
+      const totalTexelsSquare = textureWidth * textureHeight;
+      neighborData = new Uint32Array(totalTexelsSquare);
+      neighborData.fill(0xffffffff);
+
+      // Build a mapping from H3 cell to its index.
+      this.h3Indices = new Map(h3Cells.map((h, i) => [h, i]));
+
+      // Fill each cell's 6-texel slot in the packed square texture.
+      for (let i = 0; i < totalCells; i++) {
+        const cell = h3Cells[i];
+        const cellRow = Math.floor(i / cellsPerRow);
+        const cellCol = i % cellsPerRow;
+        const baseIndex = cellRow * textureWidth + cellCol * cellNeighborCount;
+
+        // Get the 1-disk neighbors (skip the first element which is the cell itself).
+        const candidates = h3.gridDisk(cell, 1);
+        let validCount = 0;
+        for (
+          let j = 1;
+          j < candidates.length && validCount < cellNeighborCount;
+          j++
+        ) {
+          const candidate = candidates[j];
+          const neighborIndex = this.h3Indices.get(candidate);
+          if (neighborIndex !== undefined) {
+            neighborData[baseIndex + validCount] = neighborIndex;
+            validCount++;
+          }
+        }
+      }
+    } else {
+      // --- Use Previous Packing Approach (Non-Square) ---
+      // Pack the cells into rows such that texture width = cellsPerRow * 6,
+      // while keeping each dimension below the maximum (8192).
+      const MAX_TEXTURE_DIMENSION = 8192;
+      const cellsPerRow = Math.floor(MAX_TEXTURE_DIMENSION / cellNeighborCount);
+      textureWidth = cellsPerRow * cellNeighborCount;
+      textureHeight = Math.ceil(h3Cells.length / cellsPerRow);
+      const totalTexelsPacked = textureWidth * textureHeight;
+      neighborData = new Uint32Array(totalTexelsPacked);
+      neighborData.fill(0xffffffff);
+
+      this.h3Indices = new Map(h3Cells.map((h, i) => [h, i]));
+
+      for (let i = 0; i < h3Cells.length; i++) {
+        const cell = h3Cells[i];
+        const cellRow = Math.floor(i / cellsPerRow);
+        const cellCol = i % cellsPerRow;
+        const baseIndex = cellRow * textureWidth + cellCol * cellNeighborCount;
+        const candidates = h3.gridDisk(cell, 1);
+        let validCount = 0;
+        for (
+          let j = 1;
+          j < candidates.length && validCount < cellNeighborCount;
+          j++
+        ) {
+          const candidate = candidates[j];
+          const neighborIndex = this.h3Indices.get(candidate);
+          if (neighborIndex !== undefined) {
+            neighborData[baseIndex + validCount] = neighborIndex;
+            validCount++;
+          }
+        }
+      }
+    }
+
+    // --- Create the Texture and Upload the Data ---
+    // WebGPU requires that bytesPerRow (width in bytes) be a multiple of 256.
+    const bytesPerPixel = 4; // r32uint = 4 bytes per texel
+    const unpaddedBytesPerRow = textureWidth * bytesPerPixel;
+    const paddedBytesPerRow = Math.ceil(unpaddedBytesPerRow / 256) * 256;
+
+    // Create a GPU texture with COPY_SRC usage (needed for readback) and TEXTURE_BINDING.
+    this.neighborTexture = this.device.createTexture({
+      size: {
+        width: textureWidth,
+        height: textureHeight,
+        depthOrArrayLayers: 1,
+      },
+      format: "r32uint",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.COPY_SRC |
+        GPUTextureUsage.TEXTURE_BINDING,
+    });
+
+    // Copy our tightly packed neighborData into an upload buffer with row padding.
+    const uploadBuffer = new Uint8Array(paddedBytesPerRow * textureHeight);
+    const neighborDataView = new Uint8Array(neighborData.buffer);
+    for (let row = 0; row < textureHeight; row++) {
+      const srcOffset = row * unpaddedBytesPerRow;
+      const dstOffset = row * paddedBytesPerRow;
+      uploadBuffer.set(
+        neighborDataView.subarray(srcOffset, srcOffset + unpaddedBytesPerRow),
+        dstOffset
+      );
+    }
+
+    this.device.queue.writeTexture(
+      { texture: this.neighborTexture },
+      uploadBuffer,
+      { bytesPerRow: paddedBytesPerRow, rowsPerImage: textureHeight },
+      { width: textureWidth, height: textureHeight, depthOrArrayLayers: 1 }
+    );
+
+    // --- Copy the Texture to a Buffer for Download ---
+    const bufferSize = paddedBytesPerRow * textureHeight;
+    const downloadBuffer = this.device.createBuffer({
+      size: bufferSize,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    commandEncoder.copyTextureToBuffer(
+      {
+        texture: this.neighborTexture,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: 0 },
+      },
+      {
+        buffer: downloadBuffer,
+        offset: 0,
+        bytesPerRow: paddedBytesPerRow,
+        rowsPerImage: textureHeight,
+      },
+      { width: textureWidth, height: textureHeight, depthOrArrayLayers: 1 }
+    );
+    this.device.queue.submit([commandEncoder.finish()]);
+
+    await downloadBuffer.mapAsync(GPUMapMode.READ);
+    const arrayBuffer = downloadBuffer.getMappedRange();
+    const paddedData = new Uint8Array(arrayBuffer);
+
+    // Remove the per-row padding.
+    const rawData = new Uint8Array(unpaddedBytesPerRow * textureHeight);
+    for (let row = 0; row < textureHeight; row++) {
+      const srcOffset = row * paddedBytesPerRow;
+      const dstOffset = row * unpaddedBytesPerRow;
+      rawData.set(
+        paddedData.subarray(srcOffset, srcOffset + unpaddedBytesPerRow),
+        dstOffset
+      );
+    }
+    downloadBuffer.unmap();
+
+    // --- Output Option: Image vs. Binary Download ---
+    if (options?.asImage) {
+      // Convert the rawData to an image using an HTML canvas.
+      const canvas = document.createElement("canvas");
+      canvas.width = textureWidth;
+      canvas.height = textureHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Unable to obtain the 2D canvas context");
+      const imageData = ctx.createImageData(textureWidth, textureHeight);
+      const data = imageData.data; // Uint8ClampedArray
+
+      const dataView = new DataView(rawData.buffer);
+      for (let i = 0; i < textureWidth * textureHeight; i++) {
+        const value = dataView.getUint32(i * 4, true);
+        let r: number, g: number, b: number;
+        if (value === 0xffffffff) {
+          r = g = b = 0;
+        } else {
+          r = (value >> 16) & 0xff;
+          g = (value >> 8) & 0xff;
+          b = value & 0xff;
+        }
+        data[i * 4 + 0] = r;
+        data[i * 4 + 1] = g;
+        data[i * 4 + 2] = b;
+        data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // Create a data URL from the canvas (PNG) and trigger a download.
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `neighborTexture_${textureWidth}x${textureHeight}.png`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } else {
+      // Download the raw texture data as a binary file.
+      const blob = new Blob([rawData.buffer], {
+        type: "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `neighborTexture_${textureWidth}x${textureHeight}.bin`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    }
+  }
+
+  public async exportFloodFillResultsAsSquareImage(): Promise<void> {
+    // Determine the total number of cells from the configuration.
+    // (Assumes 'filledBuffer' has an entry for each cell.)
+    const totalCells = this.config.maxCells;
+    const totalBytes = totalCells * 4; // 4 bytes per 32-bit value
+
+    // Create a readback buffer for the filledBuffer.
+    const readbackBuffer = this.device.createBuffer({
+      size: totalBytes,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+
+    // Copy data from the filledBuffer to the readbackBuffer.
+    const encoder = this.device.createCommandEncoder();
+    encoder.copyBufferToBuffer(
+      this.filledBuffer, // source buffer
+      0, // source offset
+      readbackBuffer, // destination buffer
+      0, // destination offset
+      totalBytes
+    );
+    this.device.queue.submit([encoder.finish()]);
+
+    // Map the buffer for reading.
+    await readbackBuffer.mapAsync(GPUMapMode.READ);
+    const filledArray = new Uint32Array(readbackBuffer.getMappedRange());
+    readbackBuffer.unmap();
+
+    // Determine the dimensions of a square image.
+    // This will create an image with (squareSize x squareSize) pixels.
+    const squareSize = Math.ceil(Math.sqrt(totalCells));
+
+    // Create an HTML canvas with the computed square dimensions.
+    const canvas = document.createElement("canvas");
+    canvas.width = squareSize;
+    canvas.height = squareSize;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Unable to get 2D canvas context");
+
+    // Create an ImageData object to hold our pixel data.
+    const imageData = ctx.createImageData(squareSize, squareSize);
+    const data = imageData.data; // Uint8ClampedArray
+
+    // Populate the image data.
+    // Each cell in filledArray corresponds to one pixel.
+    // For cells beyond totalCells (if squareSize^2 > totalCells), set them to black.
+    for (let i = 0; i < squareSize * squareSize; i++) {
+      const value = i < filledArray.length ? filledArray[i] : 0;
+      let r = 0,
+        g = 0,
+        b = 0;
+      if (value === 0) {
+        // Not filled; choose black (or another background color).
+        r = 0;
+        g = 0;
+        b = 0;
+      } else {
+        // For filled cells, generate a color based on the value.
+        // You can tweak these multipliers to get different color distributions.
+        r = (value * 37) % 256;
+        g = (value * 73) % 256;
+        b = (value * 109) % 256;
+      }
+      data[i * 4 + 0] = r;
+      data[i * 4 + 1] = g;
+      data[i * 4 + 2] = b;
+      data[i * 4 + 3] = 255; // fully opaque
+    }
+
+    // Put the image data onto the canvas.
+    ctx.putImageData(imageData, 0, 0);
+
+    // Create a PNG data URL from the canvas and trigger a download.
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = `floodFillResults_${squareSize}x${squareSize}.png`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
   }
 }
