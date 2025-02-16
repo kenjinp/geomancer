@@ -21,9 +21,13 @@ export interface CubeSphereNode {
 }
 
 const NODE_STRIDE = 64; // 64 bytes per node (16 elements)
-const MAX_NODES = 2_000_000 * 4; // Still insufficient for high subdivisions
+const MAX_NODES = 2_000_000;
 const tempVector = new THREE.Vector3();
 const origin = new THREE.Vector3();
+
+const tempFrustrum = new THREE.Frustum();
+const tempMatrix4 = new THREE.Matrix4();
+const tempSphere = new THREE.Sphere(new THREE.Vector3(), 0);
 
 export class CubeSphereQuadtree {
   private nodeBuffer: Float32Array;
@@ -494,18 +498,50 @@ export class CubeSphereQuadtree {
     return 0.1 * cameraPos.length();
   }
 
-  public getVisibleNodes(): number[] {
+  public getVisibleNodes(
+    camera: THREE.Camera,
+    radius: number = 1,
+    offset: THREE.Vector3 = origin
+  ): number[] {
     const visibleNodes: number[] = [];
 
+    // Build the frustum from the camera's view projection matrix
+    const frustum = tempFrustrum;
+    const projScreenMatrix = tempMatrix4.identity();
+    projScreenMatrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse
+    );
+    frustum.setFromProjectionMatrix(projScreenMatrix);
+
     // Iterate through all active nodes
-    this.indexMap.forEach((index) => {
+    for (const [_, index] of this.indexMap) {
       const node = this.getNodeView(index);
 
-      // Check if node is a leaf node (no children)
-      if (node.children[0] === -1) {
+      // Only consider leaf nodes (nodes without children)
+      if (node.children[0] !== -1) continue;
+
+      // Calculate the node's world position:
+      // Multiply by the given radius and add the offset to match world space coordinates.
+      // (This is similar to what updateLOD does.)
+      tempVector.set(node.spherePos[0], node.spherePos[1], node.spherePos[2]);
+      tempVector.multiplyScalar(radius).add(offset);
+
+      // Compute the approximate size of the node in world space.
+      // The node's "side length" is (2 * radius) / (1 << node.level)
+      const nodeSize = (radius * 2) / (1 << node.level);
+      // Use half the diagonal of the node's square area as an approximate bounding sphere radius.
+      const boundingSphereRadius = (nodeSize * Math.SQRT2) / 2;
+
+      // Re-use the temporary sphere instance to avoid allocating a new sphere each time.
+      tempSphere.center.copy(tempVector);
+      tempSphere.radius = boundingSphereRadius;
+
+      // Check for intersection with the frustum.
+      if (frustum.intersectsSphere(tempSphere)) {
         visibleNodes.push(index);
       }
-    });
+    }
 
     return visibleNodes;
   }

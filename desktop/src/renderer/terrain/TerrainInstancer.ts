@@ -151,11 +151,14 @@ export class TerrainInstancer {
     }
   }
 
-  public update(hoveredNodeIndex: number | null = null) {
-    const visibleNodes = this.quadtree.getVisibleNodes();
+  public update(camera: THREE.Camera, hoveredNodeIndex: number | null = null) {
+    const visibleNodes = this.quadtree.getVisibleNodes(
+      camera,
+      this.radius,
+      this.offset
+    );
     this.ensureCapacity(visibleNodes.length);
     this.processNodeUpdates(visibleNodes, hoveredNodeIndex);
-    this.material.uniforms.uModelMatrix.value = this.instancedMesh.matrixWorld;
   }
 
   private processNodeUpdates(
@@ -309,13 +312,16 @@ export class TerrainInstancer {
     this.nodeTransforms.clear();
   }
 
-  public setRadius(radius: number) {
+  public setRadius(radius: number, camera: THREE.Camera) {
     this.radius = radius;
     (
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uRadius.value = radius;
     // Force update neighbor calculations
-    this.processNodeUpdates(this.quadtree.getVisibleNodes(), null);
+    this.processNodeUpdates(
+      this.quadtree.getVisibleNodes(camera, radius, this.offset),
+      null
+    );
   }
 
   public setPosition(position: THREE.Vector3) {
