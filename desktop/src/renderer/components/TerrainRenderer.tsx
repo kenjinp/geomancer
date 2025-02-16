@@ -1,4 +1,4 @@
-import { Html } from "@react-three/drei";
+import { Html, useTexture } from "@react-three/drei";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -23,6 +23,7 @@ export function TerrainRenderer({
   position = new THREE.Vector3(),
   maxDepth = 20,
 }: TerrainRendererProps) {
+  const uvTexture = useTexture("/img/UV.png");
   const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
   const instancerRef = useRef<TerrainInstancer>(null);
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
@@ -63,6 +64,14 @@ export function TerrainRenderer({
       scene.remove(instancerRef.current?.mesh);
     };
   }, [radius, positionKey]);
+
+  useEffect(() => {
+    if (instancerRef.current) {
+      (
+        instancerRef.current.material as THREE.ShaderMaterial
+      ).uniforms.map.value = uvTexture;
+    }
+  }, [uvTexture]);
 
   useFrame(({ camera }) => {
     if (!instancerRef.current || !quadtreeRef.current) return;

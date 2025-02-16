@@ -65,4 +65,5 @@ void main() {
     gl_Position = projectionMatrix * modelViewPosition;
     vWorldPosition = (instanceMatrix * vec4(position, 1.0));
     vColor = instanceColor;
+    vUv = uv;
 }

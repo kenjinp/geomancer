@@ -1,6 +1,8 @@
 uniform samplerCube h3IndexMap;
 uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
+uniform sampler2D map;
+varying vec2 vUv;
 varying vec4 vWorldPosition;
 uniform vec3 uOffset;
 varying float vInstanceId;
@@ -40,7 +42,7 @@ int getCubeFaceIndex(vec3 direction) {
     }
 }
 
-vec2 getCubeUV(vec3 direction) {
+vec2 getCubeUVFaceAtlas(vec3 direction) {
     // Determine dominant face
     vec3 absDir = abs(normalize(direction));
     float maxComponent = max(absDir.x, max(absDir.y, absDir.z));
@@ -73,6 +75,37 @@ vec2 getCubeUV(vec3 direction) {
     float faceIndex = float(getCubeFaceIndex(direction));
     uv.x = (uv.x + faceIndex) / 6.0;
     
+    return uv;
+}
+
+vec2 getCubeUV(vec3 direction) {
+    // Determine dominant face
+    vec3 absDir = abs(normalize(direction));
+    float maxComponent = max(absDir.x, max(absDir.y, absDir.z));
+    
+    // Project direction onto cube face
+    vec3 projected = direction / maxComponent;
+    vec2 uv;
+    
+    if (absDir.x == maxComponent) { // X-facing
+        uv = vec2(
+            projected.z * sign(direction.x),
+            projected.y
+        );
+    } else if (absDir.y == maxComponent) { // Y-facing
+        uv = vec2(
+            projected.x,
+            projected.z * sign(direction.y)
+        );
+    } else { // Z-facing
+        uv = vec2(
+            projected.x * sign(direction.z),
+            projected.y
+        );
+    }
+    
+    // Convert from [-1,1] to [0,1] UV space
+    uv = uv * 0.5 + 0.5;
     return uv;
 }
 
@@ -235,5 +268,13 @@ void main() {
         hash(vInstanceId + 2.0)
     );
 
-    gl_FragColor = vec4(instanceColor, 1.0);
+    vec2 rootUV = getCubeUV(direction);
+
+    // Sample the provided map texture using the UV coordinates
+    vec4 mapColor = texture2D(map, rootUV);
+
+    // Mix the map color with the instance color
+    vec3 finalColor = mix(instanceColor, mapColor.rgb, 0.8);
+
+    gl_FragColor = vec4(finalColor, 1.0);
 }

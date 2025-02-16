@@ -76,6 +76,7 @@ export class TerrainInstancer {
         h3NeighborMap: { value: h3NeighborMap },
         h3PositionMap: { value: h3PositionMap },
         uModelMatrix: { value: new THREE.Matrix4() },
+        map: { value: null },
       },
       vertexColors: true,
     });

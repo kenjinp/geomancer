@@ -13,7 +13,7 @@ import {
 import { CubicCoordinates } from "../../lib/coordinate-systems/CubeProjection/CubicCoordinates";
 
 const RES = 4;
-const FACE_SIZE = 512; // Texture resolution per cube face
+const FACE_SIZE = 64; // Texture resolution per cube face
 
 export function generateH3CubeMap() {
   const startTime = performance.now();
