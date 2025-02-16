@@ -28,6 +28,7 @@ export function TerrainRenderer({
   const instancerRef = useRef<TerrainInstancer>(null);
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
   const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera);
   const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const [hovering, setHovering] = useState(false);
   const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
@@ -39,12 +40,13 @@ export function TerrainRenderer({
   });
 
   const positionKey = position.toArray().join(",");
+
   useEffect(() => {
     console.log("Initializing terrain with:", {
       radius,
       position,
       nodes: quadtreeRef.current
-        .getVisibleNodes()
+        .getVisibleNodes(camera, radius, position)
         .map((n) => quadtreeRef.current.getNodeView(n).toObject()),
     });
 
@@ -63,7 +65,7 @@ export function TerrainRenderer({
       axesHelperRef.current?.dispose();
       scene.remove(instancerRef.current?.mesh);
     };
-  }, [radius, positionKey]);
+  }, [radius, positionKey, camera]);
 
   useEffect(() => {
     if (instancerRef.current) {
@@ -78,15 +80,12 @@ export function TerrainRenderer({
 
     quadtreeRef.current.maxDepth = maxDepth;
     quadtreeRef.current.updateLOD(camera.position, radius, position);
-    instancerRef.current.update(hoveredNodeIndex);
+    instancerRef.current.update(camera, hoveredNodeIndex);
 
     const debugDiv = document.getElementById("debug-thingy");
     if (debugDiv) {
       debugDiv.innerHTML = `
       <div width="400">
-
-        <p>Visible Nodes: ${quadtreeRef.current.getVisibleNodes().length}</p>
-        <br/>
         <p>Max Depth: ${maxDepth}</p>
         <br/>
         <p>Current Depth: ${quadtreeRef.current.getCurrentDepth()}</p>
@@ -102,14 +101,14 @@ export function TerrainRenderer({
   // Optional: Update instancer without recreation
   useEffect(() => {
     if (instancerRef.current) {
-      instancerRef.current.setRadius(radius);
+      instancerRef.current.setRadius(radius, camera);
       instancerRef.current.setPosition(position);
     }
     if (axesHelperRef.current) {
       axesHelperRef.current.scale.setScalar(radius);
       axesHelperRef.current.position.copy(position);
     }
-  }, [radius, position]);
+  }, [radius, position, camera]);
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     sphereWorldPosition.current.copy(event.point);
