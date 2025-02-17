@@ -1,9 +1,7 @@
+import { generateH3PositionTexture } from "@/lib/coordinate-systems/hex/maps/HexPositions";
+import { generateH3CubeMap } from "@/lib/coordinate-systems/hex/maps/HexUVCubeMap";
 import * as THREE from "three";
-import {
-  generateH3CubeMap,
-  generateH3NeighborTexture,
-  generateH3PositionTexture,
-} from "./CubeMap";
+import { generateH3NeighborTexture } from "./CubeMap";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
 import vertexShader from "./terrain.vert";
@@ -34,17 +32,8 @@ export class TerrainInstancer {
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
 
-    // if (!hexCubeMap) {
-    //   hexCubeMap = generateH3CubeMap();
-    // }
-
-    console.log({
-      fragmentShader,
-      vertexShader,
-    });
-
     const time1 = performance.now();
-    const { cubeTexture: h3IndexMap, h3Indices } = generateH3CubeMap();
+    const h3IndexMap = generateH3CubeMap();
     console.log(`h3IndexMap generation time: ${performance.now() - time1}ms`);
 
     const time2 = performance.now();
@@ -54,15 +43,9 @@ export class TerrainInstancer {
     );
 
     const time3 = performance.now();
-    const h3PositionMap = generateH3PositionTexture(4);
+    const h3PositionMap = generateH3PositionTexture();
     console.log(
       `h3PositionMap generation time: ${performance.now() - time3}ms`
-    );
-
-    console.log(
-      "Position texture size:",
-      h3PositionMap.image.width,
-      h3PositionMap.image.height
     );
 
     // Create shader material
@@ -317,6 +300,7 @@ export class TerrainInstancer {
     (
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uRadius.value = radius;
+    console.log("setting radius", radius);
     // Force update neighbor calculations
     this.processNodeUpdates(
       this.quadtree.getVisibleNodes(camera, radius, this.offset),

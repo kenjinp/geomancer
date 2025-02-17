@@ -1,4 +1,4 @@
-import { noaaRamp } from "@lib/geo/colors";
+import { noaaRamp } from "@/lib/cartography/colors";
 
 const convertToHumanReadable = (meters: number): string => {
   const units = [

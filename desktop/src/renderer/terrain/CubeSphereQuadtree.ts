@@ -2,7 +2,7 @@ import * as THREE from "three";
 import {
   CubeFace,
   CubicCoordinates,
-} from "../../lib/coordinate-systems/CubeProjection/CubicCoordinates";
+} from "../../lib/coordinate-systems/cube-projection/CubicCoordinates";
 
 export type NeighborIndices = [number, number, number, number]; // [left, right, top, bottom]
 export type ChildIndices = [number, number, number, number]; // [left, right, top, bottom]

@@ -111,14 +111,15 @@ export function TerrainRenderer({
   }, [radius, position, camera]);
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    sphereWorldPosition.current.copy(event.point);
-    const nodeIndex = quadtreeRef.current.findNodeAtPosition(
-      event.point,
-      radius,
-      position,
-      true
-    );
-    setHoveredNodeIndex(nodeIndex);
+    // TODO add back in
+    // sphereWorldPosition.current.copy(event.point);
+    // const nodeIndex = quadtreeRef.current.findNodeAtPosition(
+    //   event.point,
+    //   radius,
+    //   position,
+    //   true
+    // );
+    // setHoveredNodeIndex(nodeIndex);
   };
 
   const handlePointerLeave = () => {

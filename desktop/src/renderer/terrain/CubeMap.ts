@@ -10,10 +10,10 @@ import {
   UnsignedByteType,
   Vector3,
 } from "three";
-import { CubicCoordinates } from "../../lib/coordinate-systems/CubeProjection/CubicCoordinates";
+import { CubicCoordinates } from "../../lib/coordinate-systems/cube-projection/CubicCoordinates";
 
 const RES = 4;
-const FACE_SIZE = 64; // Texture resolution per cube face
+const FACE_SIZE = 1024; // Texture resolution per cube face
 
 export function generateH3CubeMap() {
   const startTime = performance.now();
@@ -43,7 +43,7 @@ export function generateH3CubeMap() {
           console.log("color", color, h3Index);
         }
 
-        // Write the color (converted to 0-255 values) into the buffer.
+        // Write the color values into the buffer.
         const offset = (face * FACE_SIZE * FACE_SIZE + y * FACE_SIZE + x) * 4;
         cubeRgba[offset] = Math.floor(color[0] * 255);
         cubeRgba[offset + 1] = Math.floor(color[1] * 255);
@@ -76,11 +76,13 @@ export function generateH3CubeMap() {
     images.push(dataTexture);
   }
 
-  // Build the CubeTexture from the six face textures.
+  // --- REORDERING THE CUBE FACES USING THE HELPER METHOD ---
+  // Use CubicCoordinates.reorderCubeFaces to convert our custom order to Three.js order.
+  const reorderedImages = CubicCoordinates.reorderCubeFaces(images);
 
   console.log("sample color", cubeRgba[0], cubeRgba[1], cubeRgba[2]);
 
-  const cubeTexture = new CubeTexture(images);
+  const cubeTexture = new CubeTexture(reorderedImages);
   cubeTexture.minFilter = NearestFilter;
   cubeTexture.magFilter = NearestFilter;
   cubeTexture.generateMipmaps = false;
@@ -153,38 +155,31 @@ export function generateH3NeighborTexture(resolution = 4) {
 
 export function generateH3PositionTexture(resolution = 4) {
   const res = resolution;
-  // Get cells in spherical order matching cubemap generation
-  const allIndices = [];
-  const faceSize = 512; // Must match cubemap FACE_SIZE
+  // Generate all H3 cell nodes of resolution `res` using res0 cells and their children.
+  const res0Cells = h3.getRes0Cells();
+  const allIndicesSet = new Set<string>();
+  res0Cells.forEach((cell) => {
+    const children = h3.cellToChildren(cell, res);
+    children.forEach((child) => allIndicesSet.add(child));
+  });
+  let allIndices = Array.from(allIndicesSet);
 
-  for (let face = 0; face < 6; face++) {
-    for (let y = 0; y < faceSize; y++) {
-      for (let x = 0; x < faceSize; x++) {
-        const cubicCoords = new CubicCoordinates(
-          face,
-          x / faceSize,
-          y / faceSize
-        );
-        const latLong = cubicCoords.toLatLong();
-        const index = h3.latLngToCell(latLong.lat, latLong.lon, res);
-        allIndices.push(index);
-      }
-    }
-  }
+  // Sort the indices using the same mixed 24-bit value as in the cube map.
+  allIndices.sort((a, b) => {
+    const aNum = computeMixedH3Id(a);
+    const bNum = computeMixedH3Id(b);
+    return aNum - bNum;
+  });
 
-  // Dedupe while preserving order
-  const uniqueIndices = [...new Set(allIndices)];
-  const totalCells = uniqueIndices.length;
-
+  const totalCells = allIndices.length;
   // Calculate texture dimensions that stay within WebGL limits
   const MAX_TEXTURE_SIZE = 4096; // Conservative estimate
   const texWidth = Math.min(totalCells, MAX_TEXTURE_SIZE);
   const texHeight = Math.ceil(totalCells / texWidth);
 
   const positionData = new Float32Array(texWidth * texHeight * 4); // RGBA
-
   let index = 0;
-  for (const h3Index of uniqueIndices) {
+  for (const h3Index of allIndices) {
     const [lat, lng] = h3.cellToLatLng(h3Index);
     const pos = new Vector3().setFromSphericalCoords(
       1,
@@ -200,18 +195,14 @@ export function generateH3PositionTexture(resolution = 4) {
     index++;
   }
 
-  // Add debug output
+  // Debug output: log sample positions for verification.
   console.log("Sample positions:");
-  uniqueIndices.slice(0, 5).forEach((index) => {
-    const [lat, lng] = h3.cellToLatLng(index);
-    const pos = new Vector3().setFromSphericalCoords(
-      1,
-      MathUtils.degToRad(90 - lat),
-      MathUtils.degToRad(lng)
-    );
-    console.log(`H3 ${index} -> Lat: ${lat} Lng: ${lng} -> Pos:`, pos);
-  });
+  for (let i = 0; i < Math.min(5, allIndices.length); i++) {
+    const data = positionData.subarray(i * 4, (i + 1) * 4);
+    console.log(`H3 ${allIndices[i]} -> Pos:`, data);
+  }
 
+  const minH3Id = computeMixedH3Id(allIndices[0]);
   const texture = new DataTexture(
     positionData,
     texWidth,
@@ -223,5 +214,12 @@ export function generateH3PositionTexture(resolution = 4) {
   texture.magFilter = NearestFilter;
   texture.generateMipmaps = false;
   texture.needsUpdate = true;
-  return texture;
+  return { texture, minH3Id };
+}
+
+function computeMixedH3Id(h3Index: string): number {
+  const bigVal = BigInt("0x" + h3Index);
+  // Compute the mixed value exactly as in h3ToColor
+  const mixed = Number((bigVal ^ (bigVal >> 24n)) & 0xffffffn);
+  return mixed;
 }

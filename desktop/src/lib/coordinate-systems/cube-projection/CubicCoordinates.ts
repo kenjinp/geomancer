@@ -1,5 +1,5 @@
 import { Vector3 } from "three";
-import { LatLong } from "../LatLong";
+import { LatLong } from "../sphere/LatLong";
 
 /**
  * Reusable Vector3 instance to avoid allocations
