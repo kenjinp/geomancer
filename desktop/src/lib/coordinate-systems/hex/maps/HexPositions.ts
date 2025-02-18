@@ -1,4 +1,10 @@
-import { DataTexture, FloatType, NearestFilter, RGBAFormat } from "three";
+import {
+  ClampToEdgeWrapping,
+  DataTexture,
+  FloatType,
+  NearestFilter,
+  RGBAFormat,
+} from "three";
 import { HexGrid } from "../HexGrid";
 
 export function generateH3PositionTexture(resolution = 4) {
@@ -13,9 +19,7 @@ export function generateH3PositionTexture(resolution = 4) {
 
   // Validate texture can hold all cells
   if (texWidth * texHeight < totalCells) {
-    throw new Error(
-      `Position texture dimensions (${texWidth}x${texHeight}) too small for ${totalCells} cells`
-    );
+    throw new Error("Texture dimensions too small");
   }
 
   // Ensure minimum texture dimensions for WebGL
@@ -26,8 +30,13 @@ export function generateH3PositionTexture(resolution = 4) {
     );
   }
 
+  console.log("position texture dimensions---- ");
+  console.log("texWidth", texWidth);
+  console.log("texHeight", texHeight);
+
   // Create a Float32Array to hold the position data (RGBA for each texel)
   const positionData = new Float32Array(texWidth * texHeight * 4);
+  positionData.fill(-1);
 
   // Loop over all sorted H3 indices and compute their 3D positions
   allIndices.forEach((h3Index, i) => {
@@ -69,6 +78,7 @@ export function generateH3PositionTexture(resolution = 4) {
   texture.type = FloatType;
   texture.generateMipmaps = false;
   texture.needsUpdate = true;
-
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
   return texture;
 }

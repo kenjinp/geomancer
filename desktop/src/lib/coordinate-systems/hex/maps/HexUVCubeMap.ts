@@ -9,7 +9,7 @@ import {
 import { CubicCoordinates } from "../../cube-projection/CubicCoordinates";
 import { HexGrid } from "../HexGrid";
 
-export function generateH3CubeMap(resolution = 4, faceSize = 256) {
+export function generateH3CubeMap(resolution = 4, faceSize = 1024) {
   const startTime = performance.now();
   // warm the cache
   const allIndices = HexGrid.allNodes(resolution);
@@ -37,10 +37,6 @@ export function generateH3CubeMap(resolution = 4, faceSize = 256) {
         const incrementalIndex = HexGrid.getIndex(h3Index);
         // Convert H3 index to a color (using the last 24 bits in this example)
         const color = HexGrid.encodeNodeIndexToColor(incrementalIndex);
-
-        if (y === 0 && x === 0) {
-          console.log("color", color, h3Index);
-        }
 
         // Write the color values into the buffer.
         const offset = (face * faceSize * faceSize + y * faceSize + x) * 4;

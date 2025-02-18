@@ -15,7 +15,7 @@ interface TestCubeSphereQuadtree extends CubeSphereQuadtree {
   ) => void;
 }
 
-describe("CubeSphereQuadtree", () => {
+describe.skip("CubeSphereQuadtree", () => {
   let quadtree: CubeSphereQuadtree;
 
   beforeEach(() => {

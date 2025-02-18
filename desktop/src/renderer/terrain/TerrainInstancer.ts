@@ -1,7 +1,7 @@
+import { generateH3NeighborTexture } from "@/lib/coordinate-systems/hex/maps/HexNeighbors";
 import { generateH3PositionTexture } from "@/lib/coordinate-systems/hex/maps/HexPositions";
 import { generateH3CubeMap } from "@/lib/coordinate-systems/hex/maps/HexUVCubeMap";
 import * as THREE from "three";
-import { generateH3NeighborTexture } from "./CubeMap";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
 import vertexShader from "./terrain.vert";

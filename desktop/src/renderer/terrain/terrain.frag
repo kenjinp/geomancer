@@ -1,3 +1,5 @@
+precision highp float;
+
 uniform samplerCube h3IndexMap;
 uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
@@ -7,7 +9,7 @@ uniform float uRadius;
 varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
-uniform mat4 uModelMatrix;
+// uniform mat4 uModelMatrix;  // <-- This isn't used in calculations
 
 uint getNeighborH3Id(float baseId, float direction) {
     float index = baseId * 6.0 + direction;
@@ -20,12 +22,18 @@ uint getNeighborH3Id(float baseId, float direction) {
     return (uint(packed.r) << 8) | uint(packed.g);
 }
 
-vec3 getH3PositionByIndex(float tileIndex) {
-    vec2 texSize = vec2(textureSize(h3PositionMap, 0));
-    vec2 uv = vec2(
-        mod(tileIndex, texSize.x) / texSize.x,
-        floor(tileIndex / texSize.x) / texSize.y
-    );
+// Given a float-based index, compute the UV coordinate and fetch the X, Y, Z center.
+// This version uses a square texture (with dimensions texDim x texDim) and a half-texel offset.
+vec3 getH3Position(float h3Id) {
+    // Since h3PositionMap is square, both dimensions are equal.
+    float texDim = float(textureSize(h3PositionMap, 0).x);
+
+    // Compute the column and row index based on the flat index.
+    float col = mod(h3Id, texDim);
+    float row = floor(h3Id / texDim);
+
+    // Calculate UV coordinates using the center of the texel.
+    vec2 uv = vec2((col + 0.5) / texDim, (row + 0.5) / texDim);
     return texture2D(h3PositionMap, uv).xyz;
 }
 
@@ -51,7 +59,7 @@ uint findClosestCell(vec3 position, uint currentId) {
     uint closestId = currentId;
     float minDist = 1e10;
     
-    vec3 center = getH3PositionByIndex(float(currentId));
+    vec3 center = getH3Position(float(currentId));
     float dist = distance(position, center);
     if(dist < minDist) {
         minDist = dist;
@@ -61,7 +69,7 @@ uint findClosestCell(vec3 position, uint currentId) {
     for(int i = 0; i < 6; i++) {
         uint neighborId = getNeighborH3Id(float(currentId), float(i));
         if(neighborId == 0u) continue;
-        vec3 neighborCenter = getH3PositionByIndex(float(neighborId));
+        vec3 neighborCenter = getH3Position(float(neighborId));
         float nDist = distance(position, neighborCenter);
         if(nDist < minDist) {
             minDist = nDist;
@@ -74,14 +82,35 @@ uint findClosestCell(vec3 position, uint currentId) {
 
 void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
-    vec3 spherePos = uOffset + normalize(worldPos - uOffset) * uRadius;
+    vec3 sphereDirection = normalize(worldPos - uOffset);
+    vec3 spherePos = uOffset + sphereDirection * uRadius;
     vec3 direction = normalize(worldPos);
     
     uint currentId = getH3IdentifierCube(direction);
-    vec3 center = getH3PositionByIndex(float(currentId));
+    // float fIndex = float(currentId);
+    vec2 texSize = vec2(textureSize(h3PositionMap, 0));
+    float fIndex = mod(float(currentId), texSize.x * texSize.y);
+    vec3 center = getH3Position(fIndex);
     vec3 centerWorld = uOffset + center * uRadius;
 
-    gl_FragColor = vec4(center, 1.0);
+    // Just to see if positions vary across the sphere
+    gl_FragColor = vec4(center * 0.5 + 0.5, 1.0);
+
+    if (fIndex < 0.0 || fIndex >= texSize.x * texSize.y) {
+        gl_FragColor = vec4(vec3(1.0, 0.0, 0.0), 1.0);
+    }
+
+    // float radiusCheck = abs(length(center) - 1.0);
+    // if (radiusCheck > 0.01) {
+    //     // highlight in red if the center isn't close to the unit sphere
+    //     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    //     return;
+    // }
+    // gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+
+    // float pattern = mod(fIndex, 256.0) / 256.0;
+    // gl_FragColor = vec4(pattern, pattern, pattern, 1.0);
+
 
   
     // vec3 color = center * 0.5 + 0.5; // Visualize positions
@@ -101,7 +130,7 @@ void main() {
     // vec3 direction = normalize(worldPos);
     
     // uint currentId = getH3IdentifierCube(direction);
-    // vec3 center = getH3PositionByIndex(float(currentId));
+    // vec3 center = getH3Position(float(currentId));
     // vec3 centerWorld = uOffset + center * uRadius;
 
     // vec2 rootUV = vec2(0.0); // (your getCubeUV call here)
