@@ -1,5 +1,6 @@
 import * as h3 from "h3-js";
 import { MathUtils, Vector3 } from "three";
+import { LatLong } from "../sphere/LatLong";
 
 let cachedAllNodes: string[] = [];
 let cachedIndexMap: Map<string, number> = new Map();
@@ -25,12 +26,16 @@ export class HexGrid {
       );
       return cachedAllNodes;
     }
-    cachedAllNodes = h3.getRes0Cells().flatMap((h3Index) => {
-      const children = h3.cellToChildren(h3Index, resolution);
-      children.forEach((child) => {
-        HexGrid.indexMap.set(child, HexGrid.indexMap.size);
-      });
-      return children;
+    const presorted = h3
+      .getRes0Cells()
+      .flatMap((h3Index) => h3.cellToChildren(h3Index, resolution));
+    const sorted = presorted.sort((a, b) => {
+      return Number(a) - Number(b);
+    });
+
+    cachedAllNodes = sorted.map((h3Index, sortedIndex) => {
+      HexGrid.indexMap.set(h3Index, sortedIndex);
+      return h3Index;
     });
     console.log(
       "[un-cached] ALL NODES: ",
@@ -52,9 +57,20 @@ export class HexGrid {
     const [lat, lng] = h3.cellToLatLng(h3Index);
     return target.setFromSphericalCoords(
       1,
-      MathUtils.degToRad(90 - lat),
+      MathUtils.degToRad(90 + lat),
       MathUtils.degToRad(lng)
     );
+  }
+
+  /**
+   * Computes the sphere position for the center of an H3 cell on a unit sphere.
+   */
+  static getLatLongFromH3(
+    h3Index: string,
+    target: LatLong = new LatLong()
+  ): LatLong {
+    const [lat, lng] = h3.cellToLatLng(h3Index);
+    return target.set(lat, lng);
   }
 
   /**

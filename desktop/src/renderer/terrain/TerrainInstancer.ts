@@ -31,19 +31,19 @@ export class TerrainInstancer {
     this.quadtree = quadtree;
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
-
+    const resolution = 4;
     const time1 = performance.now();
-    const h3IndexMap = generateH3CubeMap();
+    const h3IndexMap = generateH3CubeMap(resolution);
     console.log(`h3IndexMap generation time: ${performance.now() - time1}ms`);
 
     const time2 = performance.now();
-    const h3NeighborMap = generateH3NeighborTexture();
+    const h3NeighborMap = generateH3NeighborTexture(resolution);
     console.log(
       `h3NeighborMap generation time: ${performance.now() - time2}ms`
     );
 
     const time3 = performance.now();
-    const h3PositionMap = generateH3PositionTexture();
+    const h3PositionMap = generateH3PositionTexture(resolution);
     console.log(
       `h3PositionMap generation time: ${performance.now() - time3}ms`
     );

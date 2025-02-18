@@ -145,7 +145,6 @@ export const Home: React.FC = () => {
       {/* <H3Geometry resolution={4} radius={radius} seedCount={40} /> */}
 
       <TerrainRenderer radius={radius} />
-      <axesHelper args={[radius]} />
       {/* <CubeVisualizer scale={radius} /> */}
     </group>
   );

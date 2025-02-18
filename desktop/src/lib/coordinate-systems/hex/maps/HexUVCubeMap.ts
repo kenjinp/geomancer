@@ -9,7 +9,7 @@ import {
 import { CubicCoordinates } from "../../cube-projection/CubicCoordinates";
 import { HexGrid } from "../HexGrid";
 
-export function generateH3CubeMap(resolution = 4, faceSize = 1024) {
+export function generateH3CubeMap(resolution = 4, faceSize = 512) {
   const startTime = performance.now();
   // warm the cache
   const allIndices = HexGrid.allNodes(resolution);
@@ -25,12 +25,12 @@ export function generateH3CubeMap(resolution = 4, faceSize = 1024) {
 
   // For each cube face
   for (let face = 0; face < 6; face++) {
-    for (let y = 0; y < faceSize; y++) {
-      for (let x = 0; x < faceSize; x++) {
+    for (let x = 0; x < faceSize; x++) {
+      for (let y = 0; y < faceSize; y++) {
         const cubicCoords = new CubicCoordinates(
           face,
-          x / faceSize,
-          y / faceSize
+          (x + 0.5) / faceSize,
+          (y + 0.5) / faceSize
         );
         const latLong = cubicCoords.toLatLong();
         const h3Index = h3.latLngToCell(latLong.lat, latLong.lon, resolution);
