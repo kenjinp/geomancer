@@ -19,6 +19,10 @@ uint getNeighborH3Id(float baseId, float direction) {
         floor(index / texSize.x) / texSize.y
     );
     vec4 packed = texture2D(h3NeighborMap, uv) * 255.0;
+    // Check for sentinel value
+    if(packed.r == 255.0 && packed.g == 255.0) {
+        return 0u; // Invalid neighbor
+    }
     return (uint(packed.r) << 8) | uint(packed.g);
 }
 
@@ -53,39 +57,40 @@ uint getH3IdentifierCube(vec3 direction) {
     return (r << 16) | (g << 8) | b;
 }
 
-uint findClosestCell(vec3 position, uint currentId) {
-    // Add debug output for neighbor counts
-    int validNeighbors = 0;
-    for(int i = 0; i < 6; i++) {
-        uint neighborId = getNeighborH3Id(float(currentId), float(i));
-        if(neighborId != 0u) validNeighbors++;
-    }
-    if(validNeighbors < 3) { // Hex cells should have 5-6 neighbors
-        return currentId; // Might indicate bad neighbor data
-    }
-    
-    uint closestId = currentId;
+uint findClosestCell(vec3 position, uint initialId) {
+    uint currentId = initialId;
     float minDist = 1e10;
+    uint lastId = 0u;
+    int iterations = 0;
     
-    vec3 center = getH3Position(float(currentId));
-    float dist = distance(position, center);
-    if(dist < minDist) {
-        minDist = dist;
-        closestId = currentId;
-    }
-    
-    for(int i = 0; i < 6; i++) {
-        uint neighborId = getNeighborH3Id(float(currentId), float(i));
-        if(neighborId == 0u) continue;
-        vec3 neighborCenter = getH3Position(float(neighborId));
-        float nDist = distance(position, neighborCenter);
-        if(nDist < minDist) {
-            minDist = nDist;
-            closestId = neighborId;
+    // Iterate until we stop improving or max iterations
+    while(iterations < 4 && currentId != lastId) {
+        lastId = currentId;
+        vec3 center = getH3Position(float(currentId));
+        minDist = distance(position, center);
+        uint bestNeighbor = currentId;
+        
+        // Check all neighbors
+        for(int i = 0; i < 6; i++) {
+            uint neighborId = getNeighborH3Id(float(currentId), float(i));
+            if(neighborId == 0u) continue;
+            
+            vec3 neighborPos = getH3Position(float(neighborId));
+            float dist = distance(position, neighborPos);
+            
+            // Track the closest neighbor in this iteration
+            if(dist < minDist) {
+                minDist = dist;
+                bestNeighbor = neighborId;
+            }
         }
+        
+        // Only update if we found a better neighbor
+        currentId = bestNeighbor;
+        iterations++;
     }
     
-    return closestId;
+    return currentId;
 }
 
 vec3 hashFloat(float f) {
@@ -105,6 +110,23 @@ vec3 hashFloat(float f) {
     );
 }
 
+float edgeFactor(vec3 worldPos, uint cellId) {
+    vec3 center = getH3Position(float(cellId));
+    float minAngle = 1e10;
+    
+    for(int i=0; i<6; i++) {
+        uint neighborId = getNeighborH3Id(float(cellId), float(i));
+        if(neighborId == 0u) continue;
+        
+        vec3 neighborPos = getH3Position(float(neighborId));
+        vec3 edgeNormal = normalize(cross(center, neighborPos));
+        float angle = acos(dot(normalize(worldPos), edgeNormal));
+        minAngle = min(minAngle, angle);
+    }
+    
+    return smoothstep(0.0, 0.01, minAngle);
+}
+
 void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
     vec3 sphereDirection = normalize(worldPos - uOffset);
@@ -115,6 +137,8 @@ void main() {
     ivec2 posTexSize = textureSize(h3PositionMap, 0);
     float maxValidIndex = float(posTexSize.x * posTexSize.y) - 1.0;
     float fIndex = clamp(float(currentId), 0.0, maxValidIndex);
+    uint closestId = findClosestCell(spherePos, currentId);
+
     vec3 center = getH3Position(fIndex);
     vec3 centerWorld = uOffset + center * uRadius;
 
@@ -128,10 +152,18 @@ void main() {
     float circleMask = 1.0 - smoothstep(debugCircleRadius - edgeWidth, debugCircleRadius, d);
 
     // Get the base color from the hex center (for instance, as visualized previously).
-    vec4 baseColor = mix(vec4(hashFloat(fIndex), 1.0), vec4(1.0), 0.8);
-    vec4 redColor = vec4(1.0, 0.0, 0.0, 1.0);
-    // Mix the base color with red according to the mask.
-    gl_FragColor = mix(baseColor, redColor, circleMask);
+    // vec4 debugBaseColor = mix(vec4(hashFloat(fIndex), 1.0), vec4(1.0), 0.9);
+    // vec4 debugRedColor = vec4(hashFloat(fIndex), 1.0);
+    // vec4 baseColor = mix(debugBaseColor, debugRedColor, circleMask);
+    // vec4 redColor = vec4(hashFloat(fIndex), 1.0);
+    // // Mix the base color with red according to the mask.
+    // gl_FragColor = mix(baseColor, redColor, circleMask);
+
+    // gl_FragColor = vec4(hashFloat(float(closestId)), 1.0);
+
+    // if (closestId != currentId) {
+    //     gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+    // }
 
     // Visualize position validity
     // float isValid = length(center) > 0.9 ? 1.0 : 0.0;
@@ -210,7 +242,26 @@ void main() {
 
     // Visualize cube map face orientation
     vec3 color = vec3(0);
-    if (abs(direction.y) > 0.9) color = vec3(1,0,0); // Red near poles
-    if (abs(direction.x) > 0.9) color = vec3(0,1,0); // Green on X faces
+    if (abs(direction.y) > 0.8) color = vec3(1,0,0); // Red near poles
+    if (abs(direction.x) > 0.8) color = vec3(0,1,0); // Green on X faces
+    // now blue on the z axis
+    if (abs(direction.z) > 0.8) color = vec3(0,0,1);
     gl_FragColor = mix(gl_FragColor, vec4(color, 1.0), 0.3);
+
+    // edgeFactor
+
+    // Get base color
+    vec3 baseColor = hashFloat(float(closestId));
+    
+    // Calculate edge factor
+    float edgeDist = edgeFactor(spherePos, closestId);
+    
+    // Apply anti-aliased edges
+    vec3 finalColor = mix(baseColor, vec3(0.1), vec3(edgeDist));
+    
+    // Add center highlight
+    float centerMask = 1.0 - smoothstep(0.0, 0.01, d / uRadius);
+    finalColor = mix(finalColor, vec3(1,1,0), centerMask * 0.5);
+    
+    gl_FragColor = vec4(finalColor, 1.0);
 }
