@@ -1,10 +1,4 @@
-import {
-  ClampToEdgeWrapping,
-  DataTexture,
-  FloatType,
-  NearestFilter,
-  RGBAFormat,
-} from "three";
+import { DataTexture, FloatType, NearestFilter, RGBAFormat } from "three";
 import { HexGrid } from "../HexGrid";
 
 export function generateH3PositionTexture(resolution = 4) {
@@ -30,16 +24,14 @@ export function generateH3PositionTexture(resolution = 4) {
     );
   }
 
-  console.log("position texture dimensions---- ");
-  console.log("texWidth", texWidth);
-  console.log("texHeight", texHeight);
-
   // Create a Float32Array to hold the position data (RGBA for each texel)
   const positionData = new Float32Array(texWidth * texHeight * 4);
   positionData.fill(-1);
 
   // Loop over all sorted H3 indices and compute their 3D positions
-  allIndices.forEach((h3Index, i) => {
+
+  for (let i = 0; i < allIndices.length; i++) {
+    const h3Index = allIndices[i];
     if (i !== HexGrid.getIndex(h3Index)) {
       throw new Error(`Index mismatch, ${i}, ${h3Index}`);
     }
@@ -50,21 +42,7 @@ export function generateH3PositionTexture(resolution = 4) {
     positionData[offset + 1] = pos.y;
     positionData[offset + 2] = pos.z;
     positionData[offset + 3] = 0.0; // Padding for alignment
-  });
-
-  // Add validation that position data matches index order
-  console.log(
-    "First 3 positions:",
-    allIndices[0],
-    "=>",
-    positionData.subarray(0, 4),
-    allIndices[1],
-    "=>",
-    positionData.subarray(4, 8),
-    allIndices[2],
-    "=>",
-    positionData.subarray(8, 12)
-  );
+  }
 
   const texture = new DataTexture(
     positionData,
@@ -78,7 +56,5 @@ export function generateH3PositionTexture(resolution = 4) {
   texture.type = FloatType;
   texture.generateMipmaps = false;
   texture.needsUpdate = true;
-  texture.wrapS = ClampToEdgeWrapping;
-  texture.wrapT = ClampToEdgeWrapping;
   return texture;
 }

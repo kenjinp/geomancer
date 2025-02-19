@@ -35,17 +35,15 @@ export class TerrainInstancer {
     const time1 = performance.now();
     const h3IndexMap = generateH3CubeMap(resolution);
     console.log(`h3IndexMap generation time: ${performance.now() - time1}ms`);
-
-    const time2 = performance.now();
-    const h3NeighborMap = generateH3NeighborTexture(resolution);
-    console.log(
-      `h3NeighborMap generation time: ${performance.now() - time2}ms`
-    );
-
     const time3 = performance.now();
     const h3PositionMap = generateH3PositionTexture(resolution);
     console.log(
       `h3PositionMap generation time: ${performance.now() - time3}ms`
+    );
+    const time2 = performance.now();
+    const h3NeighborMap = generateH3NeighborTexture(resolution);
+    console.log(
+      `h3NeighborMap generation time: ${performance.now() - time2}ms`
     );
 
     // Create shader material

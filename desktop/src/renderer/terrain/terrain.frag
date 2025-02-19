@@ -21,7 +21,7 @@ uint getNeighborH3Id(float baseId, float direction) {
     vec4 packed = texture2D(h3NeighborMap, uv) * 255.0;
     // Check for sentinel value
     if(packed.r == 255.0 && packed.g == 255.0) {
-        return 0u; // Invalid neighbor
+        return 0u; // Invalid neighbor (now using signed int)
     }
     return (uint(packed.r) << 8) | uint(packed.g);
 }
@@ -93,6 +93,13 @@ uint findClosestCell(vec3 position, uint initialId) {
     return currentId;
 }
 
+vec3 hash31(float p)
+{
+   vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
+   p3 += dot(p3, p3.yzx+33.33);
+   return fract((p3.xxy+p3.yzz)*p3.zyx); 
+}
+
 vec3 hashFloat(float f) {
     // Convert float to integer for bit manipulation
     uint seed = uint(f);
@@ -139,7 +146,9 @@ void main() {
     float fIndex = clamp(float(currentId), 0.0, maxValidIndex);
     uint closestId = findClosestCell(spherePos, currentId);
 
-    vec3 center = getH3Position(fIndex);
+    float fIndexNeighbor = float(getNeighborH3Id(float(currentId), 0.0));
+
+    vec3 center = getH3Position(fIndexNeighbor);
     vec3 centerWorld = uOffset + center * uRadius;
 
     // --- Debug: Paint a red circle around the hex center (10km radius) ---
@@ -251,17 +260,48 @@ void main() {
     // edgeFactor
 
     // Get base color
-    vec3 baseColor = hashFloat(float(closestId));
+    vec3 baseColor = hashFloat(float(currentId));
     
     // Calculate edge factor
-    float edgeDist = edgeFactor(spherePos, closestId);
+    float edgeDist = edgeFactor(spherePos, currentId);
     
     // Apply anti-aliased edges
     vec3 finalColor = mix(baseColor, vec3(0.1), vec3(edgeDist));
     
     // Add center highlight
     float centerMask = 1.0 - smoothstep(0.0, 0.01, d / uRadius);
-    finalColor = mix(finalColor, vec3(1,1,0), centerMask * 0.5);
+    finalColor = mix(finalColor, vec3(0,1,0), centerMask * 0.5);
+
+    if (closestId != currentId) {
+        finalColor = mix(finalColor, vec3(1,0,0), 0.9);
+    }
+
+    if (closestId == 0u) {
+        finalColor = mix(finalColor, vec3(1,1,0), 0.9);
+    }
     
     gl_FragColor = vec4(finalColor, 1.0);
+
+    // uint invalidNeighbors = 0u;
+    // for(int i=0; i<6; i++) {
+    //     uint neighborId = getNeighborH3Id(float(closestId), float(i));
+    //     if(neighborId == 0u) {
+    //         invalidNeighbors++;
+    //         continue;
+    //     }
+        
+    //     // Validate neighbor position
+    //     vec3 neighborPos = getH3Position(float(neighborId));
+    //     if(length(neighborPos) < 0.9) {
+    //         gl_FragColor = vec4(1,0,0,1); // Red = invalid position
+    //     }
+    // }
+    
+    // // Pentagon cells should have exactly 1 invalid neighbor
+    // if(invalidNeighbors > 1u) {
+    //     gl_FragColor = vec4(1,1,0,1); // Yellow = too many invalid neighbors
+    // }
+
+    // validate the neighbors
+    // gl_FragColor = vec4(hash31(fIndexNeighbor), 1.0);
 }
