@@ -15,15 +15,15 @@ uint getNeighborH3Id(float baseId, float direction) {
     float index = baseId * 6.0 + direction;
     vec2 texSize = vec2(textureSize(h3NeighborMap, 0));
     vec2 uv = vec2(
-        mod(index, texSize.x) / texSize.x,
-        floor(index / texSize.x) / texSize.y
+        (mod(index, texSize.x) + 0.5) / texSize.x,
+        (floor(index / texSize.x) + 0.5) / texSize.y
     );
     vec4 packed = texture2D(h3NeighborMap, uv) * 255.0;
     // Check for sentinel value
     if(packed.r == 255.0 && packed.g == 255.0) {
         return 0u; // Invalid neighbor (now using signed int)
     }
-    return (uint(packed.r) << 8) | uint(packed.g);
+    return (uint(packed.r) << 16) | (uint(packed.g) << 8) | uint(packed.b);
 }
 
 // Given a float-based index, compute the UV coordinate and fetch the X, Y, Z center.
@@ -255,7 +255,7 @@ void main() {
     if (abs(direction.x) > 0.8) color = vec3(0,1,0); // Green on X faces
     // now blue on the z axis
     if (abs(direction.z) > 0.8) color = vec3(0,0,1);
-    gl_FragColor = mix(gl_FragColor, vec4(color, 1.0), 0.3);
+    // gl_FragColor = mix(gl_FragColor, vec4(color, 1.0), 0.3);
 
     // edgeFactor
 
@@ -280,7 +280,7 @@ void main() {
         finalColor = mix(finalColor, vec3(1,1,0), 0.9);
     }
     
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(center, 1.0);
 
     // uint invalidNeighbors = 0u;
     // for(int i=0; i<6; i++) {
