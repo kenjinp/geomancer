@@ -131,32 +131,27 @@ vec3 hashFloat(float f) {
 
 float getEdgeFactor(vec3 position, uint cellId) {
     vec3 normalizedPos = normalize(position);
-    
-    // Get distance to current cell center
     vec3 cellCenter = normalize(getH3Position(float(cellId)));
-    float dist1 = greatCircleDistance(normalizedPos, cellCenter);
+    float distToCenter = greatCircleDistance(normalizedPos, cellCenter);
     
-    // Find distance to closest neighbor
-    float dist2 = 26000.0;  // Second closest distance
-    
+    // Check distance to all neighbors
+    float minNeighborDist = 1000.0;
     for (int i = 0; i < 6; i++) {
         uint neighborId = getNeighborH3Id(float(cellId), float(i));
         if (neighborId == 0u) continue;
         
         vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
         float dist = greatCircleDistance(normalizedPos, neighborCenter);
-        if (dist < dist2) {
-            dist2 = dist;
-        }
+        minNeighborDist = min(minNeighborDist, dist);
     }
     
-    // Calculate edge using difference of distances
-    float d = abs(dist1 - dist2) * uRadius; // Scale by radius for consistent width
+    // Edge detection threshold - adjust these values to control edge width and sharpness
+    float edgeWidth = 0.0006;
+    float edgeSharpness = 4.0;
     
-    // Sharper edge calculation
-    float width = 2.0;
-    float dd = fwidth(d);
-    return 1.0 - smoothstep(0.0, dd * width, d);
+    // If distances to current cell and nearest neighbor are similar, we're near an edge
+    float edgeFactor = abs(distToCenter - minNeighborDist);
+    return 1.0 - smoothstep(0.0, edgeWidth, edgeFactor * edgeSharpness );
 }
 
 void main() {
@@ -167,11 +162,14 @@ void main() {
     uint currentId = getH3IdentifierCube(sphereDirection);
     uint closestId = findClosestCell(spherePos, currentId);
     
+    // Get the base cell color
     vec3 cellColor = hashFloat(float(closestId));
+    
+    // Calculate edge factor
     float edge = getEdgeFactor(spherePos, closestId);
     
-    // Sharper mix for the edges
-    vec3 finalColor = mix(cellColor, vec3(0.0), smoothstep(0.4, 0.6, edge));
+    // Mix the cell color with black based on the edge factor
+    vec3 finalColor = mix(cellColor, vec3(0.0), edge);
     
     gl_FragColor = vec4(finalColor, 1.0);
 }

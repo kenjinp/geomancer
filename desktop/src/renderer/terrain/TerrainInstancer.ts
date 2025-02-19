@@ -288,6 +288,11 @@ export class TerrainInstancer {
   }
 
   public dispose() {
+    // dispose of all textures
+    this.instancedMesh.material.uniforms.h3IndexMap.value.dispose();
+    this.instancedMesh.material.uniforms.h3NeighborMap.value.dispose();
+    this.instancedMesh.material.uniforms.h3PositionMap.value.dispose();
+
     this.instancedMesh.geometry.dispose();
     (this.instancedMesh.material as THREE.Material).dispose();
     this.nodeTransforms.clear();
@@ -298,8 +303,6 @@ export class TerrainInstancer {
     (
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uRadius.value = radius;
-    console.log("setting radius", radius);
-    // Force update neighbor calculations
     this.processNodeUpdates(
       this.quadtree.getVisibleNodes(camera, radius, this.offset),
       null
