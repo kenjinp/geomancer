@@ -9,7 +9,7 @@ import {
 import { HexGrid } from "../HexGrid";
 
 export const INVALID_H3_INDEX_SENTINEL = "FFFFFFFFFFFFFFFF";
-
+export const MAX_UINT_24 = 0xffffff;
 export function generateH3NeighborTexture(resolution = 4) {
   const allIndices = HexGrid.allNodes(resolution);
   const totalCells = allIndices.length;
@@ -45,7 +45,7 @@ export function generateH3NeighborTexture(resolution = 4) {
 
     for (let i = 0; i < 6; i++) {
       const neighborH3 = paddedNeighbors[i];
-      let color = [1, 1, 1, 1];
+      let color = HexGrid.encodeNodeIndexToColor(MAX_UINT_24);
       if (neighborH3 !== INVALID_H3_INDEX_SENTINEL) {
         neighborSet.add(neighborH3);
         const neighborIndex = HexGrid.getIndex(neighborH3);

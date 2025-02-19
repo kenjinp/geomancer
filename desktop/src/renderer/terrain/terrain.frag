@@ -11,23 +11,52 @@ varying vec4 vWorldPosition;
 varying float vInstanceId;
 // uniform mat4 uModelMatrix;  // <-- This isn't used in calculations
 
-uint getNeighborH3Id(float baseId, float direction) {
-    float index = baseId * 6.0 + direction;
-    vec2 texSize = vec2(textureSize(h3NeighborMap, 0));
-    vec2 uv = vec2(
-        (mod(index, texSize.x) + 0.5) / texSize.x,
-        (floor(index / texSize.x) + 0.5) / texSize.y
-    );
-    vec4 packed = texture2D(h3NeighborMap, uv) * 255.0;
-    // Check for sentinel value
-    if(packed.r == 255.0 && packed.g == 255.0) {
-        return 0u; // Invalid neighbor (now using signed int)
-    }
-    return (uint(packed.r) << 16) | (uint(packed.g) << 8) | uint(packed.b);
+// Computes the great circle distance (in radians) between two points on a sphere.
+// If the sphere has radius r, multiply the result by r for the surface distance.
+float greatCircleDistance(vec3 a, vec3 b) {
+    // Normalize input vectors in case they aren't unit length.
+    vec3 na = normalize(a);
+    vec3 nb = normalize(b);
+    
+    // Calculate cosine of the angle between them and clamp to the valid range.
+    float cosTheta = clamp(dot(na, nb), -1.0, 1.0);
+    
+    // Return the angular distance (in radians)
+    return acos(cosTheta);
 }
 
-// Given a float-based index, compute the UV coordinate and fetch the X, Y, Z center.
-// This version uses a square texture (with dimensions texDim x texDim) and a half-texel offset.
+uint getNeighborH3Id(highp float baseId, highp float direction) {
+    // Ensure precise calculations for large numbers
+    highp float index = baseId * 6.0 + direction;
+    vec2 texSize = vec2(textureSize(h3NeighborMap, 0));
+    highp float texWidth = texSize.x;
+    highp float texHeight = texSize.y;
+
+    // Calculate exact grid position with high precision
+    highp float row = floor(index / texWidth);
+    highp float col = mod(index, texWidth);
+
+    // Convert to UV coordinates
+    vec2 uv = vec2(
+        (col + 0.5) / texWidth,
+        (row + 0.5) / texHeight
+    );
+
+    vec4 packed = texture2D(h3NeighborMap, uv);
+    
+    // More precise conversion from color to uint
+    uint r = uint(floor(packed.r * 255.0 + 0.5));
+    uint g = uint(floor(packed.g * 255.0 + 0.5));
+    uint b = uint(floor(packed.b * 255.0 + 0.5));
+    
+    // Check for sentinel value (invalid neighbor)
+    if (r == 255u && g == 255u && b == 255u) {
+        return 0u;
+    }
+    
+    return (r << 16u) | (g << 8u) | b;
+}
+
 vec3 getH3Position(float h3Id) {
     ivec2 texSize = textureSize(h3PositionMap, 0);
     float texWidth = float(texSize.x);
@@ -58,39 +87,25 @@ uint getH3IdentifierCube(vec3 direction) {
 }
 
 uint findClosestCell(vec3 position, uint initialId) {
-    uint currentId = initialId;
-    float minDist = 1e10;
-    uint lastId = 0u;
-    int iterations = 0;
+    vec3 normalizedPos = normalize(position);
+    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+    float minDist = greatCircleDistance(normalizedPos, initialCenter);
+    uint closestId = initialId;
     
-    // Iterate until we stop improving or max iterations
-    while(iterations < 4 && currentId != lastId) {
-        lastId = currentId;
-        vec3 center = getH3Position(float(currentId));
-        minDist = distance(position, center);
-        uint bestNeighbor = currentId;
+    for (int i = 0; i < 6; i++) {
+        uint neighborId = getNeighborH3Id(float(initialId), float(i));
+        if (neighborId == 0u) continue;
         
-        // Check all neighbors
-        for(int i = 0; i < 6; i++) {
-            uint neighborId = getNeighborH3Id(float(currentId), float(i));
-            if(neighborId == 0u) continue;
-            
-            vec3 neighborPos = getH3Position(float(neighborId));
-            float dist = distance(position, neighborPos);
-            
-            // Track the closest neighbor in this iteration
-            if(dist < minDist) {
-                minDist = dist;
-                bestNeighbor = neighborId;
-            }
+        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+        float dist = greatCircleDistance(normalizedPos, neighborCenter);
+        
+        if (dist < minDist) {
+            minDist = dist;
+            closestId = neighborId;
         }
-        
-        // Only update if we found a better neighbor
-        currentId = bestNeighbor;
-        iterations++;
     }
     
-    return currentId;
+    return closestId;
 }
 
 vec3 hash31(float p)
@@ -138,170 +153,16 @@ void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
     vec3 sphereDirection = normalize(worldPos - uOffset);
     vec3 spherePos = uOffset + sphereDirection * uRadius;
-    vec3 direction = normalize(worldPos);
     
-    uint currentId = getH3IdentifierCube(direction);
-    ivec2 posTexSize = textureSize(h3PositionMap, 0);
-    float maxValidIndex = float(posTexSize.x * posTexSize.y) - 1.0;
-    float fIndex = clamp(float(currentId), 0.0, maxValidIndex);
+    uint currentId = getH3IdentifierCube(sphereDirection);
     uint closestId = findClosestCell(spherePos, currentId);
-
-    // float fIndexNeighbor = float(getNeighborH3Id(float(currentId), 0.0));
-
-    vec3 center = getH3Position(float(closestId));
-    vec3 centerWorld = uOffset + center * uRadius;
-
-    // --- Debug: Paint a red circle around the hex center (10km radius) ---
-    float debugCircleRadius = 23738.56;  // 25 km radius
-    float edgeWidth = 20000.0;           // Width of the anti-aliased edge (adjust if needed)
-    // Compute the distance from the fragment's sphere position to the hex center in world space.
-    float d = distance(spherePos, centerWorld);
-    // Create a mask: inside the circle (d < debugCircleRadius - edgeWidth) the mask is 1, 
-    // outside (d > debugCircleRadius) the mask is 0.
-    float circleMask = 1.0 - smoothstep(debugCircleRadius - edgeWidth, debugCircleRadius, d);
-
-    // Get the base color from the hex center (for instance, as visualized previously).
-    // vec4 debugBaseColor = mix(vec4(hashFloat(fIndex), 1.0), vec4(1.0), 0.9);
-    // vec4 debugRedColor = vec4(hashFloat(fIndex), 1.0);
-    // vec4 baseColor = mix(debugBaseColor, debugRedColor, circleMask);
-    // vec4 redColor = vec4(hashFloat(fIndex), 1.0);
-    // // Mix the base color with red according to the mask.
-    // gl_FragColor = mix(baseColor, redColor, circleMask);
-
-    // gl_FragColor = vec4(hashFloat(float(closestId)), 1.0);
-
-    // if (closestId != currentId) {
-    //     gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
-    // }
-
-    // Visualize position validity
-    // float isValid = length(center) > 0.9 ? 1.0 : 0.0;
-    // gl_FragColor = mix(vec4(1.0,0.0,0.0,1.0), gl_FragColor, isValid);
-
-    // Temporary debug: show raw position values
-    // vec3 pos = texture2D(h3PositionMap, vec2(gl_FragCoord.x/1024.0, gl_FragCoord.y/1024.0)).xyz;
-    // gl_FragColor = vec4(pos * 0.5 + 0.5, 1.0);
     
-    // Or check if positions are unit length
-    // float len = length(center);
-    // if(abs(len - 1.0) > 0.01) {
-    //     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    // }
-
-    // Additional check (if needed) to ensure the center lies on the unit sphere.
-    // float radiusCheck = abs(length(center) - 1.0);
-    // if (radiusCheck > 0.01) {
-    //     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    //     return;
-    // }
-
-    // // float pattern = mod(fIndex, 256.0) / 256.0;
-    // // gl_FragColor = vec4(pattern, pattern, pattern, 1.0);
-
-
-
-    // // Debug: show direction to center
-    // // vec3 toCenter = normalize(centerWorld - spherePos);
-    // // gl_FragColor = vec4(toCenter * 0.5 + 0.5, 1.0);
-
-
-    // // vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
-    // // vec3 spherePos = uOffset + normalize(worldPos - uOffset) * uRadius;
-    // // vec3 direction = normalize(worldPos);
+    // Simple visualization - each cell gets a unique color
+    vec3 cellColor = hashFloat(float(closestId));
     
-    // // uint currentId = getH3IdentifierCube(direction);
-    // // vec3 center = getH3Position(float(currentId));
-    // // vec3 centerWorld = uOffset + center * uRadius;
-
-    // vec2 rootUV = vec2(0.0); // (your getCubeUV call here)
+    // Add a subtle edge effect
+    float edge = edgeFactor(spherePos, closestId);
+    cellColor = mix(cellColor, vec3(0.0), edge * 0.3);
     
-    // float dist = distance(spherePos, centerWorld);
-    // float centerMask = 1.0 - smoothstep(0.0, 0.2, dist / uRadius);
-    // // // Debug color: red where fragment is near the cell center.
-    // vec3 color = mix(vec3(rootUV, 1.0), vec3(1.0, 0.0, 0.0), centerMask);
-    // color = vec3(dist / uRadius);
-
-    // // if (dist < 0.01) {
-    // //     color = vec3(1.0, 1.0, 0.0);
-    // // }
-
-    // gl_FragColor = vec4(color, 1.0);
-
-    // Temporary debug output: show index pattern
-    // float pattern = mod(float(currentId), 16.0)/16.0;
-    // gl_FragColor = vec4(pattern, pattern, pattern, 1.0);
-    
-    // Or show color-coded indices
-    // vec3 indexColor = vec3(float(currentId)/255.0, 0.0, 0.0);
-    // gl_FragColor = vec4(indexColor, 1.0);
-
-    // Temporary: Visualize raw position values
-    // gl_FragColor = vec4(center * 0.5 + 0.5, 1.0); // Should show sphere positions
-
-    // Comment out the red validation check
-    // float centerMag = length(center);
-    // float sphereMag = length(spherePos - uOffset);
-    // if(abs(centerMag - 1.0) > 0.01 || abs(sphereMag - uRadius) > 0.01) {
-    //     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    //     return;
-    // }
-
-    // Comment out the radius visualization
-    // gl_FragColor = vec4(vec3(uRadius/6371007.2), 1.0);
-
-    // Visualize cube map face orientation
-    vec3 color = vec3(0);
-    if (abs(direction.y) > 0.8) color = vec3(1,0,0); // Red near poles
-    if (abs(direction.x) > 0.8) color = vec3(0,1,0); // Green on X faces
-    // now blue on the z axis
-    if (abs(direction.z) > 0.8) color = vec3(0,0,1);
-    // gl_FragColor = mix(gl_FragColor, vec4(color, 1.0), 0.3);
-
-    // edgeFactor
-
-    // Get base color
-    vec3 baseColor = hashFloat(float(currentId));
-    
-    // Calculate edge factor
-    float edgeDist = edgeFactor(spherePos, currentId);
-    
-    // Apply anti-aliased edges
-    vec3 finalColor = mix(baseColor, vec3(0.1), vec3(edgeDist));
-    
-    // Add center highlight
-    float centerMask = 1.0 - smoothstep(0.0, 0.01, d / uRadius);
-    finalColor = mix(finalColor, vec3(0,1,0), centerMask * 0.5);
-
-    if (closestId != currentId) {
-        finalColor = mix(finalColor, vec3(1,0,0), 0.9);
-    }
-
-    if (closestId == 0u) {
-        finalColor = mix(finalColor, vec3(1,1,0), 0.9);
-    }
-    
-    gl_FragColor = vec4(finalColor, 1.0);
-
-    // uint invalidNeighbors = 0u;
-    // for(int i=0; i<6; i++) {
-    //     uint neighborId = getNeighborH3Id(float(closestId), float(i));
-    //     if(neighborId == 0u) {
-    //         invalidNeighbors++;
-    //         continue;
-    //     }
-        
-    //     // Validate neighbor position
-    //     vec3 neighborPos = getH3Position(float(neighborId));
-    //     if(length(neighborPos) < 0.9) {
-    //         gl_FragColor = vec4(1,0,0,1); // Red = invalid position
-    //     }
-    // }
-    
-    // // Pentagon cells should have exactly 1 invalid neighbor
-    // if(invalidNeighbors > 1u) {
-    //     gl_FragColor = vec4(1,1,0,1); // Yellow = too many invalid neighbors
-    // }
-
-    // validate the neighbors
-    // gl_FragColor = vec4(hash31(fIndexNeighbor), 1.0);
+    gl_FragColor = vec4(cellColor, 1.0);
 }
