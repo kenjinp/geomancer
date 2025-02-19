@@ -144,7 +144,6 @@ export function TerrainRenderer({
         <sphereGeometry args={[radius, 32, 32]} />
         <meshBasicMaterial color="red" />
       </mesh>
-      <axesHelper args={[radius * 4]} />
     </>
   );
 }

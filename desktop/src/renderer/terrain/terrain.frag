@@ -1,5 +1,3 @@
-precision highp float;
-
 uniform samplerCube h3IndexMap;
 uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
@@ -25,16 +23,16 @@ float greatCircleDistance(vec3 a, vec3 b) {
     return acos(cosTheta);
 }
 
-uint getNeighborH3Id(highp float baseId, highp float direction) {
+uint getNeighborH3Id( float baseId,  float direction) {
     // Ensure precise calculations for large numbers
-    highp float index = baseId * 6.0 + direction;
+     float index = baseId * 6.0 + direction;
     vec2 texSize = vec2(textureSize(h3NeighborMap, 0));
-    highp float texWidth = texSize.x;
-    highp float texHeight = texSize.y;
+     float texWidth = texSize.x;
+     float texHeight = texSize.y;
 
     // Calculate exact grid position with high precision
-    highp float row = floor(index / texWidth);
-    highp float col = mod(index, texWidth);
+     float row = floor(index / texWidth);
+     float col = mod(index, texWidth);
 
     // Convert to UV coordinates
     vec2 uv = vec2(
