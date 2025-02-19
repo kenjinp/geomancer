@@ -146,9 +146,9 @@ void main() {
     float fIndex = clamp(float(currentId), 0.0, maxValidIndex);
     uint closestId = findClosestCell(spherePos, currentId);
 
-    float fIndexNeighbor = float(getNeighborH3Id(float(currentId), 0.0));
+    // float fIndexNeighbor = float(getNeighborH3Id(float(currentId), 0.0));
 
-    vec3 center = getH3Position(fIndexNeighbor);
+    vec3 center = getH3Position(float(closestId));
     vec3 centerWorld = uOffset + center * uRadius;
 
     // --- Debug: Paint a red circle around the hex center (10km radius) ---
@@ -280,7 +280,7 @@ void main() {
         finalColor = mix(finalColor, vec3(1,1,0), 0.9);
     }
     
-    gl_FragColor = vec4(center, 1.0);
+    gl_FragColor = vec4(finalColor, 1.0);
 
     // uint invalidNeighbors = 0u;
     // for(int i=0; i<6; i++) {
