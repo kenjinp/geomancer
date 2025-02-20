@@ -4,6 +4,7 @@ import {
   DataTexture,
   NearestFilter,
   RGBAFormat,
+  TextureLoader,
   UnsignedByteType,
 } from "three";
 import { HexGrid } from "../HexGrid";
@@ -95,3 +96,62 @@ export function generateH3NeighborTexture(resolution = 4) {
 
   return texture;
 }
+
+export function downloadH3NeighborTexture(texture: DataTexture) {
+  const image = texture.image;
+  if (!image) {
+    console.error("No image data found in the H3 neighbor texture.");
+    return;
+  }
+  const { data, width, height } = image;
+
+  // Create an Uint8ClampedArray from the underlying data
+  // This is necessary because ImageData expects pixel data in a Uint8ClampedArray.
+  const clampedArray = new Uint8ClampedArray(
+    data.buffer,
+    data.byteOffset,
+    data.byteLength
+  );
+
+  // Create a temporary canvas with the texture's dimensions.
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    console.error("Unable to obtain a 2D context from the canvas.");
+    return;
+  }
+
+  // Create an ImageData object from the pixel data and draw it to the canvas.
+  const imageData = new ImageData(clampedArray, width, height);
+  ctx.putImageData(imageData, 0, 0);
+
+  // Convert the canvas content to a PNG blob and trigger a download.
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `h3_neighbor_texture.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
+export const loadNeighborTexture = () => {
+  return new Promise((resolve, _reject) => {
+    const loader = new TextureLoader();
+    loader.load("textures/hex/neighbors.png", (texture) => {
+      texture.format = RGBAFormat;
+      texture.minFilter = NearestFilter;
+      texture.magFilter = NearestFilter;
+      texture.generateMipmaps = false;
+      texture.type = UnsignedByteType;
+      texture.needsUpdate = true;
+      resolve(texture);
+    });
+  });
+};

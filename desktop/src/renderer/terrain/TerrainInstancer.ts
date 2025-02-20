@@ -1,6 +1,6 @@
+import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
 import { generateH3NeighborTexture } from "@/lib/coordinate-systems/hex/maps/HexNeighbors";
 import { generateH3PositionTexture } from "@/lib/coordinate-systems/hex/maps/HexPositions";
-import { generateH3CubeMap } from "@/lib/coordinate-systems/hex/maps/HexUVCubeMap";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
@@ -17,7 +17,7 @@ const faceColors = [
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
-  private instancedMesh: THREE.InstancedMesh;
+  private instancedMesh?: THREE.InstancedMesh;
   private nodeTransforms: Map<number, THREE.Matrix4> = new Map();
   private color = new THREE.Color();
   private quadtree: CubeSphereQuadtree;
@@ -31,20 +31,28 @@ export class TerrainInstancer {
     this.quadtree = quadtree;
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
-    const resolution = 4;
-    const time1 = performance.now();
-    const h3IndexMap = generateH3CubeMap(resolution);
-    console.log(`h3IndexMap generation time: ${performance.now() - time1}ms`);
-    const time3 = performance.now();
-    const h3PositionMap = generateH3PositionTexture(resolution);
-    console.log(
-      `h3PositionMap generation time: ${performance.now() - time3}ms`
-    );
-    const time2 = performance.now();
-    const h3NeighborMap = generateH3NeighborTexture(resolution);
-    console.log(
-      `h3NeighborMap generation time: ${performance.now() - time2}ms`
-    );
+  }
+
+  public async initialize() {
+    // downloadH3CubeMap(generateH3CubeMap());
+    // const [h3IndexMap] = await Promise.all([loadCubeTexture()]);
+
+    const urls = [
+      "textures/hex/index-cube-map/face-0.webp",
+      "textures/hex/index-cube-map/face-1.webp",
+      "textures/hex/index-cube-map/face-2.webp",
+      "textures/hex/index-cube-map/face-3.webp",
+      "textures/hex/index-cube-map/face-4.webp",
+      "textures/hex/index-cube-map/face-5.webp",
+    ];
+    const hexCubeMap = await H3CubeMapGenerator.loadFromWebPFiles(urls);
+
+    // hexCubeMap.generate();
+    // hexCubeMap.downloadAsWebP();
+
+    // const h3IndexMap = generateH3CubeMap();
+    const h3PositionMap = generateH3PositionTexture();
+    const h3NeighborMap = generateH3NeighborTexture();
 
     // Create shader material
     this.material = new THREE.ShaderMaterial({
@@ -53,7 +61,7 @@ export class TerrainInstancer {
       uniforms: {
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
-        h3IndexMap: { value: h3IndexMap },
+        h3IndexMap: { value: hexCubeMap.cubeTexture },
         h3NeighborMap: { value: h3NeighborMap },
         h3PositionMap: { value: h3PositionMap },
         uModelMatrix: { value: new THREE.Matrix4() },
@@ -61,11 +69,6 @@ export class TerrainInstancer {
       },
       vertexColors: true,
     });
-    // this.material = new THREE.MeshBasicMaterial();
-    // (this.material as THREE.ShaderMaterial).uniforms = {
-    //   uRadius: { value: this.radius },
-    //   uOffset: { value: this.offset },
-    // };
 
     // Initialize instanced mesh
     this.instancedMesh = new THREE.InstancedMesh(
@@ -133,6 +136,9 @@ export class TerrainInstancer {
   }
 
   public update(camera: THREE.Camera, hoveredNodeIndex: number | null = null) {
+    if (!this.instancedMesh) {
+      return;
+    }
     const visibleNodes = this.quadtree.getVisibleNodes(
       camera,
       this.radius,

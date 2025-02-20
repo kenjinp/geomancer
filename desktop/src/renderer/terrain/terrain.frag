@@ -8,6 +8,24 @@ varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
 
+// Add these noise functions near the top of the file
+vec2 random2(float n) {
+    vec2 s = vec2(n);
+    return -1.0 + 2.0 * fract(sin(vec2(dot(s,vec2(127.1,311.7)),
+                                     dot(s,vec2(269.5,183.3))))*43758.5453123);
+}
+
+vec3 jitterPosition(vec3 position, float seed, float amount) {
+    // Get a random offset direction
+    vec2 rand = random2(seed);
+    vec3 tangent = normalize(cross(position, vec3(0.0, 1.0, 0.0)));
+    vec3 bitangent = normalize(cross(position, tangent));
+    
+    // Apply jitter in tangent space
+    return normalize(position + (tangent * rand.x + bitangent * rand.y) * amount);
+}
+
+
 // Computes the great circle distance (in radians) between two points on a sphere.
 // If the sphere has radius r, multiply the result by r for the surface distance.
 float greatCircleDistance(vec3 a, vec3 b) {
@@ -71,8 +89,10 @@ vec3 getH3Position(float h3Id) {
         (col + 0.5) / texWidth,
         (row + 0.5) / texHeight
     );
+
+    vec3 position = texture2D(h3PositionMap, uv).xyz;
     
-    return texture2D(h3PositionMap, uv).xyz;
+    return position;
 }
 
 uint getH3IdentifierCube(vec3 direction) {
@@ -161,7 +181,10 @@ void main() {
     
     uint currentId = getH3IdentifierCube(sphereDirection);
     uint closestId = findClosestCell(spherePos, currentId);
-    
+
+    // Get the base cell color
+    vec3 currentCellColor = hashFloat(float(currentId));
+
     // Get the base cell color
     vec3 cellColor = hashFloat(float(closestId));
     

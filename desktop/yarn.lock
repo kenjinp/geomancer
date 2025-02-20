@@ -995,6 +995,13 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@jsquash/webp@^1.4.0":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@jsquash/webp/-/webp-1.4.0.tgz#8b28656a724434987dab230aa2a26c24b4cc5437"
+  integrity sha512-yKJb6Hilq+qV/4C4qTDEalBobNwJO09LeHHtilmWg5mYHFUDwMunfeAap/r3cL5KsHkGOoI0IjY2nKbTaHq9Bw==
+  dependencies:
+    wasm-feature-detect "^1.2.11"
+
 "@malept/cross-spawn-promise@^1.0.0":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@malept/cross-spawn-promise/-/cross-spawn-promise-1.1.1.tgz#504af200af6b98e198bce768bc1730c6936ae01d"
@@ -9307,6 +9314,11 @@ vitest@^3.0.4:
     vite "^5.0.0 || ^6.0.0"
     vite-node "3.0.4"
     why-is-node-running "^2.3.0"
+
+wasm-feature-detect@^1.2.11:
+  version "1.8.0"
+  resolved "https://registry.yarnpkg.com/wasm-feature-detect/-/wasm-feature-detect-1.8.0.tgz#4e9f55b0a64d801f372fbb0324ed11ad3abd0c78"
+  integrity sha512-zksaLKM2fVlnB5jQQDqKXXwYHLQUVH9es+5TOOHwGOVJOCeRBCiPjwSg+3tN2AdTCzjgli4jijCH290kXb/zWQ==
 
 wcwidth@^1.0.1:
   version "1.0.1"

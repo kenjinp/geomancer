@@ -1,4 +1,10 @@
-import { DataTexture, FloatType, NearestFilter, RGBAFormat } from "three";
+import {
+  DataTexture,
+  FloatType,
+  NearestFilter,
+  RGBAFormat,
+  TextureLoader,
+} from "three";
 import { HexGrid } from "../HexGrid";
 
 export function generateH3PositionTexture(resolution = 4) {
@@ -58,3 +64,71 @@ export function generateH3PositionTexture(resolution = 4) {
   texture.needsUpdate = true;
   return texture;
 }
+
+export function downloadH3PositionTexture(texture: DataTexture) {
+  // Generate the position texture using your existing method.
+  const image = texture.image;
+  if (!image) {
+    console.error("No image data found in the H3 position texture.");
+    return;
+  }
+  const { data, width, height } = image;
+
+  // "data" is a Float32Array. Each float is 4 bytes so the total byte count is:
+  // width * height * 4 (floats per pixel) * 4 (bytes per float) = 16 * (width * height)
+  // In order to store these 16 bytes per "original pixel" into a PNG (which expects 4 bytes per pixel),
+  // we create a canvas 2x the width and height, because:
+  // (width * 2) * (height * 2) * 4 bytes = 16 * width * height.
+  const newWidth = width * 2;
+  const newHeight = height * 2;
+
+  // Reinterpret the float data as raw bytes.
+  const byteData = new Uint8ClampedArray(
+    data.buffer,
+    data.byteOffset,
+    data.byteLength
+  );
+
+  // Create a temporary canvas to pack our raw bytes.
+  const canvas = document.createElement("canvas");
+  canvas.width = newWidth;
+  canvas.height = newHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    console.error("Unable to obtain 2D context.");
+    return;
+  }
+
+  // Create an ImageData object from our raw bytes.
+  // The length of "byteData" should equal newWidth * newHeight * 4.
+  const imageData = new ImageData(byteData, newWidth, newHeight);
+  ctx.putImageData(imageData, 0, 0);
+
+  // Convert the canvas content to a PNG blob and trigger a download.
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `h3_position_texture.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
+export const loadPositionTexture = () => {
+  return new Promise((resolve, _reject) => {
+    const loader = new TextureLoader();
+    loader.load("textures/hex/positions.png", (texture) => {
+      texture.format = RGBAFormat;
+      texture.minFilter = NearestFilter;
+      texture.magFilter = NearestFilter;
+      texture.type = FloatType;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+      resolve(texture);
+    });
+  });
+};

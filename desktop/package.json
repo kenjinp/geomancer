@@ -63,6 +63,7 @@
     "@hello-worlds/react": "^0.0.28",
     "@hmans/react-toolbox": "^0.1.4",
     "@hmans/signal": "^0.2.2",
+    "@jsquash/webp": "^1.4.0",
     "@nextui-org/react": "^2.6.11",
     "@nextui-org/system": "^2.4.6",
     "@nextui-org/theme": "^2.4.5",

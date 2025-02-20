@@ -10,7 +10,10 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   // You might not need those. They are needed when importing modules with
   // top-level await such as three/examples/jsm/capabilities/WebGPU
-  optimizeDeps: { esbuildOptions: { target: "esnext" } },
+  optimizeDeps: {
+    esbuildOptions: { target: "esnext" },
+    exclude: ["@jsquash/webp"],
+  },
   build: { target: "esnext" },
   plugins: [
     react(),

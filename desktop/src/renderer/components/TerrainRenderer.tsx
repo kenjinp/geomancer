@@ -1,4 +1,4 @@
-import { Html, useTexture } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -23,7 +23,6 @@ export function TerrainRenderer({
   position = new THREE.Vector3(),
   maxDepth = 20,
 }: TerrainRendererProps) {
-  const uvTexture = useTexture("/img/UV.png");
   const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
   const instancerRef = useRef<TerrainInstancer>(null);
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
@@ -42,6 +41,7 @@ export function TerrainRenderer({
   const positionKey = position.toArray().join(",");
 
   useEffect(() => {
+    let stale = false;
     console.log("Initializing terrain with:", {
       radius,
       position,
@@ -54,26 +54,20 @@ export function TerrainRenderer({
       radius,
       position,
     });
-    scene.add(instancerRef.current.mesh);
 
-    axesHelperRef.current = new THREE.AxesHelper(radius);
-    axesHelperRef.current.position.copy(position);
+    instancerRef.current.initialize().then(() => {
+      if (!stale) {
+        scene.add(instancerRef.current.mesh);
+      }
+    });
 
     return () => {
+      stale = true;
       console.log("Disposing terrain");
       instancerRef.current?.dispose();
-      axesHelperRef.current?.dispose();
       scene.remove(instancerRef.current?.mesh);
     };
   }, [radius, positionKey, camera]);
-
-  useEffect(() => {
-    if (instancerRef.current) {
-      (
-        instancerRef.current.material as THREE.ShaderMaterial
-      ).uniforms.map.value = uvTexture;
-    }
-  }, [uvTexture]);
 
   useFrame(({ camera }) => {
     if (!instancerRef.current || !quadtreeRef.current) return;
@@ -100,7 +94,7 @@ export function TerrainRenderer({
 
   // Optional: Update instancer without recreation
   useEffect(() => {
-    if (instancerRef.current) {
+    if (instancerRef.current.mesh) {
       instancerRef.current.setRadius(radius, camera);
       instancerRef.current.setPosition(position);
     }
