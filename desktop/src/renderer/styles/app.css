@@ -44,3 +44,9 @@ canvas {
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5), -1px -1px 0 rgba(0, 0, 0, 0.5),
     1px -1px 0 rgba(0, 0, 0, 0.5), -1px 1px rgba(0, 0, 0, 0.5);
 }
+
+#debug-thingy {
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5), -1px -1px 0 rgba(0, 0, 0, 0.5),
+    1px -1px 0 rgba(0, 0, 0, 0.5), -1px 1px rgba(0, 0, 0, 0.5);
+  min-width: 400px;
+}

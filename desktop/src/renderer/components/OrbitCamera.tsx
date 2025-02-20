@@ -39,6 +39,7 @@ export const OrbitCamera: React.FC<
 }) => {
   const orbitControls = React.useRef<OrbitControlsImpl>(null);
   const altitude = React.useRef(0);
+  const isUserInteracting = React.useRef(false);
   const animation = React.useRef<AnimationState>({
     isAnimating: false,
     startPosition: new Vector3(),
@@ -59,7 +60,7 @@ export const OrbitCamera: React.FC<
   }, [planetRadius]);
 
   const moveToTarget = React.useCallback(
-    (targetPoint: Vector3, duration = 2000) => {
+    (targetPoint: Vector3, duration = 5000) => {
       if (!orbitControls.current) return;
 
       // Disable controls during animation
@@ -108,12 +109,37 @@ export const OrbitCamera: React.FC<
   //   });
   // }, [moveToTarget]);
 
+  // Add event listeners for user interaction
+  React.useEffect(() => {
+    const handleInteractionStart = () => {
+      isUserInteracting.current = true;
+    };
+    const handleInteractionEnd = () => {
+      isUserInteracting.current = false;
+    };
+
+    window.addEventListener("mousedown", handleInteractionStart);
+    window.addEventListener("mouseup", handleInteractionEnd);
+    window.addEventListener("wheel", handleInteractionStart);
+
+    return () => {
+      window.removeEventListener("mousedown", handleInteractionStart);
+      window.removeEventListener("mouseup", handleInteractionEnd);
+      window.removeEventListener("wheel", handleInteractionStart);
+    };
+  }, []);
+
   useFrame((_, delta) => {
     if (!orbitControls.current) return;
 
-    if (animation.current.isAnimating) {
-      animation.current.progress +=
-        (delta * animation.current.duration) / animation.current.duration;
+    // Stop animation if user interacts
+    if (animation.current.isAnimating && isUserInteracting.current) {
+      animation.current.isAnimating = false;
+      orbitControls.current.enabled = true;
+    }
+
+    if (animation.current.isAnimating && !isUserInteracting.current) {
+      animation.current.progress += (delta * 1000) / animation.current.duration;
 
       if (animation.current.progress >= 1) {
         animation.current.isAnimating = false;
@@ -152,6 +178,7 @@ export const OrbitCamera: React.FC<
 
       // Update camera rotation
       const targetRotation = new Vector3().setFromSpherical(currentSpherical);
+      camera.position.lerp(targetRotation, t);
       camera.lookAt(planetPosition);
     } else {
       // Normal orbit controls behavior
@@ -163,9 +190,12 @@ export const OrbitCamera: React.FC<
       orbitControls.current.rotateSpeed = quadtratic(
         altitude.current / orbitControls.current.maxDistance
       );
-      set({ controls: orbitControls.current });
     }
   });
+
+  React.useEffect(() => {
+    set({ controls: orbitControls.current });
+  }, [orbitControls.current]);
 
   return (
     <OrbitControls

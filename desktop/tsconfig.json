@@ -19,7 +19,7 @@
     "sourceMap": true,
     "strict": false,
     "target": "ESNext",
-    "types": ["jest", "node"],
+    "types": ["jest", "node", "vite-plugin-glsl/ext"],
     "paths": {
       "@/*": ["src/*"],
       "@components/*": ["src/renderer/components/*"],
