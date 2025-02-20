@@ -1,5 +1,5 @@
 import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
-import { generateH3NeighborTexture } from "@/lib/coordinate-systems/hex/maps/HexNeighbors";
+import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { generateH3PositionTexture } from "@/lib/coordinate-systems/hex/maps/HexPositions";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
@@ -34,9 +34,6 @@ export class TerrainInstancer {
   }
 
   public async initialize() {
-    // downloadH3CubeMap(generateH3CubeMap());
-    // const [h3IndexMap] = await Promise.all([loadCubeTexture()]);
-
     const urls = [
       "textures/hex/index-cube-map/face-0.webp",
       "textures/hex/index-cube-map/face-1.webp",
@@ -46,13 +43,11 @@ export class TerrainInstancer {
       "textures/hex/index-cube-map/face-5.webp",
     ];
     const hexCubeMap = await H3CubeMapGenerator.loadFromWebPFiles(urls);
-
-    // hexCubeMap.generate();
-    // hexCubeMap.downloadAsWebP();
-
-    // const h3IndexMap = generateH3CubeMap();
+    const h3NeighborMap = await HexNeighborMapGenerator.loadFromWebP(
+      "textures/hex/neighbor-map.webp",
+      4
+    );
     const h3PositionMap = generateH3PositionTexture();
-    const h3NeighborMap = generateH3NeighborTexture();
 
     // Create shader material
     this.material = new THREE.ShaderMaterial({
@@ -62,7 +57,7 @@ export class TerrainInstancer {
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
         h3IndexMap: { value: hexCubeMap.cubeTexture },
-        h3NeighborMap: { value: h3NeighborMap },
+        h3NeighborMap: { value: h3NeighborMap.texture },
         h3PositionMap: { value: h3PositionMap },
         uModelMatrix: { value: new THREE.Matrix4() },
         map: { value: null },
