@@ -1,6 +1,7 @@
 import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
 import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexPositionMapGenerator";
+import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
@@ -52,6 +53,10 @@ export class TerrainInstancer {
       4
     );
 
+    HexGridFloodFill.doFloodfill(4, 40).then((floodfillResult) => {
+      console.log({ floodfillResult });
+    });
+
     // Create shader material
     this.material = new THREE.ShaderMaterial({
       vertexShader,
@@ -64,6 +69,7 @@ export class TerrainInstancer {
         h3PositionMap: { value: h3PositionMap.texture },
         uModelMatrix: { value: new THREE.Matrix4() },
         map: { value: null },
+        // hexTileBuffer: { value: hexTileBuffer.getThreejsTexture() },
       },
       vertexColors: true,
     });
@@ -296,6 +302,7 @@ export class TerrainInstancer {
     this.instancedMesh.material.uniforms.h3IndexMap.value.dispose();
     this.instancedMesh.material.uniforms.h3NeighborMap.value.dispose();
     this.instancedMesh.material.uniforms.h3PositionMap.value.dispose();
+    this.instancedMesh.material.uniforms.hexTileBuffer.value.dispose();
 
     this.instancedMesh.geometry.dispose();
     (this.instancedMesh.material as THREE.Material).dispose();
