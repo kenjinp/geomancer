@@ -1,3 +1,4 @@
+import { Button } from "@nextui-org/react";
 import { Html } from "@react-three/drei";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
@@ -128,6 +129,15 @@ export function TerrainRenderer({
     <>
       <Html>
         <div id="debug-thingy"></div>
+        <Button
+          onPress={() =>
+            instancerRef.current?.generateTectonicPlateData(
+              THREE.MathUtils.randInt(1, 255)
+            )
+          }
+        >
+          Regenerate Plates
+        </Button>
       </Html>
       <mesh
         visible={false}

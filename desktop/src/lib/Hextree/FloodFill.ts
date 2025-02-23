@@ -1,6 +1,7 @@
 import * as h3 from "h3-js";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
+import { HexTileBuffer } from "./HexTileBuffer";
 import { GPUDevice } from "./WebGPU";
 
 const RESOLUTION_CELL_FACTORS: Record<number, number> = {
@@ -21,6 +22,7 @@ export type FloodFillConfig = {
   maxCells: number;
   maxFrontierSize: number;
   maxSeeds?: number;
+  resolution: number;
   /**
    * Optionally supply a precomputed neighbor texture.
    * This texture should be square, using the same layout as produced by our export methods.
@@ -44,13 +46,15 @@ export class HexGridFloodFill {
   private neighborBuffer: GPUBuffer;
   private filledBuffer: GPUBuffer;
   private frontierBuffers: [GPUBuffer, GPUBuffer];
-  private h3Indices: Map<string, number>;
   private bindGroups: GPUBindGroup[] = [];
   private seedBuffer: GPUBuffer;
   private uniformBuffer: GPUBuffer;
   private neighborTexture: GPUTexture;
+  public hexTileBuffer: HexTileBuffer;
 
-  private constructor(private config: FloodFillConfig) {}
+  private constructor(private config: FloodFillConfig) {
+    this.hexTileBuffer = new HexTileBuffer(config.resolution);
+  }
 
   public static async doFloodfill(resolution: number, seedCount: number) {
     const targetResolution = resolution;
@@ -218,8 +222,8 @@ export class HexGridFloodFill {
     });
   }
 
-  public async fill(seedCells: string[]): Promise<FloodFillResult> {
-    const seedIndices = seedCells.map((cell) => this.h3Indices.get(cell));
+  public async fill(seedCells: string[]): Promise<HexTileBuffer> {
+    const seedIndices = seedCells.map((cell) => HexGrid.getIndex(cell));
     if (seedIndices.some((idx) => idx === undefined)) {
       throw new Error("One or more invalid seed cells");
     }
@@ -260,7 +264,7 @@ export class HexGridFloodFill {
     this.device.queue.writeBuffer(this.frontierBuffers[0], 0, frontierData);
   }
 
-  public async runComputePasses(): Promise<FloodFillResult> {
+  public async runComputePasses(): Promise<HexTileBuffer> {
     const timeStart = performance.now();
     let currentFrontier = 0;
     let frontierSize = 1;
@@ -326,7 +330,7 @@ export class HexGridFloodFill {
     return size;
   }
 
-  private async getFilledCells(): Promise<FloodFillResult> {
+  private async getFilledCells(): Promise<HexTileBuffer> {
     const timeStart = performance.now();
     // Precompute the total byte size so we don't repeat the multiplication.
     const totalBytes = this.config.maxCells * 4;
@@ -355,7 +359,7 @@ export class HexGridFloodFill {
     const resultMap = new Map<number, string[]>();
 
     // Iterate directly over this.h3Indices (assumed to be a Map)
-    for (const [h3, idx] of this.h3Indices.entries()) {
+    for (const [h3, idx] of HexGrid.indexMap.entries()) {
       const seedIndex = filled[idx];
       if (seedIndex > 0) {
         const adjustedIndex = seedIndex - 1; // Account for the +1 added in the shader.
@@ -363,8 +367,36 @@ export class HexGridFloodFill {
           resultMap.set(adjustedIndex, []);
         }
         resultMap.get(adjustedIndex)!.push(h3);
+        this.hexTileBuffer.updateTileData(HexGrid.getIndex(h3), {
+          hasHotSpot: false,
+          tectonicPlate: adjustedIndex,
+          crustType: "oceanic",
+          crustSubtype: "undefined",
+          evapotranspiration: 0,
+          annualPrecipitation: 0,
+          annualTemperature: 0,
+          biome: "undefined",
+        });
       }
     }
+
+    // // Iterate directly over this.h3Indices (assumed to be a Map)
+    // for (let idx = 0; idx < this.config.maxCells; idx++) {
+    //   const seedIndex = filled[idx];
+    //   if (seedIndex > 0) {
+    //     const adjustedIndex = seedIndex - 1; // Account for the +1 added in the shader.
+    // this.hexTileBuffer.updateTileData(adjustedIndex, {
+    //   hasHotSpot: false,
+    //   tectonicPlate: seedIndex,
+    //   crustType: "oceanic",
+    //   crustSubtype: "undefined",
+    //   evapotranspiration: 0,
+    //   annualPrecipitation: 0,
+    //   annualTemperature: 0,
+    //   biome: "undefined",
+    // });
+    //   }
+    // }
 
     // Unmap the buffer once done.
     readbackBuffer.unmap();
@@ -372,11 +404,7 @@ export class HexGridFloodFill {
     const timeEnd = performance.now();
     console.info(`getFilledCells ${timeEnd - timeStart}ms`);
 
-    // Construct the final result from the map without extra conversions.
-    return Array.from(resultMap.entries(), ([seedIndex, cells]) => ({
-      seedIndex,
-      cells,
-    }));
+    return this.hexTileBuffer;
   }
 
   private getShaderCode(): string {
@@ -455,17 +483,12 @@ export class HexGridFloodFill {
     if (!neighborMap.texture) {
       throw new Error("Neighbor map texture not generated");
     }
-
-    // Store h3 indices mapping
-    this.h3Indices = new Map(h3Cells.map((h) => [h, HexGrid.getIndex(h)]));
-
     // Create a buffer to store neighbor data
     const neighborData = new Uint32Array(h3Cells.length * 6);
     neighborData.fill(0xffffffff);
 
     // Extract neighbor data from texture
     const textureData = neighborMap.texture.image.data;
-    const width = neighborMap.metadata.width;
 
     for (let i = 0; i < h3Cells.length; i++) {
       for (let j = 0; j < 6; j++) {
@@ -473,7 +496,7 @@ export class HexGridFloodFill {
         const r = textureData[pixelOffset] / 255;
         const g = textureData[pixelOffset + 1] / 255;
         const b = textureData[pixelOffset + 2] / 255;
-        const neighborIndex = HexGrid.decodeColorToNodeIndex([r, g, b]);
+        const neighborIndex = HexGrid.decodeColorToNodeIndex([r, g, b, 1]);
         neighborData[i * 6 + j] =
           neighborIndex === 0xffffff ? 0xffffffff : neighborIndex;
       }
@@ -502,18 +525,20 @@ export class HexGridFloodFill {
       maxCells: baseCells,
       maxFrontierSize: Math.ceil(baseCells * 0.2), // 20% safety margin
       maxSeeds,
+      resolution,
     };
   }
 
   public static configFromResolutionDynamic(
-    res: number,
+    resolution: number,
     maxSeeds: number
   ): FloodFillConfig {
-    const maxCells = h3.getNumCells(res);
+    const maxCells = h3.getNumCells(resolution);
     return {
       maxCells,
       maxFrontierSize: Math.ceil(maxCells * 0.5), // Increased from 0.2 to 0.5
       maxSeeds,
+      resolution,
     };
   }
 

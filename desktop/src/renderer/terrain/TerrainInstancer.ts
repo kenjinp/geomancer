@@ -2,6 +2,7 @@ import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapG
 import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexPositionMapGenerator";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
+import { HexTileBuffer } from "@/lib/Hextree/HexTileBuffer";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
@@ -25,6 +26,7 @@ export class TerrainInstancer {
   private radius: number;
   private offset: THREE.Vector3;
   private material: THREE.Material;
+  private hexTileBuffer: HexTileBuffer = new HexTileBuffer(4);
   constructor(
     quadtree: CubeSphereQuadtree,
     options: { radius?: number; position?: THREE.Vector3 } = {}
@@ -53,10 +55,6 @@ export class TerrainInstancer {
       4
     );
 
-    HexGridFloodFill.doFloodfill(4, 40).then((floodfillResult) => {
-      console.log({ floodfillResult });
-    });
-
     // Create shader material
     this.material = new THREE.ShaderMaterial({
       vertexShader,
@@ -69,10 +67,13 @@ export class TerrainInstancer {
         h3PositionMap: { value: h3PositionMap.texture },
         uModelMatrix: { value: new THREE.Matrix4() },
         map: { value: null },
-        // hexTileBuffer: { value: hexTileBuffer.getThreejsTexture() },
+        hexTileIntBuffer: { value: this.hexTileBuffer.getIntegerTexture() },
+        hexTileFloatBuffer: { value: this.hexTileBuffer.getFloatTexture() },
       },
       vertexColors: true,
     });
+
+    this.generateTectonicPlateData();
 
     // Initialize instanced mesh
     this.instancedMesh = new THREE.InstancedMesh(
@@ -302,8 +303,8 @@ export class TerrainInstancer {
     this.instancedMesh.material.uniforms.h3IndexMap.value.dispose();
     this.instancedMesh.material.uniforms.h3NeighborMap.value.dispose();
     this.instancedMesh.material.uniforms.h3PositionMap.value.dispose();
-    this.instancedMesh.material.uniforms.hexTileBuffer.value.dispose();
-
+    this.instancedMesh.material.uniforms.hexTileIntBuffer.value.dispose();
+    this.instancedMesh.material.uniforms.hexTileFloatBuffer.value.dispose();
     this.instancedMesh.geometry.dispose();
     (this.instancedMesh.material as THREE.Material).dispose();
     this.nodeTransforms.clear();
@@ -325,5 +326,23 @@ export class TerrainInstancer {
     (
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uOffset.value = position;
+  }
+
+  public setTileData(hexTileBuffer: HexTileBuffer) {
+    this.hexTileBuffer.copy(hexTileBuffer);
+    (
+      this.instancedMesh.material as THREE.ShaderMaterial
+    ).uniforms.hexTileIntBuffer.value = this.hexTileBuffer.getIntegerTexture();
+    (
+      this.instancedMesh.material as THREE.ShaderMaterial
+    ).uniforms.hexTileFloatBuffer.value = this.hexTileBuffer.getFloatTexture();
+    this.instancedMesh.material.needsUpdate = true;
+  }
+
+  public generateTectonicPlateData(numberOfSeeds = 40) {
+    HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexCubeMap) => {
+      console.log("hexCubeMap", hexCubeMap);
+      this.setTileData(hexCubeMap);
+    });
   }
 }

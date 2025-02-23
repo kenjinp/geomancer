@@ -6,7 +6,7 @@ let cachedAllNodes: string[] = [];
 let cachedIndexMap: Map<string, number> = new Map();
 
 export class HexGrid {
-  private static indexMap: Map<string, number> = cachedIndexMap;
+  public static readonly indexMap: Map<string, number> = cachedIndexMap;
   constructor(public resolution: number) {}
 
   public static getIndex(h3Index: string) {
