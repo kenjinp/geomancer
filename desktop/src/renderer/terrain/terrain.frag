@@ -280,6 +280,49 @@ HexTileFloatData getHexTileFloatData(float tileIndex) {
     return result;
 }
 
+vec3 grid(vec2 p) {
+    return vec3(1.0)*smoothstep(0.99,1.0,max(sin((p.x)*20.0),sin((p.y)*20.0)));
+}
+
+float remap( in float value, in float x1, in float y1, in float x2, in float y2) {
+    return ((value - x1) * (y2 - x2)) / (y1 - x1) + x2;
+}
+
+float RAD2DEG = 180.0 / 3.1415926535897932384626433832795;
+
+    struct LatLong {
+    float lat;
+    float lon;
+    };
+
+    LatLong getLatLong(vec3 position, float radius) {
+    // should probably use z,x for longitude, but we messed that up in the latlong class of hello worlds
+    float longitude = atan(position.x, position.z) * RAD2DEG;
+    float latitude = atan(-position.y, length(position.xz)) * RAD2DEG;
+    return LatLong(latitude, longitude);
+    }
+
+    vec2 getLatLongUV(LatLong latLong) {
+    return vec2(
+        remap(latLong.lon, -180., 180., 0., 1.),
+        remap(latLong.lat, -90., 90., 0., 1.)
+    );
+    }
+
+ float getGrid(vec2 localPosition, float size, float thickness) {
+    vec2 r = localPosition.xy / size;
+    vec2 grid = abs(fract(r - 0.5) - 0.5) / fwidth(r);
+    float line = min(grid.x, grid.y) + 1.0 - thickness;
+    return 1.0 - min(line, 1.0);
+}
+
+float getGridFromFloat(float localPosition, float size, float thickness) {
+    float r = localPosition / size;
+    float grid = abs(fract(r - 0.5) - 0.5) / fwidth(r);
+    float line = grid + 1.0 - thickness;
+    return 1.0 - min(line, 1.0);
+}
+
 void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
     vec3 sphereDirection = normalize(worldPos - uOffset);
@@ -290,6 +333,22 @@ void main() {
     uint closestId = uint(closestAndSecondClosest.x);
     uint secondClosestId = uint(closestAndSecondClosest.y);
 
+
+    // lat lon stuff
+    LatLong latlong = getLatLong(worldPos, uRadius);
+    float lineWidth = 1.0;
+    float latRepititions = 18.;
+    float lonRepititions = 36.;
+    vec2 latlongUV = vec2(
+        -remap(latlong.lat, -90., 90., 0., 1.),
+        remap(latlong.lon, -180., 180., 0., 1.)
+    );
+    vec2 latlongUVWithReps = vec2(
+        latlongUV.x * latRepititions,
+        latlongUV.y * lonRepititions
+    );
+
+   
 
     // Get the base cell color
     vec3 currentCellColor = hashFloat(float(currentId));
@@ -310,7 +369,48 @@ void main() {
         baseColor = vec3(1.0, 1.0, 0.0);
     }
 
+    float axialTilt = 23.4;
+    vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));
+    vec2 tropicLines = vec2(axialTilt, -axialTilt);
+
+    float uSubgridAlpha = 0.0;
+    float uContourAlpha = 0.0;
     // get Second closest neighbor
+     // square grid
+    float grid = getGrid(latlongUVWithReps, 1.0, lineWidth);
+    float grid2 = getGrid(latlongUVWithReps, 0.5, lineWidth) * uSubgridAlpha;
+    float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
+    float combinedGrid = grid + grid2 + grid3;
+
+    vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
+
+    // globe grid
+    float primeMeridian = getGridFromFloat(latlongUV.y, 0.5, lineWidth * 1.2);
+    float equator = getGridFromFloat(latlongUV.x, 0.5, lineWidth * 1.2);
+    float tropicCapricorn = getGridFromFloat(latlongUV.x + remap(tropicLines.x, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+    float tropicCancer = getGridFromFloat(latlongUV.x + remap(tropicLines.y, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+    float arcticCircle = getGridFromFloat(latlongUV.x + remap(arcticCircleLines.x, -90., 90., 0., 1.), 1.0 , lineWidth * 1.2);
+    float antarcticCircle = getGridFromFloat(latlongUV.x + remap(arcticCircleLines.y, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+    float combinedGrid2 = primeMeridian + equator;
+    float tropics = tropicCapricorn + tropicCancer;
+    float polarCircles = arcticCircle + antarcticCircle;
+
+    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles);
+
+    // if (polarCircles > 0.0) {
+    //     combinedGridColors = vec3(1.0, 1.0, 0.0);
+    // }
+
+    // if (tropics > 0.0) {
+    //     combinedGridColors = vec3(1.0, 1.0, 0.0);
+    // }
+
+    // if (combinedGrid2 > 0.0) {
+    //     combinedGridColors = vec3(0.0, 0.0, 0.0);
+    // }     
+
     
     // // Example: Color based on crust type and temperature
     // vec3 baseColor = isOceanicCrust(intData.crustData) ? 
@@ -338,13 +438,13 @@ void main() {
     }
 
     if (uSelectedTile > -1.0 && uSelectedTile == float(closestId)) {
-        baseColor = vec3(1.0, 0.0, 0.0);
+        combinedGridColors = vec3(1.0, 0.0, 0.0);
     }
 
 
     // Apply edge effect
     float edge = getEdgeFactor(spherePos, closestId, edgeWidth);
-    vec3 finalColor = mix(baseColor, edgeColor, edge);
+    vec3 finalColor = mix(combinedGridColors, edgeColor, edge);
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
     
     

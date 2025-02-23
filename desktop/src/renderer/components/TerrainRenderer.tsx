@@ -80,6 +80,7 @@ export function TerrainRenderer({
       mouseFollower.innerHTML = hovering
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
+        <em>${hoveredHexTileIndex.current}</em>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 
@@ -124,7 +125,7 @@ export function TerrainRenderer({
         onPointerLeave={handlePointerLeave}
         onPointerEnter={handlePointerEnter}
       >
-        <sphereGeometry args={[radius, 32, 32]} />
+        <sphereGeometry args={[radius, 64, 64]} />
         <meshBasicMaterial color="red" />
       </mesh>
     </>
