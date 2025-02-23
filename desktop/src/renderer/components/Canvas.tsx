@@ -7,7 +7,7 @@ import { OrbitCamera } from "./OrbitCamera";
 
 const Background: React.FC = () => {
   useThree((state) => {
-    state.scene.background = new Color("black");
+    state.scene.background = new Color("#3D4058");
   });
   return null;
 };

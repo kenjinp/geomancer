@@ -6,6 +6,7 @@ uniform usampler2D hexTileIntBuffer;
 uniform sampler2D hexTileFloatBuffer;
 uniform vec3 uOffset;
 uniform float uRadius;
+uniform float uSelectedTile;
 varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
@@ -336,11 +337,16 @@ void main() {
         edgeWidth = 0.002;
     }
 
+    if (uSelectedTile > -1.0 && uSelectedTile == float(closestId)) {
+        baseColor = vec3(1.0, 0.0, 0.0);
+    }
+
 
     // Apply edge effect
     float edge = getEdgeFactor(spherePos, closestId, edgeWidth);
     vec3 finalColor = mix(baseColor, edgeColor, edge);
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
+    
     
     gl_FragColor = vec4(finalColor, 1.0);
 }

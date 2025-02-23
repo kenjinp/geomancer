@@ -60,6 +60,7 @@ export class TerrainInstancer {
       vertexShader,
       fragmentShader,
       uniforms: {
+        uSelectedTile: { value: -1 },
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
         h3IndexMap: { value: hexCubeMap.cubeTexture },
@@ -140,7 +141,7 @@ export class TerrainInstancer {
     }
   }
 
-  public update(camera: THREE.Camera, hoveredNodeIndex: number | null = null) {
+  public update(camera: THREE.Camera) {
     if (!this.instancedMesh) {
       return;
     }
@@ -150,13 +151,10 @@ export class TerrainInstancer {
       this.offset
     );
     this.ensureCapacity(visibleNodes.length);
-    this.processNodeUpdates(visibleNodes, hoveredNodeIndex);
+    this.processNodeUpdates(visibleNodes);
   }
 
-  private processNodeUpdates(
-    nodeIndices: number[],
-    hoveredNodeIndex: number | null
-  ) {
+  private processNodeUpdates(nodeIndices: number[]) {
     // Track used instances
     const usedInstances = new Set<number>();
     let instanceCount = 0;
@@ -166,7 +164,7 @@ export class TerrainInstancer {
         this.addInstance(nodeIndex);
       }
       usedInstances.add(nodeIndex);
-      this.updateInstanceTransform(nodeIndex, instanceCount, hoveredNodeIndex);
+      this.updateInstanceTransform(nodeIndex, instanceCount);
       instanceCount++;
     });
 
@@ -180,7 +178,6 @@ export class TerrainInstancer {
     // Update instance count
     this.instancedMesh.count = instanceCount;
     this.instancedMesh.instanceMatrix.needsUpdate = true;
-    this.instancedMesh.instanceColor!.needsUpdate = true;
   }
 
   private addInstance(nodeIndex: number) {
@@ -188,11 +185,7 @@ export class TerrainInstancer {
     this.nodeTransforms.set(nodeIndex, matrix);
   }
 
-  private updateInstanceTransform(
-    nodeIndex: number,
-    instanceId: number,
-    hoveredNodeIndex: number | null
-  ) {
+  private updateInstanceTransform(nodeIndex: number, instanceId: number) {
     const node = this.quadtree.getNodeView(nodeIndex);
     const matrix = this.nodeTransforms.get(nodeIndex)!;
 
@@ -266,34 +259,6 @@ export class TerrainInstancer {
       .multiply(localMatrix)
       .scale(scale);
 
-    // Set color based on hover state
-    if (nodeIndex === hoveredNodeIndex) {
-      this.color.set(0xff0000); // Red for hovered node
-    } else {
-      // Create color gradient based on subdivision level (0 = dark, maxDepth = bright)
-
-      const baseColor = faceColors[node.face].clone();
-      const depthFactor = node.level / this.quadtree.maxDepth;
-
-      // Mix with white based on depth
-      baseColor.lerp(new THREE.Color(0xffffff), depthFactor * 0.7);
-
-      // Add variation based on level
-      const levelIntensity = 0.2 + depthFactor * 0.8;
-      baseColor.multiplyScalar(levelIntensity);
-
-      this.color.copy(baseColor);
-    }
-
-    for (let neighborIndex of node.neighbors) {
-      if (neighborIndex === hoveredNodeIndex) {
-        this.color.set(0x4444ff);
-        break;
-      }
-    }
-
-    this.instancedMesh.setColorAt(instanceId, this.color);
-
     // Apply final matrix to instance
     this.instancedMesh.setMatrixAt(instanceId, matrix);
   }
@@ -316,9 +281,14 @@ export class TerrainInstancer {
       this.instancedMesh.material as THREE.ShaderMaterial
     ).uniforms.uRadius.value = radius;
     this.processNodeUpdates(
-      this.quadtree.getVisibleNodes(camera, radius, this.offset),
-      null
+      this.quadtree.getVisibleNodes(camera, radius, this.offset)
     );
+  }
+
+  public setSelectedTile(hexIndex: number | null) {
+    (
+      this.instancedMesh.material as THREE.ShaderMaterial
+    ).uniforms.uSelectedTile.value = hexIndex || -1;
   }
 
   public setPosition(position: THREE.Vector3) {
@@ -340,9 +310,9 @@ export class TerrainInstancer {
   }
 
   public generateTectonicPlateData(numberOfSeeds = 40) {
-    HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexCubeMap) => {
-      console.log("hexCubeMap", hexCubeMap);
-      this.setTileData(hexCubeMap);
+    HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexGridFloodFill) => {
+      this.setTileData(hexGridFloodFill.hexTileBuffer);
+      // CrustAssignmentFloodFill.assignCrust(4, 12);
     });
   }
 }

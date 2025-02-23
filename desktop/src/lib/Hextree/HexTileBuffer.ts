@@ -219,4 +219,23 @@ export class HexTileBuffer {
     this.intTexture.needsUpdate = true;
     this.floatTexture.needsUpdate = true;
   }
+
+  // getCellsByPlate(plateId: number): string[] {
+  //   const cells: string[] = [];
+  //   for (const [h3Index, data] of this.tileData) {
+  //     if (data.tectonicPlate === plateId) {
+  //       cells.push(h3Index);
+  //     }
+  //   }
+  //   return cells;
+  // }
+
+  // // Add iterator implementation
+  // [Symbol.iterator]() {
+  //   return this.tileData.values();
+  // }
+
+  // getTile(h3Index: string): HexTileData {
+  //   return this.tileData.get(h3Index);
+  // }
 }

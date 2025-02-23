@@ -47,6 +47,18 @@ export class HexGrid {
   }
 
   /**
+   * Returns a tile index from a NOMRALIZED cartesian position
+   * @param position
+   * @param resolution
+   */
+  static getIndexFromPosition(position: Vector3, resolution: number): number {
+    const ll = LatLong.cartesianToLatLong(position);
+    // TODO figure out why this is upside-down!
+    const cell = h3.latLngToCell(-ll.lat, ll.lon, resolution);
+    return HexGrid.getIndex(cell);
+  }
+
+  /**
    * Computes the 3D position for the center of an H3 cell on a unit sphere.
    * Converts the cell's (lat, lng) obtained via h3.cellToLatLng into Cartesian coordinates.
    */

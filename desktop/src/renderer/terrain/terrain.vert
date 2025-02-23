@@ -15,6 +15,6 @@ void main() {
     vec4 modelViewPosition = modelViewMatrix * vec4(spherePosition, 1.0);
     gl_Position = projectionMatrix * modelViewPosition;
     vWorldPosition = worldPosition;
-    vColor = instanceColor;
+    // vColor = instanceColor;
     vUv = uv;
 }

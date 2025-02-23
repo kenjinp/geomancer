@@ -1,5 +1,5 @@
-import { Button } from "@nextui-org/react";
-import { Html } from "@react-three/drei";
+import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
+import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -31,13 +31,7 @@ export function TerrainRenderer({
   const camera = useThree((state) => state.camera);
   const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const [hovering, setHovering] = useState(false);
-  const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
-
-  console.log({
-    hoveredNodeIndex,
-    hoveredNode: quadtreeRef.current?.getNodeView(hoveredNodeIndex)?.toObject(),
-    hoverPosition: sphereWorldPosition.current,
-  });
+  const hoveredHexTileIndex = useRef(-1);
 
   const positionKey = position.toArray().join(",");
 
@@ -75,21 +69,22 @@ export function TerrainRenderer({
 
     quadtreeRef.current.maxDepth = maxDepth;
     quadtreeRef.current.updateLOD(camera.position, radius, position);
-    instancerRef.current.update(camera, hoveredNodeIndex);
+    instancerRef.current.update(camera);
 
-    const debugDiv = document.getElementById("debug-thingy");
-    if (debugDiv) {
-      debugDiv.innerHTML = `
-      <div width="400">
-        <p>Max Depth: ${maxDepth}</p>
-        <br/>
-        <p>Current Depth: ${quadtreeRef.current.getCurrentDepth()}</p>
-        <br/>
-        <p>Node Size: ${makeHumanReadableMeters(
-          quadtreeRef.current.estimateNodeSize(radius)
-        )}</p>
-      </div>
-        `;
+    const latLong = LatLong.cartesianToLatLong(
+      sphereWorldPosition.current.normalize()
+    );
+
+    const mouseFollower = document.getElementById("mouse-follower");
+    if (mouseFollower) {
+      mouseFollower.innerHTML = hovering
+        ? `
+      <div class="latlong text-small bg-background/20 p-2 rounded-md">
+        <span>${latLong.lat.toFixed(2)}° lat</span>,
+        <span>${latLong.lon.toFixed(2)}° lon</span> 
+      </div> 
+        `
+        : null;
     }
   });
 
@@ -106,19 +101,15 @@ export function TerrainRenderer({
   }, [radius, position, camera]);
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    // TODO add back in
-    // sphereWorldPosition.current.copy(event.point);
-    // const nodeIndex = quadtreeRef.current.findNodeAtPosition(
-    //   event.point,
-    //   radius,
-    //   position,
-    //   true
-    // );
-    // setHoveredNodeIndex(nodeIndex);
+    sphereWorldPosition.current.copy(event.point);
+    const index = HexGrid.getIndexFromPosition(event.point.normalize(), 4);
+    hoveredHexTileIndex.current = index;
+    instancerRef.current.setSelectedTile(index);
   };
 
   const handlePointerLeave = () => {
-    setHovering(true);
+    hoveredHexTileIndex.current = -1;
+    setHovering(false);
   };
 
   const handlePointerEnter = () => {
@@ -127,18 +118,6 @@ export function TerrainRenderer({
 
   return (
     <>
-      <Html>
-        <div id="debug-thingy"></div>
-        <Button
-          onPress={() =>
-            instancerRef.current?.generateTectonicPlateData(
-              THREE.MathUtils.randInt(1, 255)
-            )
-          }
-        >
-          Regenerate Plates
-        </Button>
-      </Html>
       <mesh
         visible={false}
         onPointerMove={handlePointerMove}
