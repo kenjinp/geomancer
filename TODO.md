@@ -2,10 +2,15 @@
 
 where I just spam random thoughts
 
-- big globe quadtree
+- [x] big globe quadtree
+  - [ ] neighbor lookups
 - tectonic sim
-  - plates
+  - [x] plates
+  - crust types
+    - continental vs oceanic
   - plate interactions
+    - stress
+    - collision types
   - hot spot geology
   - crators
 - climate sim

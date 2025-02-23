@@ -2,6 +2,8 @@ uniform samplerCube h3IndexMap;
 uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
 uniform sampler2D map;
+uniform usampler2D hexTileIntBuffer;
+uniform sampler2D hexTileFloatBuffer;
 uniform vec3 uOffset;
 uniform float uRadius;
 varying vec2 vUv;
@@ -125,6 +127,35 @@ uint findClosestCell(vec3 position, uint initialId) {
     return closestId;
 }
 
+vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
+    vec3 normalizedPos = normalize(position);
+    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+    float minDist = greatCircleDistance(normalizedPos, initialCenter);
+    float secondMinDist = 1000.0;
+    uint closestId = initialId;
+    uint secondClosestId = initialId;
+    
+    for (int i = 0; i < 6; i++) {
+        uint neighborId = getNeighborH3Id(float(initialId), float(i));
+        if (neighborId == 0u) continue;
+        
+        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+        float dist = greatCircleDistance(normalizedPos, neighborCenter);
+        
+        if (dist < minDist) {
+            secondMinDist = minDist;
+            secondClosestId = closestId;
+            minDist = dist;
+            closestId = neighborId;
+        } else if (dist < secondMinDist) {
+            secondMinDist = dist;
+            secondClosestId = neighborId;
+        }
+    }
+    
+    return vec2(float(closestId), float(secondClosestId));
+}
+
 vec3 hash31(float p)
 {
    vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
@@ -149,7 +180,7 @@ vec3 hashFloat(float f) {
     );
 }
 
-float getEdgeFactor(vec3 position, uint cellId) {
+float getEdgeFactor(vec3 position, uint cellId, float edgeWidth) {
     vec3 normalizedPos = normalize(position);
     vec3 cellCenter = normalize(getH3Position(float(cellId)));
     float distToCenter = greatCircleDistance(normalizedPos, cellCenter);
@@ -166,12 +197,86 @@ float getEdgeFactor(vec3 position, uint cellId) {
     }
     
     // Edge detection threshold - adjust these values to control edge width and sharpness
-    float edgeWidth = 0.0006;
+    // float edgeWidth = 0.0006;
     float edgeSharpness = 4.0;
     
     // If distances to current cell and nearest neighbor are similar, we're near an edge
     float edgeFactor = abs(distToCenter - minNeighborDist);
     return 1.0 - smoothstep(0.0, edgeWidth, edgeFactor * edgeSharpness );
+}
+
+// Get texture coordinates for a hex tile index
+vec2 getHexTileUV(float tileIndex, vec2 textureSize) {
+    float row = floor(tileIndex / textureSize.x);
+    float col = mod(tileIndex, textureSize.x);
+    
+    return vec2(
+        (col + 0.5) / textureSize.x,
+        (row + 0.5) / textureSize.y
+    );
+}
+
+// Retrieve integer data for a hex tile
+struct HexTileIntData {
+    uint tectonicPlate;
+    uint crustData;
+    uint biomeData;
+    uint reserved;
+};
+
+HexTileIntData getHexTileIntData(float tileIndex) {
+    vec2 textureSize = vec2(textureSize(hexTileIntBuffer, 0));
+    vec2 uv = getHexTileUV(tileIndex, textureSize);
+    uvec4 rawData = texture(hexTileIntBuffer, uv);
+    
+    HexTileIntData result;
+    result.tectonicPlate = rawData.r;
+    result.crustData = rawData.g;
+    result.biomeData = rawData.b;
+    result.reserved = rawData.a;
+    
+    return result;
+}
+
+// Decode crust type (0 = oceanic, 1 = continental)
+bool isOceanicCrust(uint crustData) {
+    return (crustData / 10u) == 0u;
+}
+
+// Decode crust subtype (0-6)
+uint getCrustSubtype(uint crustData) {
+    return crustData % 10u;
+}
+
+// Decode biome type and hotspot
+uint getBiomeType(uint biomeData) {
+    return biomeData >> 1u;
+}
+
+bool hasHotspot(uint biomeData) {
+    return (biomeData & 1u) == 1u;
+}
+
+// Retrieve float data for a hex tile
+struct HexTileFloatData {
+    float evapotranspiration;
+    float annualPrecipitation;
+    float annualTemperature;
+    float reserved;
+};
+
+HexTileFloatData getHexTileFloatData(float tileIndex) {
+    vec2 textureSize = vec2(textureSize(hexTileFloatBuffer, 0));
+    vec2 uv = getHexTileUV(tileIndex, textureSize);
+    vec4 data = texture2D(hexTileFloatBuffer, uv);
+    
+    HexTileFloatData result;
+    result.evapotranspiration = data.r;
+    result.annualPrecipitation = data.g * 5000.0; // Denormalize from 0-1 to 0-5000
+    result.annualTemperature = data.b * 100.0 - 50.0; // Denormalize from 0-1 to -50 to +50
+    result.reserved = data.a;
+    
+    return result;
 }
 
 void main() {
@@ -180,7 +285,10 @@ void main() {
     vec3 spherePos = uOffset + sphereDirection * uRadius;
     
     uint currentId = getH3IdentifierCube(sphereDirection);
-    uint closestId = findClosestCell(spherePos, currentId);
+    vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId);
+    uint closestId = uint(closestAndSecondClosest.x);
+    uint secondClosestId = uint(closestAndSecondClosest.y);
+
 
     // Get the base cell color
     vec3 currentCellColor = hashFloat(float(currentId));
@@ -188,11 +296,51 @@ void main() {
     // Get the base cell color
     vec3 cellColor = hashFloat(float(closestId));
     
-    // Calculate edge factor
-    float edge = getEdgeFactor(spherePos, closestId);
+    // Get the tile data for the closest hex
+    HexTileIntData intData = getHexTileIntData(float(closestId));
+    HexTileFloatData floatData = getHexTileFloatData(float(closestId));
+
+    HexTileIntData secondIntData = getHexTileIntData(float(secondClosestId));
+    HexTileFloatData secondFloatData = getHexTileFloatData(float(secondClosestId));
+
+    vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
+
+    if (intData.tectonicPlate == 0u) {
+        baseColor = vec3(1.0, 1.0, 0.0);
+    }
+
+    // get Second closest neighbor
     
-    // Mix the cell color with black based on the edge factor
-    vec3 finalColor = mix(cellColor, vec3(0.0), edge);
+    // // Example: Color based on crust type and temperature
+    // vec3 baseColor = isOceanicCrust(intData.crustData) ? 
+    //     vec3(0.0, 0.0, 0.8) :  // Ocean blue
+    //     vec3(0.4, 0.3, 0.2);   // Continental brown
+    
+    // // Modify color based on temperature
+    // float tempFactor = (floatData.annualTemperature + 50.0) / 100.0; // 0-1
+    // vec3 finalColor = mix(baseColor * 0.5, baseColor, tempFactor);
+    
+    // Add hotspot indicator
+    // if (hasHotspot(intData.biomeData)) {
+    //     finalColor += vec3(0.2, 0.0, 0.0);
+    // }
+
+    // get the closest neighbor
+
+    vec3 edgeColor = vec3(0.0, 0.0, 0.0);
+    bool isEdge = intData.tectonicPlate != secondIntData.tectonicPlate;
+    float edgeWidth = 0.0006;
+    // If neighbor cell has a different tectonic plate, color the edge
+    if (isEdge) {
+        edgeColor = vec3(1.0, 0.0, 0.0);
+        edgeWidth = 0.002;
+    }
+
+
+    // Apply edge effect
+    float edge = getEdgeFactor(spherePos, closestId, edgeWidth);
+    vec3 finalColor = mix(baseColor, edgeColor, edge);
+    finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
     
     gl_FragColor = vec4(finalColor, 1.0);
 }

@@ -5,6 +5,8 @@
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
   "scripts": {
+    "web:dev": "vite --config vite.web.config.mts",
+    "web:build": "vite build --config vite.web.config.mts --emptyOutDir",
     "start": "electron-forge start",
     "dev": "electron-forge start",
     "package": "electron-forge package",

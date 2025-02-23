@@ -1,0 +1,8 @@
+config:
+  aws:region: us-west-2
+  geomancer.kenny.wtf:path: ../../_dist
+  geomancer.kenny.wtf:zoneName: kenny.wtf
+  geomancer.kenny.wtf:targetDomain: geomancer.kenny.wtf
+  geomancer.kenny.wtf:includeWWW: true
+  geomancer.kenny.wtf:errorDocument: 404.html
+  geomancer.kenny.wtf:indexDocument: index.html
