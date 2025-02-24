@@ -50,7 +50,7 @@ export class HexTileBuffer {
   private floatBufferData: Float32Array;
   private floatTexture: DataTexture;
 
-  constructor(private resolution: number) {
+  constructor(public readonly resolution: number) {
     const h3Cells = HexGrid.allNodes(this.resolution);
     this.textureSize = this.calculateTextureSize(h3Cells.length);
 
@@ -106,16 +106,24 @@ export class HexTileBuffer {
 
     // validate values
     if (tectonicPlate < 0 || tectonicPlate > 255) {
-      throw new Error("Tectonic plate must be between 0 and 255");
+      throw new Error(
+        `Tectonic plate must be between 0 and 255, got ${tectonicPlate}`
+      );
     }
     if (annualPrecipitation < 0 || annualPrecipitation > 5000) {
-      throw new Error("Annual precipitation must be between 0 and 5000");
+      throw new Error(
+        `Annual precipitation must be between 0 and 5000, got ${annualPrecipitation}`
+      );
     }
     if (annualTemperature < -50 || annualTemperature > 50) {
-      throw new Error("Annual temperature must be between -50 and 50");
+      throw new Error(
+        `Annual temperature must be between -50 and 50, got ${annualTemperature}`
+      );
     }
     if (evapotranspiration < 0 || evapotranspiration > 1) {
-      throw new Error("Evapotranspiration must be between 0 and 1");
+      throw new Error(
+        `Evapotranspiration must be between 0 and 1, got ${evapotranspiration}`
+      );
     }
 
     // Update integer texture data

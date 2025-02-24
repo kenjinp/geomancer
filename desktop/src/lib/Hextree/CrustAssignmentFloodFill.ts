@@ -34,16 +34,14 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
     seedCount: number,
     crustConfig: CrustConfig
   ): Promise<HexTileBuffer> {
-    const floodFill = await super.doFloodfill(resolution, seedCount);
-    const crustAssigner = new CrustAssignmentFloodFill(
-      floodFill.config,
-      crustConfig
+    const config = HexGridFloodFill.configFromResolutionDynamic(
+      resolution,
+      seedCount + 1
     );
-
-    console.log("assignCrust floodFill results:", floodFill);
+    const crustAssigner = new CrustAssignmentFloodFill(config, crustConfig);
 
     // First assign plate types
-    await crustAssigner.assignInitialPlateTypes(floodFill.hexTileBuffer);
+    await crustAssigner.assignInitialPlateTypes(crustAssigner.hexTileBuffer);
 
     // Then expand continental crust until we reach target
     await crustAssigner.expandContinentalCrust();
@@ -82,9 +80,15 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
   private async expandPlateCrust(plateId: number) {
     const getCellsByPlate = (plateId: number): string[] => {
       const cells: string[] = [];
-      for (let i = 0; i < this.hexTileBuffer.intBufferData.length; i++) {
-        if (this.hexTileBuffer.readTileData(i).tectonicPlate === plateId) {
-          cells.push(HexGrid.getH3Index(i));
+      // Use HexGrid.allNodes to get all cells at this resolution
+      const allCells = HexGrid.allNodes(this.config.resolution);
+      for (const cell of allCells) {
+        const index = HexGrid.getIndex(cell);
+        if (
+          index !== undefined &&
+          this.hexTileBuffer.readTileData(index).tectonicPlate === plateId
+        ) {
+          cells.push(cell);
         }
       }
       return cells;
@@ -92,7 +96,10 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
 
     // Get initial seed cells for this plate
     const plateCells = getCellsByPlate(plateId);
+
     const initialSeeds = this.selectExpansionSeeds(plateCells);
+
+    console.log("expand plate initialSeeds", initialSeeds);
 
     // Custom flood fill parameters for continental expansion
     const expansionConfig = {
@@ -101,17 +108,48 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
       maxFrontierSize: Math.ceil(plateCells.length * 0.2),
       maxSeeds: initialSeeds.length,
     };
-    const expansionFill = new HexGridFloodFill(expansionConfig);
+    const expansionFill = await HexGridFloodFill.create(expansionConfig);
+
+    // Initialize the expansion fill's tile buffer with existing plate data
+    for (const cell of HexGrid.allNodes(this.config.resolution)) {
+      const index = HexGrid.getIndex(cell);
+      if (index !== undefined) {
+        const data = this.hexTileBuffer.readTileData(index);
+        expansionFill.hexTileBuffer.updateTileData(index, {
+          ...data,
+          // Only mark cells in this plate as fillable
+          tectonicPlate: data.tectonicPlate === plateId ? plateId : 255,
+        });
+      }
+    }
+
     const neighborMap = await HexNeighborMapGenerator.loadFromWebP(
       "textures/hex/neighbor-map.webp",
       4
     );
-    await expansionFill.initializeFromNeighborMap(neighborMap, plateCells);
+
+    // Initialize with ALL cells at this resolution, not just plate cells
+    const allCells = HexGrid.allNodes(this.config.resolution);
+    await expansionFill.initializeFromNeighborMap(neighborMap, allCells);
 
     // Run modified flood fill that respects plate boundaries
-    const result = await expansionFill.fill(initialSeeds);
+    const resultBuffer = await expansionFill.fill(initialSeeds);
 
-    console.log({ result });
+    // Update the crust type for cells that were filled
+    for (const tile of resultBuffer) {
+      const index = HexGrid.getIndex(tile.h3Index);
+      if (index !== undefined) {
+        const currentData = this.hexTileBuffer.readTileData(index);
+        // Only update if the cell belongs to our plate
+        if (currentData.tectonicPlate === plateId) {
+          this.hexTileBuffer.updateTileData(index, {
+            ...currentData,
+            crustType: "continental",
+          });
+          this.continentalCells++;
+        }
+      }
+    }
   }
 
   private selectExpansionSeeds(plateCells: string[]): string[] {

@@ -363,11 +363,15 @@ void main() {
     HexTileIntData secondIntData = getHexTileIntData(float(secondClosestId));
     HexTileFloatData secondFloatData = getHexTileFloatData(float(secondClosestId));
 
-    vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
+    // vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
 
-    if (intData.tectonicPlate == 0u) {
-        baseColor = vec3(1.0, 1.0, 0.0);
-    }
+    vec3 baseColor = isOceanicCrust(intData.crustData) ? 
+        vec3(0.0, 0.0, 0.8) :  // Ocean blue
+        vec3(0.0, 1.0, 0.0);   // Continental brown
+
+    // if (intData.tectonicPlate == 0u) {
+    //     baseColor = vec3(1.0, 1.0, 0.0);
+    // }
 
     float axialTilt = 23.4;
     vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));

@@ -1,6 +1,7 @@
 import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
 import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexPositionMapGenerator";
+import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import { HexTileBuffer } from "@/lib/Hextree/HexTileBuffer";
 import * as THREE from "three";
@@ -309,16 +310,29 @@ export class TerrainInstancer {
     this.instancedMesh.material.needsUpdate = true;
   }
 
-  public generateTectonicPlateData(numberOfSeeds = 256) {
+  public generateTectonicPlateData(numberOfSeeds = 40) {
     HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexGridFloodFill) => {
       this.setTileData(hexGridFloodFill.hexTileBuffer);
-      // CrustAssignmentFloodFill.assignCrust(4, 12, {
-      //   landPercentage: 0.3,
-      //   continentalProbability: 0.5,
-      // }).then((hexTileBuffer) => {
-      //   console.log("assign crust done", hexTileBuffer);
-      //   // this.setTileData(hexTileBuffer);
-      // });
+      this.generateContinentalData();
     });
+  }
+
+  public async generateContinentalData() {
+    const neighborMap = await HexNeighborMapGenerator.loadFromWebP(
+      "textures/hex/neighbor-map.webp",
+      4
+    );
+    const growth = await ContinentalGrowth.create(
+      this.hexTileBuffer,
+      neighborMap,
+      {
+        platePercentage: 0.3, // 30% of plates
+        seedPercentage: 0.01, // 1% of plate cells as seeds
+        landPercentage: 0.3, // Target 30% land coverage
+        growthProbability: 0.65, // 65% chance to spread
+      }
+    );
+    await growth.growContinents();
+    growth.destroy();
   }
 }

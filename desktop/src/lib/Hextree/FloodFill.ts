@@ -3,7 +3,7 @@ import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { HexTileBuffer } from "./HexTileBuffer";
 import { GPUDevice } from "./WebGPU";
-import floodfillShader from "./shaders/floodfill.wgsl";
+import floodfillShader from "./shaders/Floodfill.wgsl";
 
 const RESOLUTION_CELL_FACTORS: Record<number, number> = {
   0: 122, // Base icosahedron cells
@@ -227,10 +227,13 @@ export class HexGridFloodFill {
   }
 
   public async fill(seedCells: string[]): Promise<HexTileBuffer> {
-    const seedIndices = seedCells.map((cell) => HexGrid.getIndex(cell));
-    if (seedIndices.some((idx) => idx === undefined)) {
-      throw new Error("One or more invalid seed cells");
-    }
+    const seedIndices = seedCells.map((cell) => {
+      const index = HexGrid.getIndex(cell);
+      if (index === undefined) {
+        throw new Error(`One or more invalid seed cells, from ${cell}`);
+      }
+      return index;
+    });
 
     await this.initializeFill(seedIndices as number[]);
     return this.runComputePasses();
