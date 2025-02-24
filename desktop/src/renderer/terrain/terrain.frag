@@ -1,3 +1,5 @@
+#include "../../lib/cartography/colors.glsl"
+
 uniform samplerCube h3IndexMap;
 uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
@@ -263,7 +265,7 @@ struct HexTileFloatData {
     float evapotranspiration;
     float annualPrecipitation;
     float annualTemperature;
-    float reserved;
+    float elevation;
 };
 
 HexTileFloatData getHexTileFloatData(float tileIndex) {
@@ -275,7 +277,7 @@ HexTileFloatData getHexTileFloatData(float tileIndex) {
     result.evapotranspiration = data.r;
     result.annualPrecipitation = data.g * 5000.0; // Denormalize from 0-1 to 0-5000
     result.annualTemperature = data.b * 100.0 - 50.0; // Denormalize from 0-1 to -50 to +50
-    result.reserved = data.a;
+    result.elevation = data.a;
     
     return result;
 }
@@ -363,15 +365,12 @@ void main() {
     HexTileIntData secondIntData = getHexTileIntData(float(secondClosestId));
     HexTileFloatData secondFloatData = getHexTileFloatData(float(secondClosestId));
 
+    float elevation = floatData.elevation;
+
+
     // vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
 
-    vec3 baseColor = isOceanicCrust(intData.crustData) ? 
-        vec3(34./255.0,85./255.0,128./255.0) :  // Ocean blue
-        vec3(23./255.0,85./255.0,21./255.0);   // Continental brown
-
-    // if (intData.tectonicPlate == 0u) {
-    //     baseColor = vec3(1.0, 1.0, 0.0);
-    // }
+    vec3 baseColor = getColorForElevation(remap(elevation, -1.0, 1.0, -8000.0, 8000.0)).rgb;
 
     float axialTilt = 23.4;
     vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));

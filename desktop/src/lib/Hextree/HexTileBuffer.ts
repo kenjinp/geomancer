@@ -35,6 +35,7 @@ export interface HexTileData {
   evapotranspiration: number; // 0-1 normalized
   annualPrecipitation: number; // mm/year (0-5000 normalized)
   annualTemperature: number; // °C (-50 to +50 normalized)
+  elevation: number; // -1 to 1 normalized
   biome: BiomeType;
   hasHotSpot: boolean;
 }
@@ -100,6 +101,7 @@ export class HexTileBuffer {
       evapotranspiration,
       annualPrecipitation,
       annualTemperature,
+      elevation,
       biome,
       hasHotSpot,
     } = tileData;
@@ -124,6 +126,9 @@ export class HexTileBuffer {
       throw new Error(
         `Evapotranspiration must be between 0 and 1, got ${evapotranspiration}`
       );
+    }
+    if (elevation < -1 || elevation > 1) {
+      throw new Error(`Elevation must be between -1 and 1, got ${elevation}`);
     }
 
     // Update integer texture data
@@ -152,7 +157,7 @@ export class HexTileBuffer {
       -50,
       50
     );
-    this.floatBufferData[floatBaseIndex + 3] = 0; // Reserved for future use
+    this.floatBufferData[floatBaseIndex + 3] = elevation; // Store elevation in the previously reserved slot
 
     this.intTexture.needsUpdate = true;
     this.floatTexture.needsUpdate = true;
@@ -182,6 +187,7 @@ export class HexTileBuffer {
       evapotranspiration: this.floatBufferData[floatBaseIndex],
       annualPrecipitation: this.floatBufferData[floatBaseIndex + 1],
       annualTemperature: this.floatBufferData[floatBaseIndex + 2],
+      elevation: this.floatBufferData[floatBaseIndex + 3],
       biome: this.decodeBiomeData(this.intBufferData[intBaseIndex + 2]),
       hasHotSpot: this.intBufferData[intBaseIndex + 3] === 1,
     };

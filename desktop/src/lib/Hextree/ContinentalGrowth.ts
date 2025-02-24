@@ -1,5 +1,6 @@
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
+import { Tectonics } from "../model/tectonics/Tectonics";
 import { CrustSubtype, HexTileBuffer } from "./HexTileBuffer";
 import { GPUDevice } from "./WebGPU";
 import continentalGrowthShader from "./shaders/ContinentalGrowth.wgsl";
@@ -15,9 +16,10 @@ export class ContinentalGrowth {
   private totalCells: number;
   private targetLandCells: number;
   private plateIDBuffer: GPUBuffer;
+  private tileBuffer: HexTileBuffer;
 
   constructor(
-    private tileBuffer: HexTileBuffer,
+    public tectonics: Tectonics,
     private neighborMap: HexNeighborMapGenerator,
     private config: {
       platePercentage: number;
@@ -26,12 +28,13 @@ export class ContinentalGrowth {
       growthProbability: number;
     }
   ) {
-    this.totalCells = HexGrid.getNumCells(tileBuffer.resolution);
+    this.tileBuffer = this.tectonics.hexTileBuffer;
+    this.totalCells = HexGrid.getNumCells(this.tileBuffer.resolution);
     this.targetLandCells = Math.floor(this.totalCells * config.landPercentage);
   }
 
   public static async create(
-    tileBuffer: HexTileBuffer,
+    tectonics: Tectonics,
     neighborMap: HexNeighborMapGenerator,
     config: {
       platePercentage: number;
@@ -40,7 +43,7 @@ export class ContinentalGrowth {
       growthProbability: number;
     }
   ): Promise<ContinentalGrowth> {
-    const instance = new ContinentalGrowth(tileBuffer, neighborMap, config);
+    const instance = new ContinentalGrowth(tectonics, neighborMap, config);
     await instance.initialize();
     return instance;
   }
@@ -357,8 +360,10 @@ export class ContinentalGrowth {
     h3Cells.forEach((_, i) => {
       if (crustTypes[i] === 1) {
         const data = this.tileBuffer.readTileData(i);
+        const plate = this.tectonics.plates.get(data.tectonicPlate);
         this.tileBuffer.updateTileData(i, {
           ...data,
+          elevation: plate.landElevation,
           crustType: "continental",
           crustSubtype: this.randomCrustSubtype(),
         });

@@ -1,9 +1,8 @@
 import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
 import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexPositionMapGenerator";
-import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
-import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import { HexTileBuffer } from "@/lib/Hextree/HexTileBuffer";
+import { Tectonics } from "@/lib/model/tectonics/Tectonics";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import fragmentShader from "./terrain.frag";
@@ -28,6 +27,7 @@ export class TerrainInstancer {
   private offset: THREE.Vector3;
   private material: THREE.Material;
   private hexTileBuffer: HexTileBuffer = new HexTileBuffer(4);
+  private tectonics: Tectonics;
   constructor(
     quadtree: CubeSphereQuadtree,
     options: { radius?: number; position?: THREE.Vector3 } = {}
@@ -35,6 +35,8 @@ export class TerrainInstancer {
     this.quadtree = quadtree;
     this.radius = options.radius ?? 1;
     this.offset = options.position ?? new THREE.Vector3();
+    const numPlates = 40;
+    this.tectonics = new Tectonics(this.hexTileBuffer, numPlates);
   }
 
   public async initialize() {
@@ -310,29 +312,14 @@ export class TerrainInstancer {
     this.instancedMesh.material.needsUpdate = true;
   }
 
-  public generateTectonicPlateData(numberOfSeeds = 40) {
-    HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexGridFloodFill) => {
-      this.setTileData(hexGridFloodFill.hexTileBuffer);
+  public generateTectonicPlateData() {
+    this.tectonics.generateTectonicPlates().then((hexGridFloodFill) => {
+      this.setTileData(hexGridFloodFill);
       this.generateContinentalData();
     });
   }
 
   public async generateContinentalData() {
-    const neighborMap = await HexNeighborMapGenerator.loadFromWebP(
-      "textures/hex/neighbor-map.webp",
-      4
-    );
-    const growth = await ContinentalGrowth.create(
-      this.hexTileBuffer,
-      neighborMap,
-      {
-        platePercentage: 0.5, // 30% of plates
-        seedPercentage: 0.0001, // 1% of plate cells as seeds
-        landPercentage: 0.3, // Target 30% land coverage
-        growthProbability: 0.65, // 65% chance to spread
-      }
-    );
-    await growth.growContinents();
-    growth.destroy();
+    this.tectonics.generateContinentalData();
   }
 }
