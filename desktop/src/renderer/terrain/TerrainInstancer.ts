@@ -309,10 +309,16 @@ export class TerrainInstancer {
     this.instancedMesh.material.needsUpdate = true;
   }
 
-  public generateTectonicPlateData(numberOfSeeds = 40) {
+  public generateTectonicPlateData(numberOfSeeds = 256) {
     HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexGridFloodFill) => {
       this.setTileData(hexGridFloodFill.hexTileBuffer);
-      // CrustAssignmentFloodFill.assignCrust(4, 12);
+      // CrustAssignmentFloodFill.assignCrust(4, 12, {
+      //   landPercentage: 0.3,
+      //   continentalProbability: 0.5,
+      // }).then((hexTileBuffer) => {
+      //   console.log("assign crust done", hexTileBuffer);
+      //   // this.setTileData(hexTileBuffer);
+      // });
     });
   }
 }

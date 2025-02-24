@@ -1,7 +1,9 @@
 import * as h3 from "h3-js";
+import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
 import { FloodFillConfig, HexGridFloodFill } from "./FloodFill";
 import { HexTileBuffer } from "./HexTileBuffer";
+import continentalExpansionShader from "./shaders/continental-expansion.wgsl";
 
 type CrustConfig = {
   landPercentage: number;
@@ -23,6 +25,10 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
     );
   }
 
+  getShader() {
+    return continentalExpansionShader;
+  }
+
   public static async assignCrust(
     resolution: number,
     seedCount: number,
@@ -33,6 +39,8 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
       floodFill.config,
       crustConfig
     );
+
+    console.log("assignCrust floodFill results:", floodFill);
 
     // First assign plate types
     await crustAssigner.assignInitialPlateTypes(floodFill.hexTileBuffer);
@@ -72,8 +80,18 @@ export class CrustAssignmentFloodFill extends HexGridFloodFill {
   }
 
   private async expandPlateCrust(plateId: number) {
+    const getCellsByPlate = (plateId: number): string[] => {
+      const cells: string[] = [];
+      for (let i = 0; i < this.hexTileBuffer.intBufferData.length; i++) {
+        if (this.hexTileBuffer.readTileData(i).tectonicPlate === plateId) {
+          cells.push(HexGrid.getH3Index(i));
+        }
+      }
+      return cells;
+    };
+
     // Get initial seed cells for this plate
-    const plateCells = this.hexTileBuffer.getCellsByPlate(plateId);
+    const plateCells = getCellsByPlate(plateId);
     const initialSeeds = this.selectExpansionSeeds(plateCells);
 
     // Custom flood fill parameters for continental expansion

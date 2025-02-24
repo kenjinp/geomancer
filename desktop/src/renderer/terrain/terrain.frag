@@ -375,9 +375,14 @@ void main() {
 
     float uSubgridAlpha = 0.0;
     float uContourAlpha = 0.0;
+    float uLatLongGridAlpha = 0.5;
+    float uPolarCirclesAlpha = 1.0;
+    float uTropicsAlpha = 1.0;
+    float uEquatorAlpha = 1.0;
+    float uPrimeMeridianAlpha = 0.8;
     // get Second closest neighbor
      // square grid
-    float grid = getGrid(latlongUVWithReps, 1.0, lineWidth);
+    float grid = getGrid(latlongUVWithReps, 1.0, lineWidth) * uLatLongGridAlpha;
     float grid2 = getGrid(latlongUVWithReps, 0.5, lineWidth) * uSubgridAlpha;
     float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
     float combinedGrid = grid + grid2 + grid3;
@@ -395,21 +400,9 @@ void main() {
     float tropics = tropicCapricorn + tropicCancer;
     float polarCircles = arcticCircle + antarcticCircle;
 
-    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2);
-    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics);
-    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles);
-
-    // if (polarCircles > 0.0) {
-    //     combinedGridColors = vec3(1.0, 1.0, 0.0);
-    // }
-
-    // if (tropics > 0.0) {
-    //     combinedGridColors = vec3(1.0, 1.0, 0.0);
-    // }
-
-    // if (combinedGrid2 > 0.0) {
-    //     combinedGridColors = vec3(0.0, 0.0, 0.0);
-    // }     
+    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2 * uLatLongGridAlpha);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics * uTropicsAlpha);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles * uPolarCirclesAlpha);
 
     
     // // Example: Color based on crust type and temperature

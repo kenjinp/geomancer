@@ -1,5 +1,6 @@
 import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
+import { integerToRGB } from "@/lib/images/Color";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -77,10 +78,13 @@ export function TerrainRenderer({
 
     const mouseFollower = document.getElementById("mouse-follower");
     if (mouseFollower) {
+      const hashColor = integerToRGB(hoveredHexTileIndex.current);
+      const hashColorString = hashColor.join(",");
+      const hashColorRGB = `rgb(${hashColorString})`;
       mouseFollower.innerHTML = hovering
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
-        <em>${hoveredHexTileIndex.current}</em>
+        <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 

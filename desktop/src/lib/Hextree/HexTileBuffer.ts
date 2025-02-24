@@ -50,8 +50,8 @@ export class HexTileBuffer {
   private floatBufferData: Float32Array;
   private floatTexture: DataTexture;
 
-  constructor(resolution: number) {
-    const h3Cells = HexGrid.allNodes(resolution);
+  constructor(private resolution: number) {
+    const h3Cells = HexGrid.allNodes(this.resolution);
     this.textureSize = this.calculateTextureSize(h3Cells.length);
 
     const totalPixels = this.textureSize.width * this.textureSize.height;
@@ -161,6 +161,36 @@ export class HexTileBuffer {
     }
   }
 
+  public readTileData(tileIndex: number): HexTileData {
+    const intBaseIndex = tileIndex * 4;
+    const floatBaseIndex = tileIndex * 4;
+
+    return {
+      tectonicPlate: this.intBufferData[intBaseIndex],
+      crustType: this.decodeCrustData(this.intBufferData[intBaseIndex + 1]),
+      crustSubtype: this.decodeCrustSubtype(
+        this.intBufferData[intBaseIndex + 1]
+      ),
+      evapotranspiration: this.floatBufferData[floatBaseIndex],
+      annualPrecipitation: this.floatBufferData[floatBaseIndex + 1],
+      annualTemperature: this.floatBufferData[floatBaseIndex + 2],
+      biome: this.decodeBiomeData(this.intBufferData[intBaseIndex + 2]),
+      hasHotSpot: this.intBufferData[intBaseIndex + 3] === 1,
+    };
+  }
+
+  private decodeBiomeData(data: number): BiomeType {
+    return data === 0 ? "undefined" : "tundra";
+  }
+
+  private decodeCrustData(data: number): CrustType {
+    return data === 0 ? "oceanic" : "continental";
+  }
+
+  private decodeCrustSubtype(data: number): CrustSubtype {
+    return data === 0 ? "undefined" : "shield";
+  }
+
   private normalizeValue(value: number, min: number, max: number): number {
     return (value - min) / (max - min);
   }
@@ -231,11 +261,10 @@ export class HexTileBuffer {
   // }
 
   // // Add iterator implementation
-  // [Symbol.iterator]() {
-  //   return this.tileData.values();
-  // }
-
-  // getTile(h3Index: string): HexTileData {
-  //   return this.tileData.get(h3Index);
-  // }
+  [Symbol.iterator] = function* () {
+    const h3Cells = HexGrid.allNodes(this.resolution);
+    for (let i = 0; i < h3Cells.length; i++) {
+      yield this.readTileData(i);
+    }
+  };
 }

@@ -23,7 +23,7 @@ struct Uniforms {
 // @group(0) @binding(4) var<storage> seeds: array<u32>;
 @group(0) @binding(5) var<uniform> uniforms: Uniforms;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(256)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
     if (idx >= atomicLoad(&currentFrontier.size)) { 
@@ -44,9 +44,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             continue; 
         }
 
-        // For the first two passes, allow unconditional expansion
-        var isContiguous: bool = (uniforms.passIndex <= 1u);
-        if (uniforms.passIndex > 1u) {
+        // Allow first 4 passes for unconditional expansion (changed from 1u)
+        var isContiguous: bool = (uniforms.passIndex <= 3u);
+        if (uniforms.passIndex > 3u) {
             var contiguousFound: bool = false;
             // Check candidate's neighbors (skip the expanding cell) for same seed
             for (var j: u32 = 0u; j < 6u; j++) {

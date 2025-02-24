@@ -183,9 +183,13 @@ export class HexGridFloodFill {
     });
   }
 
+  getShader() {
+    return floodfillShader;
+  }
+
   private async createPipeline() {
     const shaderModule = this.device.createShaderModule({
-      code: floodfillShader,
+      code: this.getShader(),
     });
 
     this.pipeline = this.device.createComputePipeline({
@@ -290,7 +294,7 @@ export class HexGridFloodFill {
       pass.setPipeline(this.pipeline);
       pass.setBindGroup(0, this.bindGroups[currentFrontier]);
 
-      const workgroups = Math.ceil(frontierSize / 64);
+      const workgroups = Math.ceil(frontierSize / 256);
       pass.dispatchWorkgroups(workgroups);
 
       pass.end();
@@ -436,7 +440,7 @@ export class HexGridFloodFill {
 
     return {
       maxCells: baseCells,
-      maxFrontierSize: Math.ceil(baseCells * 0.2), // 20% safety margin
+      maxFrontierSize: Math.ceil(baseCells * 5), // 20% safety margin
       maxSeeds,
       resolution,
     };
@@ -449,7 +453,7 @@ export class HexGridFloodFill {
     const maxCells = h3.getNumCells(resolution);
     return {
       maxCells,
-      maxFrontierSize: Math.ceil(maxCells * 0.75), // Increased from 0.5
+      maxFrontierSize: Math.ceil(maxCells * 5),
       maxSeeds,
       resolution,
     };

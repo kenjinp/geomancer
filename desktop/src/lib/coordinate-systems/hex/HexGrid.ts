@@ -7,10 +7,16 @@ let cachedIndexMap: Map<string, number> = new Map();
 
 export class HexGrid {
   public static readonly indexMap: Map<string, number> = cachedIndexMap;
+  public static readonly reverseIndexMap: Map<number, string> = new Map();
+
   constructor(public resolution: number) {}
 
   public static getIndex(h3Index: string) {
     return HexGrid.indexMap.get(h3Index);
+  }
+
+  public static getH3Index(index: number) {
+    return HexGrid.reverseIndexMap.get(index);
   }
 
   public allNodes() {
@@ -35,6 +41,7 @@ export class HexGrid {
 
     cachedAllNodes = sorted.map((h3Index, sortedIndex) => {
       HexGrid.indexMap.set(h3Index, sortedIndex);
+      HexGrid.reverseIndexMap.set(sortedIndex, h3Index);
       return h3Index;
     });
     console.log(

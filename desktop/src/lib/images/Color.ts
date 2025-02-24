@@ -1,7 +1,11 @@
 export const integerToRGB = (int: number) => {
-  const red = (int >> 16) & 0xff
-  const green = (int >> 8) & 0xff
-  const blue = int & 0xff
+  let seed = int;
 
-  return [red, green, blue]
-}
+  // Mix bits using XOR and shifts (similar to hashH3Id)
+  seed ^= seed << 13;
+  seed ^= seed >> 17;
+  seed ^= seed << 5;
+
+  // Convert to RGB components between 0 and 1
+  return [(seed >> 16) & 0xff, (seed >> 8) & 0xff, seed & 0xff];
+};
