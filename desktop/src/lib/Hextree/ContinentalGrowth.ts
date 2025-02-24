@@ -282,12 +282,12 @@ export class ContinentalGrowth {
 
       // Check if we've reached target
       const currentLand = await this.readLandCount();
-      const targetPercentage = this.targetLandCells / this.totalCells;
-      const currentPercentage = currentLand / this.totalCells;
-      console.log("current land progress", {
-        currentPercentage,
-        targetPercentage,
-      });
+      // const targetPercentage = this.targetLandCells / this.totalCells;
+      // const currentPercentage = currentLand / this.totalCells;
+      // console.log("current land progress", {
+      //   currentPercentage,
+      //   targetPercentage,
+      // });
       if (currentLand >= this.targetLandCells) break;
     }
     const timeEnd = performance.now();

@@ -258,16 +258,6 @@ export class HexTileBuffer {
     this.floatTexture.needsUpdate = true;
   }
 
-  // getCellsByPlate(plateId: number): string[] {
-  //   const cells: string[] = [];
-  //   for (const [h3Index, data] of this.tileData) {
-  //     if (data.tectonicPlate === plateId) {
-  //       cells.push(h3Index);
-  //     }
-  //   }
-  //   return cells;
-  // }
-
   // // Add iterator implementation
   [Symbol.iterator] = function* () {
     const h3Cells = HexGrid.allNodes(this.resolution);

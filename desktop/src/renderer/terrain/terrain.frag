@@ -366,8 +366,8 @@ void main() {
     // vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
 
     vec3 baseColor = isOceanicCrust(intData.crustData) ? 
-        vec3(0.0, 0.0, 0.8) :  // Ocean blue
-        vec3(0.0, 1.0, 0.0);   // Continental brown
+        vec3(34./255.0,85./255.0,128./255.0) :  // Ocean blue
+        vec3(23./255.0,85./255.0,21./255.0);   // Continental brown
 
     // if (intData.tectonicPlate == 0u) {
     //     baseColor = vec3(1.0, 1.0, 0.0);

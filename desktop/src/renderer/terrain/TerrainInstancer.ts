@@ -326,8 +326,8 @@ export class TerrainInstancer {
       this.hexTileBuffer,
       neighborMap,
       {
-        platePercentage: 0.3, // 30% of plates
-        seedPercentage: 0.01, // 1% of plate cells as seeds
+        platePercentage: 0.5, // 30% of plates
+        seedPercentage: 0.0001, // 1% of plate cells as seeds
         landPercentage: 0.3, // Target 30% land coverage
         growthProbability: 0.65, // 65% chance to spread
       }
