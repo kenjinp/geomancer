@@ -1,7 +1,7 @@
-import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
+import { HexNeighborMapGenerator } from "@/lib/data-buffers/HexNeighborMapGenerator";
+import { HexTileBuffer } from "@/lib/data-buffers/HexTileBuffer";
 import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
-import { HexTileBuffer } from "@/lib/Hextree/HexTileBuffer";
 import { Plate } from "./Plate";
 
 export class Tectonics {

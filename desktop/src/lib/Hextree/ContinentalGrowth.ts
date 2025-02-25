@@ -1,7 +1,7 @@
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
-import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
+import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
+import { CrustSubtype, HexTileBuffer } from "../data-buffers/HexTileBuffer";
 import { Tectonics } from "../model/tectonics/Tectonics";
-import { CrustSubtype, HexTileBuffer } from "./HexTileBuffer";
 import { GPUDevice } from "./WebGPU";
 import continentalGrowthShader from "./shaders/ContinentalGrowth.wgsl";
 

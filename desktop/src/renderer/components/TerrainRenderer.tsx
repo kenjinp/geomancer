@@ -1,6 +1,6 @@
 import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
-import { integerToRGB } from "@/lib/images/Color";
+import { integerToRGB } from "@/lib/images/colorUtils";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -46,10 +46,7 @@ export function TerrainRenderer({
         .map((n) => quadtreeRef.current.getNodeView(n).toObject()),
     });
 
-    instancerRef.current = new TerrainInstancer(quadtreeRef.current, {
-      radius,
-      position,
-    });
+    instancerRef.current = new TerrainInstancer(quadtreeRef.current);
 
     instancerRef.current.initialize().then(() => {
       if (!stale) {
@@ -109,7 +106,7 @@ export function TerrainRenderer({
     sphereWorldPosition.current.copy(event.point);
     const index = HexGrid.getIndexFromPosition(event.point.normalize(), 4);
     hoveredHexTileIndex.current = index;
-    instancerRef.current.setSelectedTile(index);
+    // instancerRef.current.setSelectedTile(index);
   };
 
   const handlePointerLeave = () => {

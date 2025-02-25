@@ -1,7 +1,7 @@
 import * as h3 from "h3-js";
 import { DataTexture, FloatType, RGBAFormat, Vector3 } from "three";
-import { LatLong } from "../../sphere/LatLong";
-import { HexGrid } from "../HexGrid";
+import { HexGrid } from "../coordinate-systems/hex/HexGrid";
+import { LatLong } from "../coordinate-systems/sphere/LatLong";
 
 export function generateH3VertexTexture(resolution = 4) {
   const allIndices = HexGrid.allNodes(resolution);

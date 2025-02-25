@@ -1,5 +1,5 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from "three";
-import { HexGrid } from "../HexGrid";
+import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
 type PositionMapMetadata = {
   resolution: number;
@@ -9,13 +9,18 @@ type PositionMapMetadata = {
   version: string;
 };
 
+const FILE_MAGIC = 0x48335058; // 'H3PX' in hex
+const VERSION = 1;
+
 export class HexPositionMapGenerator {
-  private static readonly FILE_MAGIC = 0x48335058; // 'H3PX' in hex
-  private static readonly VERSION = 1;
+  private readonly FILE_MAGIC = FILE_MAGIC; // 'H3PX' in hex
+  private static readonly FILE_MAGIC = FILE_MAGIC; // 'H3PX' in hex
+  private static readonly VERSION = VERSION;
+  private readonly VERSION = VERSION;
 
   public readonly metadata: PositionMapMetadata;
-  private textureData?: Float32Array;
-  public texture?: DataTexture;
+  private textureData: Float32Array;
+  public texture: DataTexture;
 
   constructor(resolution: number) {
     const totalCells = HexGrid.allNodes(resolution).length;
@@ -30,6 +35,10 @@ export class HexPositionMapGenerator {
       generatedAt: new Date().toISOString(),
       version: `1.0.${HexPositionMapGenerator.VERSION}`,
     };
+
+    this.textureData = new Float32Array(width * height * 4);
+    this.textureData.fill(0);
+    this.texture = this.createTexture();
   }
 
   public generate(): this {
@@ -117,6 +126,37 @@ export class HexPositionMapGenerator {
       generator.texture = generator.createTexture();
 
       return generator;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async loadFromBinary(url: string): Promise<HexPositionMapGenerator> {
+    try {
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const view = new DataView(buffer);
+
+      // Validate magic number
+      if (view.getUint32(0) !== this.FILE_MAGIC) {
+        throw new Error("Invalid position map file format");
+      }
+
+      // Read header
+      const version = view.getUint32(4);
+      const width = view.getUint32(8);
+      const height = view.getUint32(12);
+
+      if (version !== this.VERSION) {
+        throw new Error(`Unsupported version: ${version}`);
+      }
+
+      // Read float data
+      const headerSize = 16;
+      this.textureData = new Float32Array(buffer.slice(headerSize));
+      this.texture = this.createTexture();
+
+      return this;
     } catch (error) {
       throw error;
     }

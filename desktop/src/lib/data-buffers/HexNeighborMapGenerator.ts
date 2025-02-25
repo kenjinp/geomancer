@@ -7,7 +7,7 @@ import {
   RGBAFormat,
   UnsignedByteType,
 } from "three";
-import { HexGrid } from "../HexGrid";
+import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
 export const INVALID_H3_INDEX_SENTINEL = "FFFFFFFFFFFFFFFF";
 export const MAX_UINT_24 = 0xffffff;
@@ -21,12 +21,11 @@ type NeighborMapMetadata = {
 };
 
 export class HexNeighborMapGenerator {
-  private static readonly FILE_MAGIC = 0x4833484e; // 'H3HN' in hex
   private static readonly VERSION = 1;
 
   public readonly metadata: NeighborMapMetadata;
-  private textureData?: Uint8Array;
-  public texture?: DataTexture;
+  private textureData: Uint8Array;
+  public texture: DataTexture;
 
   constructor(resolution: number) {
     // Calculate texture dimensions
@@ -43,6 +42,10 @@ export class HexNeighborMapGenerator {
       generatedAt: new Date().toISOString(),
       version: `1.0.${HexNeighborMapGenerator.VERSION}`,
     };
+
+    this.textureData = new Uint8Array(width * height * 4);
+    this.textureData.fill(255);
+    this.texture = this.createTexture();
   }
 
   public generate(): this {
@@ -151,6 +154,23 @@ export class HexNeighborMapGenerator {
       generator.texture = generator.createTexture();
 
       return generator;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async loadFromWebP(url: string): Promise<HexNeighborMapGenerator> {
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const decoded = await decode(arrayBuffer);
+
+      this.metadata.width = decoded.width;
+      this.metadata.height = decoded.height;
+      this.textureData = new Uint8Array(decoded.data.buffer);
+      this.texture = this.createTexture();
+
+      return this;
     } catch (error) {
       throw error;
     }
