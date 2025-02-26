@@ -49,7 +49,7 @@ export const initialContext: Context = {
     hexTileBuffer: new HexTileBuffer(H3_RESOLUTION),
   },
   tectonics: {
-    numPlates: 0,
+    numPlates: 40,
     plates: [],
     continentalSeedConfig: {
       platePercentage: 0.5, // 30% of plates

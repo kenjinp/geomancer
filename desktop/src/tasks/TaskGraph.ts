@@ -1,3 +1,4 @@
+import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import { Plate } from "@/lib/model/tectonics/Plate";
 import { Context, getState, setState } from "@/state/Context";
@@ -43,29 +44,32 @@ const loadBuffers = dag.task("loadBuffers", async (ctx) => {
 });
 
 const generatePlates = dag.task("generatePlates", async (ctx) => {
-  console.log("generating plates");
+  console.log("generating plates", ctx.tectonics.numPlates);
   const {
     tectonics: { numPlates },
   } = ctx;
   const plates = new Array(numPlates).fill(0).map((_, i) => {
     return new Plate();
   });
+  console.log("generated plates", plates);
   const newContext = { ...ctx, tectonics: { ...ctx.tectonics, plates } };
-  setState(newContext);
   ctx = newContext;
-  return ctx;
+  setState(newContext);
+  return plates;
 });
 
 const generatePlateHexBuffers = dag.task(
   "generatePlateHexBuffers",
-  async (ctx) => {
+  async (ctx, meta) => {
+    console.log(JSON.stringify({ tectonics: ctx.tectonics, meta }, null, 2));
     try {
-      console.log("generating plate hex buffers");
+      console.log("generating plate hex buffers", ctx.tectonics.plates);
       const hexTileBuffer = (
         await HexGridFloodFill.doFloodfill(
           4,
           ctx.buffers.hexTileBuffer,
-          ctx.tectonics.plates
+          ctx.buffers.hexNeighborMap,
+          generatePlates.output
         )
       ).hexTileBuffer;
       console.log("plate hex buffers generated");
@@ -78,6 +82,23 @@ const generatePlateHexBuffers = dag.task(
     return ctx;
   },
   [loadBuffers, generatePlates]
+);
+
+const generateContinentalData = dag.task(
+  "generateContinentalData",
+  async (ctx) => {
+    console.log("generating continental data");
+    const growth = await ContinentalGrowth.create(
+      generatePlates.output,
+      ctx.buffers.hexTileBuffer,
+      ctx.buffers.hexNeighborMap,
+      ctx.tectonics.continentalSeedConfig
+    );
+    await growth.growContinents();
+    growth.destroy();
+    console.log("continental data generated");
+  },
+  [generatePlateHexBuffers, generatePlates]
 );
 
 //  When any input changes, we run the dag

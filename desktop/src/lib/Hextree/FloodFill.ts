@@ -60,9 +60,13 @@ export class HexGridFloodFill {
   public static async doFloodfill(
     resolution: number,
     hexTileBuffer: HexTileBuffer,
+    neighborMap: HexNeighborMapGenerator,
     plates: Plate[]
   ) {
     const targetResolution = resolution;
+    if (plates.length === 0) {
+      throw new Error("No plates provided");
+    }
     const seedCount = plates.length;
     const config = HexGridFloodFill.configFromResolutionDynamic(
       targetResolution,
@@ -77,10 +81,6 @@ export class HexGridFloodFill {
     // Generate neighbor map
     console.log("hex fill 2 (generating neighbor map)");
     const timeStart = performance.now();
-    const neighborMap = await HexNeighborMapGenerator.loadFromWebP(
-      "textures/hex/neighbor-map.webp",
-      4
-    );
     await floodFill.initializeFromNeighborMap(neighborMap, h3Cells);
     const timeEnd = performance.now();
     console.log(`hex fill 3: neighbor map generation ${timeEnd - timeStart}ms`);

@@ -377,9 +377,6 @@ void main() {
         return;
     }
 
-    gl_FragColor = vec4(hashFloat(float(currentId)), 1.0);
-    return;
-
     vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId);
     uint closestId = uint(closestAndSecondClosest.x);
     uint secondClosestId = uint(closestAndSecondClosest.y);

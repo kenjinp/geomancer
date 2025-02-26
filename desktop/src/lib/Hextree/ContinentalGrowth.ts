@@ -1,7 +1,7 @@
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { CrustSubtype, HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { Tectonics } from "../model/tectonics/Tectonics";
+import { Plate } from "../model/tectonics/Plate";
 import { GPUDevice } from "./WebGPU";
 import continentalGrowthShader from "./shaders/ContinentalGrowth.wgsl";
 
@@ -16,10 +16,10 @@ export class ContinentalGrowth {
   private totalCells: number;
   private targetLandCells: number;
   private plateIDBuffer: GPUBuffer;
-  private tileBuffer: HexTileBuffer;
 
   constructor(
-    public tectonics: Tectonics,
+    private plates: Plate[],
+    private tileBuffer: HexTileBuffer,
     private neighborMap: HexNeighborMapGenerator,
     private config: {
       platePercentage: number;
@@ -28,13 +28,13 @@ export class ContinentalGrowth {
       growthProbability: number;
     }
   ) {
-    this.tileBuffer = this.tectonics.hexTileBuffer;
     this.totalCells = HexGrid.getNumCells(this.tileBuffer.resolution);
     this.targetLandCells = Math.floor(this.totalCells * config.landPercentage);
   }
 
   public static async create(
-    tectonics: Tectonics,
+    plates: Plate[],
+    tileBuffer: HexTileBuffer,
     neighborMap: HexNeighborMapGenerator,
     config: {
       platePercentage: number;
@@ -43,7 +43,12 @@ export class ContinentalGrowth {
       growthProbability: number;
     }
   ): Promise<ContinentalGrowth> {
-    const instance = new ContinentalGrowth(tectonics, neighborMap, config);
+    const instance = new ContinentalGrowth(
+      plates,
+      tileBuffer,
+      neighborMap,
+      config
+    );
     await instance.initialize();
     return instance;
   }
@@ -360,7 +365,7 @@ export class ContinentalGrowth {
     h3Cells.forEach((_, i) => {
       if (crustTypes[i] === 1) {
         const data = this.tileBuffer.readTileData(i);
-        const plate = this.tectonics.plates.get(data.tectonicPlate);
+        const plate = this.plates[data.tectonicPlate];
         this.tileBuffer.updateTileData(i, {
           ...data,
           elevation: plate.landElevation,
