@@ -250,15 +250,13 @@ export class H3CubeMapGenerator {
       );
 
       const faceSize = faceBuffers[0].width;
-      const cubeRgba = new Uint8Array(6 * faceSize * faceSize * 4);
-      this.cubeRgba = cubeRgba;
 
       faceBuffers.forEach(({ data }, face) => {
         const offset = face * faceSize * faceSize * 4;
-        cubeRgba.set(data, offset);
+        this.cubeRgba.set(data, offset);
       });
 
-      this.createCubeTexture(false);
+      this.cubeTexture = this.createCubeTexture(false);
       return this;
     } catch (error) {
       throw error;

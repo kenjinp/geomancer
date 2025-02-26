@@ -3,7 +3,6 @@ import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
 import { Plate } from "../model/tectonics/Plate";
-import { Tectonics } from "../model/tectonics/Tectonics";
 import { GPUDevice } from "./WebGPU";
 import floodfillShader from "./shaders/Floodfill.wgsl";
 
@@ -52,27 +51,26 @@ export class HexGridFloodFill {
   private bindGroups: GPUBindGroup[] = [];
   private seedBuffer: GPUBuffer;
   private uniformBuffer: GPUBuffer;
-  public tectonics: Tectonics;
+  private plates: Plate[];
   constructor(
     public readonly config: FloodFillConfig,
     public hexTileBuffer: HexTileBuffer
   ) {}
 
-  public static async doFloodfill(resolution: number, tectonics: Tectonics) {
+  public static async doFloodfill(
+    resolution: number,
+    hexTileBuffer: HexTileBuffer,
+    plates: Plate[]
+  ) {
     const targetResolution = resolution;
-    const seedCount = tectonics.plates.size;
+    const seedCount = plates.length;
     const config = HexGridFloodFill.configFromResolutionDynamic(
       targetResolution,
       seedCount + 1
     );
-
     console.log("hex fill 1", config);
-    const floodFill = await HexGridFloodFill.create(
-      config,
-      tectonics.hexTileBuffer
-    );
-    floodFill.tectonics = tectonics;
-
+    const floodFill = await HexGridFloodFill.create(config, hexTileBuffer);
+    floodFill.plates = plates;
     // Now get all H3 cells at the same resolution using HexGrid
     const h3Cells: string[] = HexGrid.allNodes(resolution);
 
@@ -374,7 +372,7 @@ export class HexGridFloodFill {
     const resultMap = new Map<number, string[]>();
 
     // I'm not sure where to store this
-    const plates = this.tectonics.plates;
+    const plates = this.plates;
 
     // Iterate directly over this.h3Indices (assumed to be a Map)
     for (const [h3, idx] of HexGrid.indexMap.entries()) {
@@ -383,9 +381,8 @@ export class HexGridFloodFill {
         const adjustedIndex = seedIndex - 1; // Account for the +1 added in the shader.
         if (!resultMap.has(adjustedIndex)) {
           resultMap.set(adjustedIndex, []);
-          plates.set(adjustedIndex, new Plate());
         }
-        const plate = plates.get(adjustedIndex)!;
+        const plate = plates[adjustedIndex];
         resultMap.get(adjustedIndex)!.push(h3);
         this.hexTileBuffer.updateTileData(HexGrid.getIndex(h3), {
           hasHotSpot: false,

@@ -344,29 +344,41 @@ void main() {
     vec3 spherePos = uOffset + sphereDirection * uRadius;
     
     uint currentId = getH3IdentifierCube(sphereDirection);
+
+
+
 // Validate h3 index map
     if (currentId == 0u) {
         gl_FragColor = vec4(0.3, 0.3, 0.3, 1.0);
         return;
     }
+    // gl_FragColor = vec4(hashFloat(float(currentId)), 1.0);
+    // return;
     // Validate h3 neighbor map
     uint neighborId = getNeighborH3Id(float(currentId), 0.0);
     if (neighborId == 0u) {
         gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
         return;
     }
+    // gl_FragColor = vec4(hashFloat(float(neighborId)), 1.0);
+    // return;
     // Validate h3 position map
     vec3 position = getH3Position(float(currentId));
     if (position == vec3(0.0, 0.0, 0.0)) {
         gl_FragColor = vec4(0.3, 0.3, 0.3, 1.0);
         return;
     }
+    // gl_FragColor = vec4(normalize(position), 1.0);
+    // return;
     // Validate hex tile float buffer
     float validateFloatData = validateHexTileFloatData(float(currentId));
     if (validateFloatData == 0.0) {
         gl_FragColor = vec4(0.3, 0.3, 0.3, 1.0);
         return;
     }
+
+    gl_FragColor = vec4(hashFloat(float(currentId)), 1.0);
+    return;
 
     vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId);
     uint closestId = uint(closestAndSecondClosest.x);

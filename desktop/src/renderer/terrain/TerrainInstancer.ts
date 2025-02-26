@@ -1,4 +1,4 @@
-import { getState } from "@/state/Context";
+import { getState, subscribe } from "@/state/Context";
 import {
   Camera,
   Color,
@@ -49,6 +49,13 @@ export class TerrainInstancer {
         hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
       },
       // defines: { INITIALIZED: false },
+    });
+
+    subscribe((state) => {
+      this.updateCubeMapFromContext();
+      this.updateNeighborMapFromContext();
+      this.updatePositionMapFromContext();
+      this.updateTileBufferFromContext();
     });
 
     // Initialize instanced mesh
@@ -276,18 +283,23 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
     this.getMaterial().uniforms.h3IndexMap.value =
       buffers.hexCubeMap.cubeTexture;
+    this.getMaterial().needsUpdate = true;
   }
 
   public updateNeighborMapFromContext() {
     const buffers = getState().buffers;
     this.getMaterial().uniforms.h3NeighborMap.value =
       buffers.hexNeighborMap.texture;
+    console.log(this.getMaterial().uniforms.h3NeighborMap.value);
+    this.getMaterial().needsUpdate = true;
   }
 
   public updatePositionMapFromContext() {
     const buffers = getState().buffers;
     this.getMaterial().uniforms.h3PositionMap.value =
       buffers.hexPositionMap.texture;
+    console.log(this.getMaterial().uniforms.h3PositionMap.value);
+    this.getMaterial().needsUpdate = true;
   }
 
   public updateTileBufferFromContext() {
@@ -297,5 +309,6 @@ export class TerrainInstancer {
       buffers.hexTileBuffer.getIntegerTexture();
     material.uniforms.hexTileFloatBuffer.value =
       buffers.hexTileBuffer.getFloatTexture();
+    this.getMaterial().needsUpdate = true;
   }
 }

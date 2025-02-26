@@ -1,43 +1,90 @@
+import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
+import { Plate } from "@/lib/model/tectonics/Plate";
+import { Context, getState, setState } from "@/state/Context";
 import { Dag } from "@ts-dag/builder";
 
-const dag = new Dag<{ value: number }>();
-const fetchDataA = dag.task("fetchDataA", () => {
-  console.log("kicking off fetchDataA");
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ value: 10 });
-    }, 5000);
-  });
+export const dag = new Dag<Context>();
+
+dag.useContext(getState);
+
+const loadBuffers = dag.task("loadBuffers", async (ctx) => {
+  try {
+    console.log("loading buffers");
+    const { buffers } = ctx;
+    console.log("loading cube map");
+    await buffers.hexCubeMap.loadFromWebPFiles([
+      "textures/hex/index-cube-map/face-0.webp",
+      "textures/hex/index-cube-map/face-1.webp",
+      "textures/hex/index-cube-map/face-2.webp",
+      "textures/hex/index-cube-map/face-3.webp",
+      "textures/hex/index-cube-map/face-4.webp",
+      "textures/hex/index-cube-map/face-5.webp",
+    ]);
+    console.log("loading neighbor map");
+    await buffers.hexNeighborMap.loadFromWebP("textures/hex/neighbor-map.webp");
+    console.log("loading position map");
+    await buffers.hexPositionMap.loadFromBinary(
+      "textures/hex/position-map.bin"
+    );
+    console.log("buffers loaded ");
+    setState({
+      buffers: {
+        ...buffers,
+        hexCubeMap: buffers.hexCubeMap,
+        hexNeighborMap: buffers.hexNeighborMap,
+        hexPositionMap: buffers.hexPositionMap,
+      },
+    });
+  } catch (error) {
+    console.error("Error loading buffers", error);
+  }
+
+  return ctx;
 });
 
-const fetchDataB = dag.task("fetchDataB", () => {
-  console.log("kicking off fetchDataB");
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ value: 20 });
-    }, 5000);
+const generatePlates = dag.task("generatePlates", async (ctx) => {
+  console.log("generating plates");
+  const {
+    tectonics: { numPlates },
+  } = ctx;
+  const plates = new Array(numPlates).fill(0).map((_, i) => {
+    return new Plate();
   });
+  const newContext = { ...ctx, tectonics: { ...ctx.tectonics, plates } };
+  setState(newContext);
+  ctx = newContext;
+  return ctx;
 });
 
-const processData = dag.task(
-  "processData",
+const generatePlateHexBuffers = dag.task(
+  "generatePlateHexBuffers",
   async (ctx) => {
-    const dataA = fetchDataA.output; // Access output of fetchData
-    const dataB = fetchDataB.output; // Access output of fetchData
-    console.log("processData", dataA.value, dataB.value);
-    return { value: dataA.value + dataB.value };
+    try {
+      console.log("generating plate hex buffers");
+      const hexTileBuffer = (
+        await HexGridFloodFill.doFloodfill(
+          4,
+          ctx.buffers.hexTileBuffer,
+          ctx.tectonics.plates
+        )
+      ).hexTileBuffer;
+      console.log("plate hex buffers generated");
+      const newContext = { ...ctx, buffers: { ...ctx.buffers, hexTileBuffer } };
+      setState(newContext);
+      return newContext;
+    } catch (error) {
+      console.error("Error generating plate hex buffers", error);
+    }
+    return ctx;
   },
-  [fetchDataA, fetchDataB]
+  [loadBuffers, generatePlates]
 );
 
-dag.task(
-  "processDataLeaf",
-  async (ctx) => {
-    return { value: 1 };
-  },
-  []
-);
+//  When any input changes, we run the dag
+// dat propogates from the input to the output
+
+// we hash the inputs and passthrough if the inputs haven't changed
+//
 export const runTaskGraph = async () => {
-  console.log({ DAG: dag }, dag.topologicalSort());
   await dag.run();
 };

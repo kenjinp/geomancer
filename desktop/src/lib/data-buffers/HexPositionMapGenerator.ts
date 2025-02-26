@@ -133,7 +133,9 @@ export class HexPositionMapGenerator {
 
   public async loadFromBinary(url: string): Promise<HexPositionMapGenerator> {
     try {
+      console.log("loading position map from binary", url);
       const response = await fetch(url);
+      console.log("loading position map from binary", response.status);
       const buffer = await response.arrayBuffer();
       const view = new DataView(buffer);
 
@@ -147,6 +149,9 @@ export class HexPositionMapGenerator {
       const width = view.getUint32(8);
       const height = view.getUint32(12);
 
+      this.metadata.width = width;
+      this.metadata.height = height;
+
       if (version !== this.VERSION) {
         throw new Error(`Unsupported version: ${version}`);
       }
@@ -158,6 +163,7 @@ export class HexPositionMapGenerator {
 
       return this;
     } catch (error) {
+      console.error("Error loading position map from binary:", error);
       throw error;
     }
   }

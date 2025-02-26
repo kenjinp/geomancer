@@ -172,6 +172,7 @@ export class HexNeighborMapGenerator {
 
       return this;
     } catch (error) {
+      console.error("Error loading neighbor map from WebP:", error);
       throw error;
     }
   }

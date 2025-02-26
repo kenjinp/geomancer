@@ -8,7 +8,7 @@ import Rand from "rand-seed";
 import { Vector3 } from "three";
 import { createStore } from "zustand/vanilla";
 
-interface Context {
+export interface Context {
   random: {
     seed: number;
     seededRandom: Rand;
