@@ -120,3 +120,10 @@ fn calculateCost(pos: vec3<f32>, seed: f32, scale: f32, octaves: i32) -> f32 {
     let noise = warp_fbm(offsetPos * scale, octaves);
     return noise;
 } 
+
+// Remap a value from one range to another
+fn remap(value: f32, fromMin: f32, fromMax: f32, toMin: f32, toMax: f32) -> f32 {
+    let fromRange = fromMax - fromMin;
+    let toRange = toMax - toMin;
+    return toMin + (((value - fromMin) * toRange) / fromRange);
+}
