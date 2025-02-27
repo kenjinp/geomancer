@@ -118,7 +118,7 @@ const generateTerrainElevations = dag.task(
         {
           octaves: 20,
           persistence: 0.707,
-          scale: 0.01,
+          scale: 0.07,
           warpStrength: 0.6,
           baseStrength: 0.4,
           // seed: 1,
