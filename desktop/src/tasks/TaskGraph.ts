@@ -116,12 +116,12 @@ const generateTerrainElevations = dag.task(
         ctx.buffers.hexTileBuffer,
         ctx.buffers.hexPositionMap,
         {
-          octaves: 14,
+          octaves: 20,
           persistence: 0.707,
-          scale: 0.007,
-          warpStrength: 0.7,
-          baseStrength: 0.3,
-          seed: 123.456,
+          scale: 0.01,
+          warpStrength: 0.6,
+          baseStrength: 0.4,
+          // seed: 1,
         }
       );
 

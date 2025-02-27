@@ -167,7 +167,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let pos = vec3<f32>(x, y, z);
 
     // Add seed offset to position
-    let offsetPos = pos + vec3<f32>(params.seed * 123.456, params.seed * 789.012, params.seed * 345.678);
+    let offsetPos = pos + vec3<f32>(params.seed * 41, params.seed * 43, params.seed * 47);
 
     // Use the improved spherical noise function with seeded position
     var noise = params.warpStrength * warp_fbm_sphere(offsetPos * params.scale, i32(params.octaves)) + 
