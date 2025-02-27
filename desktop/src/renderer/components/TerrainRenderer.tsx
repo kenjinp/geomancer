@@ -1,6 +1,7 @@
 import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
 import { integerToRGB } from "@/lib/images/colorUtils";
+import { getState } from "@/state/Context";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -68,13 +69,20 @@ export function TerrainRenderer({
     quadtreeRef.current.maxDepth = maxDepth;
     quadtreeRef.current.updateLOD(camera.position, radius, position);
     instancerRef.current.update(camera);
+    instancerRef.current.setSelectedTile(hoveredHexTileIndex.current);
 
     const latLong = LatLong.cartesianToLatLong(
       sphereWorldPosition.current.normalize()
     );
 
     const mouseFollower = document.getElementById("mouse-follower");
-    if (mouseFollower) {
+    if (mouseFollower && hoveredHexTileIndex.current >= 0) {
+      const state = getState();
+      const hexTileBuffer = state.buffers.hexTileBuffer;
+      const hexTileData = hexTileBuffer.readTileData(
+        hoveredHexTileIndex.current
+      );
+
       const hashColor = integerToRGB(hoveredHexTileIndex.current);
       const hashColorString = hashColor.join(",");
       const hashColorRGB = `rgb(${hashColorString})`;
@@ -82,6 +90,7 @@ export function TerrainRenderer({
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
         <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
+        <span>${hexTileData.elevation.toFixed(2)}</span>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 

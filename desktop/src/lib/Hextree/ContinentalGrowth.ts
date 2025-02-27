@@ -1,5 +1,6 @@
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
+import { HexPositionMapGenerator } from "../data-buffers/HexPositionMapGenerator";
 import { CrustSubtype, HexTileBuffer } from "../data-buffers/HexTileBuffer";
 import { Plate } from "../model/tectonics/Plate";
 import { GPUDevice } from "./WebGPU";
@@ -16,11 +17,13 @@ export class ContinentalGrowth {
   private totalCells: number;
   private targetLandCells: number;
   private plateIDBuffer: GPUBuffer;
+  private positionBuffer: GPUBuffer;
 
   constructor(
     private plates: Plate[],
     private tileBuffer: HexTileBuffer,
     private neighborMap: HexNeighborMapGenerator,
+    private positionMap: HexPositionMapGenerator,
     private config: {
       platePercentage: number;
       seedPercentage: number;
@@ -36,6 +39,7 @@ export class ContinentalGrowth {
     plates: Plate[],
     tileBuffer: HexTileBuffer,
     neighborMap: HexNeighborMapGenerator,
+    positionMap: HexPositionMapGenerator,
     config: {
       platePercentage: number;
       seedPercentage: number;
@@ -47,6 +51,7 @@ export class ContinentalGrowth {
       plates,
       tileBuffer,
       neighborMap,
+      positionMap,
       config
     );
     await instance.initialize();
@@ -73,6 +78,21 @@ export class ContinentalGrowth {
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     this.device.queue.writeBuffer(this.plateIDBuffer, 0, plateIDs);
+
+    // Create position buffer using precomputed data
+    const positions = new Float32Array(this.totalCells * 3);
+    const positionData = this.positionMap.texture.image.data; // Float32Array from texture
+    for (let i = 0; i < this.totalCells; i++) {
+      positions[i * 3] = positionData[i * 4]; // x from R channel
+      positions[i * 3 + 1] = positionData[i * 4 + 1]; // y from G channel
+      positions[i * 3 + 2] = positionData[i * 4 + 2]; // z from B channel
+    }
+
+    this.positionBuffer = this.device.createBuffer({
+      size: positions.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(this.positionBuffer, 0, positions);
 
     // Neighbor buffer (same as floodfill)
     const neighborData = await this.createNeighborData();
@@ -180,6 +200,7 @@ export class ContinentalGrowth {
           },
         },
         { binding: 5, resource: { buffer: this.plateIDBuffer } },
+        { binding: 6, resource: { buffer: this.positionBuffer } },
       ],
     });
   }
@@ -396,6 +417,7 @@ export class ContinentalGrowth {
       ...this.frontierBuffers,
       this.uniformBuffer,
       this.plateIDBuffer,
+      this.positionBuffer,
     ].forEach((b) => b.destroy());
   }
 }

@@ -1,12 +1,17 @@
-import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
+import { TerrainElevationGenerator } from "@/lib/Hextree/TerrainElevationGenerator";
 import { Plate } from "@/lib/model/tectonics/Plate";
 import { Context, getState, setState } from "@/state/Context";
 import { Dag } from "@ts-dag/builder";
 
 export const dag = new Dag<Context>();
 
-dag.useContext(getState);
+dag.useContext(async () => {
+  const ctx = getState();
+  // const buffers = ctx.buffers;
+  // await buffers.hexPositionMap.downloadBinary("position-map.bin");
+  return ctx;
+});
 
 const loadBuffers = dag.task("loadBuffers", async (ctx) => {
   try {
@@ -43,7 +48,7 @@ const loadBuffers = dag.task("loadBuffers", async (ctx) => {
   return ctx;
 });
 
-const generatePlates = dag.task("generatePlates", async (ctx) => {
+const generatePlates = dag.task("generatePlates", async (ctx, meta) => {
   console.log("generating plates", ctx.tectonics.numPlates);
   const {
     tectonics: { numPlates },
@@ -54,6 +59,7 @@ const generatePlates = dag.task("generatePlates", async (ctx) => {
   console.log("generated plates", plates);
   const newContext = { ...ctx, tectonics: { ...ctx.tectonics, plates } };
   ctx = newContext;
+  // await meta.state.set("plates", plates);
   setState(newContext);
   return plates;
 });
@@ -84,19 +90,47 @@ const generatePlateHexBuffers = dag.task(
   [loadBuffers, generatePlates]
 );
 
-const generateContinentalData = dag.task(
-  "generateContinentalData",
+// const generateContinentalData = dag.task(
+//   "generateContinentalData",
+//   async (ctx) => {
+//     console.log("generating continental data");
+//     const growth = await ContinentalGrowth.create(
+//       generatePlates.output,
+//       ctx.buffers.hexTileBuffer,
+//       ctx.buffers.hexNeighborMap,
+//       ctx.buffers.hexPositionMap,
+//       ctx.tectonics.continentalSeedConfig
+//     );
+//     await growth.growContinents();
+//     growth.destroy();
+//     console.log("continental data generated");
+//   },
+//   [generatePlateHexBuffers, generatePlates]
+// );
+
+const generateTerrainElevations = dag.task(
+  "generateTerrainElevations",
   async (ctx) => {
-    console.log("generating continental data");
-    const growth = await ContinentalGrowth.create(
-      generatePlates.output,
-      ctx.buffers.hexTileBuffer,
-      ctx.buffers.hexNeighborMap,
-      ctx.tectonics.continentalSeedConfig
-    );
-    await growth.growContinents();
-    growth.destroy();
-    console.log("continental data generated");
+    try {
+      const elevationGen = await TerrainElevationGenerator.create(
+        ctx.buffers.hexTileBuffer,
+        ctx.buffers.hexPositionMap,
+        {
+          octaves: 14,
+          persistence: 0.707,
+          scale: 0.007,
+          warpStrength: 0.7,
+          baseStrength: 0.3,
+          seed: 123.456,
+        }
+      );
+
+      await elevationGen.generateElevations();
+      elevationGen.destroy();
+      console.log("terrain elevations generated");
+    } catch (error) {
+      console.error(error);
+    }
   },
   [generatePlateHexBuffers, generatePlates]
 );
