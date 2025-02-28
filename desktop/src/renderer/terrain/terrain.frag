@@ -9,6 +9,7 @@ uniform sampler2D hexTileFloatBuffer;
 uniform vec3 uOffset;
 uniform float uRadius;
 uniform float uSelectedTile;
+uniform uint uMapMode;
 varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
@@ -416,7 +417,17 @@ void main() {
 
     // vec3 baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
 
-    vec3 baseColor = getColorForElevation(remap(elevation, -1.0, 1.0, -8000.0, 8000.0)).rgb;
+    vec3 baseColor = vec3(0.3);
+
+    if (uMapMode == 1u) {
+        baseColor = getColorForElevation(remap(elevation, -1.0, 1.0, -8000.0, 8000.0)).rgb;
+    }
+    if (uMapMode == 2u) {
+        baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
+    }
+    if (uMapMode == 3u) {
+        baseColor = cellColor;
+    }
 
     float axialTilt = 23.4;
     vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));

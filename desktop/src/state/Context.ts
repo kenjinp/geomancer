@@ -8,7 +8,23 @@ import Rand from "rand-seed";
 import { Vector3 } from "three";
 import { createStore } from "zustand/vanilla";
 
+export enum MapMode {
+  REALISTIC,
+  ELEVATION,
+  PLATES,
+  HEXGRID,
+}
+
+export enum MapLayer {
+  HEXGRID,
+  LATLONG,
+  CONTOUR,
+  PLATE_BOUNDARIES,
+}
+
 export interface Context {
+  mapMode: MapMode;
+  mapLayers: MapLayer[];
   random: {
     seed: number;
     seededRandom: Rand;
@@ -38,6 +54,8 @@ export interface Context {
 }
 
 export const initialContext: Context = {
+  mapMode: MapMode.ELEVATION,
+  mapLayers: [],
   random: {
     seed: 0,
     seededRandom: new Rand("0"),

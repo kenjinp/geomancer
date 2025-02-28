@@ -76,7 +76,11 @@ export function TerrainRenderer({
     );
 
     const mouseFollower = document.getElementById("mouse-follower");
-    if (mouseFollower && hoveredHexTileIndex.current >= 0) {
+    if (mouseFollower) {
+      if (hoveredHexTileIndex.current && hoveredHexTileIndex.current < 0) {
+        mouseFollower.innerHTML = null;
+        return;
+      }
       const state = getState();
       const hexTileBuffer = state.buffers.hexTileBuffer;
       const hexTileData = hexTileBuffer.readTileData(

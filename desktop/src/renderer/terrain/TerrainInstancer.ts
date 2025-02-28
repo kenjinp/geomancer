@@ -30,13 +30,14 @@ export class TerrainInstancer {
   }
 
   public async initialize() {
-    const { buffers } = getState();
+    const { buffers, mapMode } = getState();
 
     // Create shader material
     this.material = new ShaderMaterial({
       vertexShader,
       fragmentShader,
       uniforms: {
+        uMapMode: { value: mapMode },
         uSelectedTile: { value: -1 },
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
@@ -52,6 +53,7 @@ export class TerrainInstancer {
     });
 
     subscribe((state) => {
+      this.getMaterial().uniforms.uMapMode.value = state.mapMode;
       this.updateCubeMapFromContext();
       this.updateNeighborMapFromContext();
       this.updatePositionMapFromContext();
@@ -290,7 +292,6 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
     this.getMaterial().uniforms.h3NeighborMap.value =
       buffers.hexNeighborMap.texture;
-    console.log(this.getMaterial().uniforms.h3NeighborMap.value);
     this.getMaterial().needsUpdate = true;
   }
 
@@ -298,7 +299,6 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
     this.getMaterial().uniforms.h3PositionMap.value =
       buffers.hexPositionMap.texture;
-    console.log(this.getMaterial().uniforms.h3PositionMap.value);
     this.getMaterial().needsUpdate = true;
   }
 
