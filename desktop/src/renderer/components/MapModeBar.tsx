@@ -38,6 +38,14 @@ export const MapModeBar: React.FC = () => {
       label: "LatLong",
       mapLayer: MapLayer.LATLONG,
     },
+    {
+      label: "Realistic Lighting",
+      mapLayer: MapLayer.REALISTIC_LIGHTING,
+    },
+    {
+      label: "Atmosphere",
+      mapLayer: MapLayer.ATMOSPHERE,
+    },
     // {
     //   label: "Plate Boundaries",
     //   mapLayer: MapLayer.PLATE_BOUNDARIES,

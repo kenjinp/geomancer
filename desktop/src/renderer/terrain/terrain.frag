@@ -344,6 +344,32 @@ float getGridFromFloat(float localPosition, float size, float thickness) {
     return 1.0 - min(line, 1.0);
 }
 
+// Add these lighting functions
+float calculateDiffuseLighting(vec3 normal, vec3 lightDir) {
+    return max(dot(normal, lightDir), 0.0);
+}
+
+vec3 calculateSurfaceNormal(vec3 position, uint cellId) {
+    // Get the center of the current cell
+    vec3 cellCenter = normalize(getH3Position(float(cellId)));
+    
+    // For a sphere, the normal at any point is just the normalized position
+    return normalize(position);
+}
+
+vec3 applyLighting(vec3 baseColor, vec3 normal, vec3 lightDir) {
+    // Ambient light component
+    float ambientStrength = 0.00001;
+    vec3 ambient = ambientStrength * baseColor;
+    
+    // Diffuse light component
+    float diff = calculateDiffuseLighting(normal, lightDir);
+    vec3 diffuse = diff * baseColor;
+    
+    // Combine lighting
+    return ambient + diffuse;
+}
+
 void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
     vec3 sphereDirection = normalize(worldPos - uOffset);
@@ -457,6 +483,16 @@ void main() {
     float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
     float combinedGrid = (grid + grid2 + grid3) * showGrid;
 
+    // Calculate surface normal and apply lighting
+    // appliy lighting as if it's coming from 15 degress north of the equator
+    vec3 lightDir = normalize(vec3(1.0, 0.4, 0.0)); 
+    vec3 normal = calculateSurfaceNormal(spherePos, closestId);
+    
+    if (getMapLayer(2u)) {
+        // Apply lighting to the base color before adding grid lines and edges
+        baseColor = applyLighting(baseColor, normal, lightDir);
+    }
+
     vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
 
     // globe grid
@@ -508,10 +544,14 @@ void main() {
         edge = getEdgeFactor(spherePos, closestId, edgeWidth);
     }
 
-
     vec3 finalColor = mix(combinedGridColors, edgeColor, edge);
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
-    
-    
+
+    // Ensure proper depth handling and no color bleeding
     gl_FragColor = vec4(finalColor, 1.0);
+    
+    // Discard transparent pixels to ensure proper depth handling
+    if (gl_FragColor.a < 0.01) {
+        discard;
+    }
 }

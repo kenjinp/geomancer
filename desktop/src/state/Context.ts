@@ -18,7 +18,8 @@ export enum MapMode {
 export enum MapLayer {
   HEXGRID,
   LATLONG,
-  CONTOUR,
+  REALISTIC_LIGHTING,
+  ATMOSPHERE,
   PLATE_BOUNDARIES,
 }
 

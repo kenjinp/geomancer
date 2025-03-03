@@ -1,5 +1,5 @@
 import { NextUIProvider } from "@nextui-org/react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, PanelGroup } from "react-resizable-panels";
 import "../styles/app.css";
 import { Home } from "../views/Home";
 import { Canvas } from "./Canvas";
@@ -52,10 +52,10 @@ export function App() {
               </div>
             </div>
           </Panel>
-          <PanelResizeHandle className="w-1 bg-dark" />
+          {/* <PanelResizeHandle className="w-1 bg-dark" />
           <Panel defaultSize={25} collapsible order={2}>
             <div id="node-debug" className="p-2"></div>
-          </Panel>
+          </Panel> */}
         </PanelGroup>
       </div>
       {/* </QuadtreeProvider> */}

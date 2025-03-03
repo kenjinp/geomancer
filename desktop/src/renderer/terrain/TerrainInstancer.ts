@@ -11,8 +11,8 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
+import fragmentShader from "../shaders/terrain/terrain.frag";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
-import fragmentShader from "./terrain.frag";
 import vertexShader from "./terrain.vert";
 
 export class TerrainInstancer {
@@ -42,6 +42,11 @@ export class TerrainInstancer {
     this.material = new ShaderMaterial({
       vertexShader,
       fragmentShader,
+      depthWrite: true,
+      depthTest: true,
+      stencilWrite: false,
+      transparent: false,
+      opacity: 1.0,
       uniforms: {
         uMapMode: { value: mapMode },
         uMapLayers: { value: this.packMapLayers() },

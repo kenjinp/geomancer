@@ -71,7 +71,7 @@
     "@nextui-org/theme": "^2.4.5",
     "@react-three/drei": "9.121.3",
     "@react-three/fiber": "9.0.0-rc.1",
-    "@react-three/postprocessing": "^2.19.0",
+    "@react-three/postprocessing": "^3.0.4",
     "@ts-dag/builder": "^0.1.0-alpha.6",
     "autoprefixer": "^10.4.20",
     "clsx": "^2.1.1",
