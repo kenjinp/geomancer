@@ -38,10 +38,10 @@ export const MapModeBar: React.FC = () => {
       label: "LatLong",
       mapLayer: MapLayer.LATLONG,
     },
-    {
-      label: "Plate Boundaries",
-      mapLayer: MapLayer.PLATE_BOUNDARIES,
-    },
+    // {
+    //   label: "Plate Boundaries",
+    //   mapLayer: MapLayer.PLATE_BOUNDARIES,
+    // },
   ];
 
   return (

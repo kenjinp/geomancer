@@ -29,6 +29,12 @@ export class TerrainInstancer {
     this.offset = getState().transform.offset;
   }
 
+  packMapLayers() {
+    const { mapLayers } = getState();
+    // use bitpacking to pack the map layers into a single number
+    return mapLayers.reduce((acc, layer) => acc | (1 << layer), 0);
+  }
+
   public async initialize() {
     const { buffers, mapMode } = getState();
 
@@ -38,6 +44,7 @@ export class TerrainInstancer {
       fragmentShader,
       uniforms: {
         uMapMode: { value: mapMode },
+        uMapLayers: { value: this.packMapLayers() },
         uSelectedTile: { value: -1 },
         uRadius: { value: this.radius },
         uOffset: { value: this.offset },
@@ -54,6 +61,7 @@ export class TerrainInstancer {
 
     subscribe((state) => {
       this.getMaterial().uniforms.uMapMode.value = state.mapMode;
+      this.getMaterial().uniforms.uMapLayers.value = this.packMapLayers();
       this.updateCubeMapFromContext();
       this.updateNeighborMapFromContext();
       this.updatePositionMapFromContext();

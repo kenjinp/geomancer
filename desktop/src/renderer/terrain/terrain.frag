@@ -13,6 +13,11 @@ uniform uint uMapMode;
 varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
+uniform uint uMapLayers;
+
+bool getMapLayer(uint layer) {
+    return bool((uMapLayers >> layer) & 1u);
+}
 
 // Add these noise functions near the top of the file
 vec2 random2(float n) {
@@ -429,6 +434,11 @@ void main() {
         baseColor = cellColor;
     }
 
+    float showGrid = 0.0;
+    if (getMapLayer(1u)) {
+        showGrid = 1.0;
+    }
+
     float axialTilt = 23.4;
     vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));
     vec2 tropicLines = vec2(axialTilt, -axialTilt);
@@ -445,7 +455,7 @@ void main() {
     float grid = getGrid(latlongUVWithReps, 1.0, lineWidth) * uLatLongGridAlpha;
     float grid2 = getGrid(latlongUVWithReps, 0.5, lineWidth) * uSubgridAlpha;
     float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
-    float combinedGrid = grid + grid2 + grid3;
+    float combinedGrid = (grid + grid2 + grid3) * showGrid;
 
     vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
 
@@ -460,9 +470,9 @@ void main() {
     float tropics = tropicCapricorn + tropicCancer;
     float polarCircles = arcticCircle + antarcticCircle;
 
-    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2 * uLatLongGridAlpha);
-    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics * uTropicsAlpha);
-    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles * uPolarCirclesAlpha);
+    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2 * uLatLongGridAlpha * showGrid);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics * uTropicsAlpha * showGrid);
+    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles * uPolarCirclesAlpha * showGrid);
 
     
     // // Example: Color based on crust type and temperature
@@ -484,19 +494,21 @@ void main() {
     vec3 edgeColor = vec3(0.0, 0.0, 0.0);
     bool isEdge = intData.tectonicPlate != secondIntData.tectonicPlate;
     float edgeWidth = 0.0006;
-    // If neighbor cell has a different tectonic plate, color the edge
-    if (isEdge) {
-        edgeColor = vec3(1.0, 0.0, 0.0);
-        edgeWidth = 0.002;
-    }
+    
 
     if (uSelectedTile > -1.0 && uSelectedTile == float(closestId)) {
         combinedGridColors = vec3(1.0, 0.0, 0.0);
     }
 
 
+
     // Apply edge effect
-    float edge = getEdgeFactor(spherePos, closestId, edgeWidth);
+    float edge = 0.0;
+    if (getMapLayer(0u)) {
+        edge = getEdgeFactor(spherePos, closestId, edgeWidth);
+    }
+
+
     vec3 finalColor = mix(combinedGridColors, edgeColor, edge);
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
     
