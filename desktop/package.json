@@ -72,6 +72,7 @@
     "@react-three/drei": "9.121.3",
     "@react-three/fiber": "9.0.0-rc.1",
     "@react-three/postprocessing": "^3.0.4",
+    "@takram/three-atmosphere": "^0.10.0",
     "@ts-dag/builder": "^0.1.0-alpha.6",
     "autoprefixer": "^10.4.20",
     "clsx": "^2.1.1",

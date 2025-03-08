@@ -12,8 +12,8 @@ import {
   Vector3,
 } from "three";
 import fragmentShader from "../shaders/terrain/terrain.frag";
+import vertexShader from "../shaders/terrain/terrain.vert";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
-import vertexShader from "./terrain.vert";
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
@@ -38,7 +38,6 @@ export class TerrainInstancer {
   public async initialize() {
     const { buffers, mapMode } = getState();
 
-    // Create shader material
     this.material = new ShaderMaterial({
       vertexShader,
       fragmentShader,
@@ -61,7 +60,25 @@ export class TerrainInstancer {
         hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
         hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
       },
-      // defines: { INITIALIZED: false },
+      // patchMap: {
+      //   "*": {
+      //     "vec4 mvPosition = vec4( transformed, 1.0 );": `
+      //     // Calculate sphere-projected position
+      //     vec4 instancedPosition = instanceMatrix * vec4(position, 1.0);
+      //     vec4 worldPosition = modelMatrix * instancedPosition;
+      //     vec3 sphereDirection = normalize(worldPosition.xyz - uOffset);
+      //     vec3 spherePosition = uOffset + sphereDirection * uRadius;
+
+      //     // Store the world position for fragment shader
+      //     vWorldPosition = vec4(spherePosition, 1.0);
+
+      //     // Set the position directly
+      //     vec4 mvPosition = viewMatrix * vec4(spherePosition, 1.0);
+      //     `,
+      //     "#ifdef USE_INSTANCING\n  mvPosition = instanceMatrix * mvPosition;\n#endif":
+      //       "// Instancing already applied",
+      //   },
+      // },
     });
 
     subscribe((state) => {
@@ -283,6 +300,7 @@ export class TerrainInstancer {
     this.processNodeUpdates(
       this.quadtree.getVisibleNodes(camera, radius, this.offset)
     );
+    this.getMaterial().needsUpdate = true;
   }
 
   public setSelectedTile(hexIndex: number | null) {

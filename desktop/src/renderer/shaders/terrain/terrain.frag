@@ -108,12 +108,12 @@ void main() {
 
     // Apply lighting if enabled
     vec3 lightDir = normalize(vec3(1.0, 0.4, 0.0)); 
-    vec3 normal = calculateSurfaceNormal(spherePos, closestId);
+    // vec3 normal = calculateSurfaceNormal(spherePos, closestId);
     
-    if (getMapLayer(2u)) {
-        // Apply lighting to the base color before adding grid lines and edges
-        baseColor = applyLighting(baseColor, normal, lightDir);
-    }
+    // if (getMapLayer(2u)) {
+    //     // Apply lighting to the base color before adding grid lines and edges
+    //     baseColor = applyLighting(baseColor, normal, lightDir);
+    // }
 
     vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
 
@@ -152,9 +152,4 @@ void main() {
 
     // Ensure proper depth handling and no color bleeding
     gl_FragColor = vec4(finalColor, 1.0);
-    
-    // Discard transparent pixels to ensure proper depth handling
-    if (gl_FragColor.a < 0.01) {
-        discard;
-    }
 } 

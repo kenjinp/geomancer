@@ -50,14 +50,14 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
 
           {children}
           <OrbitCamera planetRadius={radius} />
-          {/* <ambientLight intensity={Math.PI / 2} />
+          <ambientLight intensity={Math.PI / 20} />
           <spotLight
             position={[radius * 10, radius * 10, radius * 10]}
             angle={0.15}
             penumbra={1}
             decay={0}
-            intensity={Math.PI / 4}
-          /> */}
+            intensity={Math.PI}
+          />
         </Post>
       </Suspense>
       <Background />

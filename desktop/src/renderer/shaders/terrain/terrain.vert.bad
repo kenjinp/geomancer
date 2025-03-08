@@ -1,0 +1,36 @@
+uniform float uRadius;
+uniform vec3 uOffset;
+varying vec4 vWorldPosition;
+varying float vInstanceId;
+varying vec3 vColor;
+
+void main() {
+    // Get instance information
+    vInstanceId = float(gl_InstanceID);
+    
+    // Calculate sphere-projected position
+    vec4 instancedPosition = instanceMatrix * vec4(position, 1.0);
+    vec4 worldPosition = modelMatrix * instancedPosition;
+    vec3 sphereDirection = normalize(worldPosition.xyz - uOffset);
+    vec3 spherePosition = uOffset + sphereDirection * uRadius;
+    
+    // Store the world position for fragment shader
+    vWorldPosition = vec4(spherePosition, 1.0);
+    
+    // Calculate the inverse transforms to get back to object space
+    // This is the key insight - we need to transform our sphere position BACK to object space
+    // so that when the CSM pipeline applies all the forward transforms, we end up with our sphere position
+    vec4 modelViewSpherePos = viewMatrix * vec4(spherePosition, 1.0);
+    
+    // We need to apply the inverse of the transforms that will be applied later
+    // The debug output shows: mvPosition = modelViewMatrix * (instanceMatrix * transformed)
+    // So we need to apply the inverse of these
+    mat4 inverseModelViewMatrix = inverse(modelViewMatrix);
+    mat4 inverseInstanceMatrix = inverse(instanceMatrix);
+    
+    // Transform back to the space that csm_Position expects
+    vec4 objectSpacePos = inverseInstanceMatrix * inverseModelViewMatrix * modelViewSpherePos;
+    
+    // Set csm_Position to our pre-transformed position
+    csm_Position = objectSpacePos.xyz;
+}

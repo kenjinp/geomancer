@@ -10,6 +10,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   // You might not need those. They are needed when importing modules with
   // top-level await such as three/examples/jsm/capabilities/WebGPU
+
   optimizeDeps: {
     esbuildOptions: { target: "esnext" },
     exclude: ["@jsquash/webp"],
@@ -33,6 +34,8 @@ export default defineConfig({
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
+      "Content-Security-Policy":
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
     },
   },
 });

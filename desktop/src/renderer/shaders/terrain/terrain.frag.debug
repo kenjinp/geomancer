@@ -1,0 +1,2539 @@
+----Fragment Shader Code----
+ 1:		#version 300 es
+ 2:		#define varying in
+ 3:		layout(location = 0) out highp vec4 pc_fragColor;
+ 4:		#define gl_FragColor pc_fragColor
+ 5:		#define gl_FragDepthEXT gl_FragDepth
+ 6:		#define texture2D texture
+ 7:		#define textureCube texture
+ 8:		#define texture2DProj textureProj
+ 9:		#define texture2DLodEXT textureLod
+10:		#define texture2DProjLodEXT textureProjLod
+11:		#define textureCubeLodEXT textureLod
+12:		#define texture2DGradEXT textureGrad
+13:		#define texture2DProjGradEXT textureProjGrad
+14:		#define textureCubeGradEXT textureGrad
+15:		precision highp float;
+16:		  precision highp int;
+17:		  precision highp sampler2D;
+18:		  precision highp samplerCube;
+19:		  precision highp sampler3D;
+20:		  precision highp sampler2DArray;
+21:		  precision highp sampler2DShadow;
+22:		  precision highp samplerCubeShadow;
+23:		  precision highp sampler2DArrayShadow;
+24:		  precision highp isampler2D;
+25:		  precision highp isampler3D;
+26:		  precision highp isamplerCube;
+27:		  precision highp isampler2DArray;
+28:		  precision highp usampler2D;
+29:		  precision highp usampler3D;
+30:		  precision highp usamplerCube;
+31:		  precision highp usampler2DArray;
+32:		  
+33:		#define HIGH_PRECISION
+34:		#define SHADER_TYPE MeshPhysicalMaterial
+35:		#define SHADER_NAME CustomShaderMaterial<MeshPhysicalMaterial>
+36:		#define STANDARD 
+37:		#define PHYSICAL 
+38:		#define USE_LOGDEPTHBUF
+39:		uniform mat4 viewMatrix;
+40:		uniform vec3 cameraPosition;
+41:		uniform bool isOrthographic;
+42:		#define OPAQUE
+43:		vec4 LinearTransferOETF( in vec4 value ) {
+44:		  return value;
+45:		}
+46:		vec4 sRGBTransferEOTF( in vec4 value ) {
+47:		  return vec4( mix( pow( value.rgb * 0.9478672986 + vec3( 0.0521327014 ), vec3( 2.4 ) ), value.rgb * 0.0773993808, vec3( lessThanEqual( value.rgb, vec3( 0.04045 ) ) ) ), value.a );
+48:		}
+49:		vec4 sRGBTransferOETF( in vec4 value ) {
+50:		  return vec4( mix( pow( value.rgb, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 ), value.rgb * 12.92, vec3( lessThanEqual( value.rgb, vec3( 0.0031308 ) ) ) ), value.a );
+51:		}
+52:		vec4 linearToOutputTexel( vec4 value ) {
+53:		  return LinearTransferOETF( vec4( value.rgb * mat3( 1.0000,-0.0000,-0.0000,-0.0000,1.0000,0.0000,0.0000,0.0000,1.0000 ), value.a ) );
+54:		}
+55:		float luminance( const in vec3 rgb ) {
+56:		  const vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
+57:		  return dot( weights, rgb );
+58:		}
+59:		
+60:		#define IS_MESHPHYSICALMATERIAL;
+61:		#define IS_FRAGMENT
+62:		#define STANDARD
+63:		#ifdef PHYSICAL
+64:		  #define IOR
+65:		  #define USE_SPECULAR
+66:		#endif
+67:		uniform vec3 diffuse;
+68:		uniform vec3 emissive;
+69:		uniform float roughness;
+70:		uniform float metalness;
+71:		uniform float opacity;
+72:		#ifdef IOR
+73:		  uniform float ior;
+74:		#endif
+75:		#ifdef USE_SPECULAR
+76:		  uniform float specularIntensity;
+77:		  uniform vec3 specularColor;
+78:		  #ifdef USE_SPECULAR_COLORMAP
+79:		    uniform sampler2D specularColorMap;
+80:		  #endif
+81:		  #ifdef USE_SPECULAR_INTENSITYMAP
+82:		    uniform sampler2D specularIntensityMap;
+83:		  #endif
+84:		#endif
+85:		#ifdef USE_CLEARCOAT
+86:		  uniform float clearcoat;
+87:		  uniform float clearcoatRoughness;
+88:		#endif
+89:		#ifdef USE_DISPERSION
+90:		  uniform float dispersion;
+91:		#endif
+92:		#ifdef USE_IRIDESCENCE
+93:		  uniform float iridescence;
+94:		  uniform float iridescenceIOR;
+95:		  uniform float iridescenceThicknessMinimum;
+96:		  uniform float iridescenceThicknessMaximum;
+97:		#endif
+98:		#ifdef USE_SHEEN
+99:		  uniform vec3 sheenColor;
+100:		  uniform float sheenRoughness;
+101:		  #ifdef USE_SHEEN_COLORMAP
+102:		    uniform sampler2D sheenColorMap;
+103:		  #endif
+104:		  #ifdef USE_SHEEN_ROUGHNESSMAP
+105:		    uniform sampler2D sheenRoughnessMap;
+106:		  #endif
+107:		#endif
+108:		#ifdef USE_ANISOTROPY
+109:		  uniform vec2 anisotropyVector;
+110:		  #ifdef USE_ANISOTROPYMAP
+111:		    uniform sampler2D anisotropyMap;
+112:		  #endif
+113:		#endif
+114:		varying vec3 vViewPosition;
+115:		#define PI 3.141592653589793
+116:		#define PI2 6.283185307179586
+117:		#define PI_HALF 1.5707963267948966
+118:		#define RECIPROCAL_PI 0.3183098861837907
+119:		#define RECIPROCAL_PI2 0.15915494309189535
+120:		#define EPSILON 1e-6
+121:		#ifndef saturate
+122:		#define saturate( a ) clamp( a, 0.0, 1.0 )
+123:		#endif
+124:		#define whiteComplement( a ) ( 1.0 - saturate( a ) )
+125:		float pow2( const in float x ) { return x*x; }
+126:		vec3 pow2( const in vec3 x ) { return x*x; }
+127:		float pow3( const in float x ) { return x*x*x; }
+128:		float pow4( const in float x ) { float x2 = x*x; return x2*x2; }
+129:		float max3( const in vec3 v ) { return max( max( v.x, v.y ), v.z ); }
+130:		float average( const in vec3 v ) { return dot( v, vec3( 0.3333333 ) ); }
+131:		highp float rand( const in vec2 uv ) {
+132:		  const highp float a = 12.9898, b = 78.233, c = 43758.5453;
+133:		  highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
+134:		  return fract( sin( sn ) * c );
+135:		}
+136:		#ifdef HIGH_PRECISION
+137:		  float precisionSafeLength( vec3 v ) { return length( v ); }
+138:		#else
+139:		  float precisionSafeLength( vec3 v ) {
+140:		    float maxComponent = max3( abs( v ) );
+141:		    return length( v / maxComponent ) * maxComponent;
+142:		  }
+143:		#endif
+144:		struct IncidentLight {
+145:		  vec3 color;
+146:		  vec3 direction;
+147:		  bool visible;
+148:		};
+149:		struct ReflectedLight {
+150:		  vec3 directDiffuse;
+151:		  vec3 directSpecular;
+152:		  vec3 indirectDiffuse;
+153:		  vec3 indirectSpecular;
+154:		};
+155:		#ifdef USE_ALPHAHASH
+156:		  varying vec3 vPosition;
+157:		#endif
+158:		vec3 transformDirection( in vec3 dir, in mat4 matrix ) {
+159:		  return normalize( ( matrix * vec4( dir, 0.0 ) ).xyz );
+160:		}
+161:		vec3 inverseTransformDirection( in vec3 dir, in mat4 matrix ) {
+162:		  return normalize( ( vec4( dir, 0.0 ) * matrix ).xyz );
+163:		}
+164:		mat3 transposeMat3( const in mat3 m ) {
+165:		  mat3 tmp;
+166:		  tmp[ 0 ] = vec3( m[ 0 ].x, m[ 1 ].x, m[ 2 ].x );
+167:		  tmp[ 1 ] = vec3( m[ 0 ].y, m[ 1 ].y, m[ 2 ].y );
+168:		  tmp[ 2 ] = vec3( m[ 0 ].z, m[ 1 ].z, m[ 2 ].z );
+169:		  return tmp;
+170:		}
+171:		bool isPerspectiveMatrix( mat4 m ) {
+172:		  return m[ 2 ][ 3 ] == - 1.0;
+173:		}
+174:		vec2 equirectUv( in vec3 dir ) {
+175:		  float u = atan( dir.z, dir.x ) * RECIPROCAL_PI2 + 0.5;
+176:		  float v = asin( clamp( dir.y, - 1.0, 1.0 ) ) * RECIPROCAL_PI + 0.5;
+177:		  return vec2( u, v );
+178:		}
+179:		vec3 BRDF_Lambert( const in vec3 diffuseColor ) {
+180:		  return RECIPROCAL_PI * diffuseColor;
+181:		}
+182:		vec3 F_Schlick( const in vec3 f0, const in float f90, const in float dotVH ) {
+183:		  float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+184:		  return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+185:		}
+186:		float F_Schlick( const in float f0, const in float f90, const in float dotVH ) {
+187:		  float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+188:		  return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+189:		} // validated
+190:		vec3 packNormalToRGB( const in vec3 normal ) {
+191:		  return normalize( normal ) * 0.5 + 0.5;
+192:		}
+193:		vec3 unpackRGBToNormal( const in vec3 rgb ) {
+194:		  return 2.0 * rgb.xyz - 1.0;
+195:		}
+196:		const float PackUpscale = 256. / 255.;const float UnpackDownscale = 255. / 256.;const float ShiftRight8 = 1. / 256.;
+197:		const float Inv255 = 1. / 255.;
+198:		const vec4 PackFactors = vec4( 1.0, 256.0, 256.0 * 256.0, 256.0 * 256.0 * 256.0 );
+199:		const vec2 UnpackFactors2 = vec2( UnpackDownscale, 1.0 / PackFactors.g );
+200:		const vec3 UnpackFactors3 = vec3( UnpackDownscale / PackFactors.rg, 1.0 / PackFactors.b );
+201:		const vec4 UnpackFactors4 = vec4( UnpackDownscale / PackFactors.rgb, 1.0 / PackFactors.a );
+202:		vec4 packDepthToRGBA( const in float v ) {
+203:		  if( v <= 0.0 )
+204:		    return vec4( 0., 0., 0., 0. );
+205:		  if( v >= 1.0 )
+206:		    return vec4( 1., 1., 1., 1. );
+207:		  float vuf;
+208:		  float af = modf( v * PackFactors.a, vuf );
+209:		  float bf = modf( vuf * ShiftRight8, vuf );
+210:		  float gf = modf( vuf * ShiftRight8, vuf );
+211:		  return vec4( vuf * Inv255, gf * PackUpscale, bf * PackUpscale, af );
+212:		}
+213:		vec3 packDepthToRGB( const in float v ) {
+214:		  if( v <= 0.0 )
+215:		    return vec3( 0., 0., 0. );
+216:		  if( v >= 1.0 )
+217:		    return vec3( 1., 1., 1. );
+218:		  float vuf;
+219:		  float bf = modf( v * PackFactors.b, vuf );
+220:		  float gf = modf( vuf * ShiftRight8, vuf );
+221:		  return vec3( vuf * Inv255, gf * PackUpscale, bf );
+222:		}
+223:		vec2 packDepthToRG( const in float v ) {
+224:		  if( v <= 0.0 )
+225:		    return vec2( 0., 0. );
+226:		  if( v >= 1.0 )
+227:		    return vec2( 1., 1. );
+228:		  float vuf;
+229:		  float gf = modf( v * 256., vuf );
+230:		  return vec2( vuf * Inv255, gf );
+231:		}
+232:		float unpackRGBAToDepth( const in vec4 v ) {
+233:		  return dot( v, UnpackFactors4 );
+234:		}
+235:		float unpackRGBToDepth( const in vec3 v ) {
+236:		  return dot( v, UnpackFactors3 );
+237:		}
+238:		float unpackRGToDepth( const in vec2 v ) {
+239:		  return v.r * UnpackFactors2.r + v.g * UnpackFactors2.g;
+240:		}
+241:		vec4 pack2HalfToRGBA( const in vec2 v ) {
+242:		  vec4 r = vec4( v.x, fract( v.x * 255.0 ), v.y, fract( v.y * 255.0 ) );
+243:		  return vec4( r.x - r.y / 255.0, r.y, r.z - r.w / 255.0, r.w );
+244:		}
+245:		vec2 unpackRGBATo2Half( const in vec4 v ) {
+246:		  return vec2( v.x + ( v.y / 255.0 ), v.z + ( v.w / 255.0 ) );
+247:		}
+248:		float viewZToOrthographicDepth( const in float viewZ, const in float near, const in float far ) {
+249:		  return ( viewZ + near ) / ( near - far );
+250:		}
+251:		float orthographicDepthToViewZ( const in float depth, const in float near, const in float far ) {
+252:		  return depth * ( near - far ) - near;
+253:		}
+254:		float viewZToPerspectiveDepth( const in float viewZ, const in float near, const in float far ) {
+255:		  return ( ( near + viewZ ) * far ) / ( ( far - near ) * viewZ );
+256:		}
+257:		float perspectiveDepthToViewZ( const in float depth, const in float near, const in float far ) {
+258:		  return ( near * far ) / ( ( far - near ) * depth - far );
+259:		}
+260:		#ifdef DITHERING
+261:		  vec3 dithering( vec3 color ) {
+262:		    float grid_position = rand( gl_FragCoord.xy );
+263:		    vec3 dither_shift_RGB = vec3( 0.25 / 255.0, -0.25 / 255.0, 0.25 / 255.0 );
+264:		    dither_shift_RGB = mix( 2.0 * dither_shift_RGB, -2.0 * dither_shift_RGB, grid_position );
+265:		    return color + dither_shift_RGB;
+266:		  }
+267:		#endif
+268:		#if defined( USE_COLOR_ALPHA )
+269:		  varying vec4 vColor;
+270:		#elif defined( USE_COLOR )
+271:		  varying vec3 vColor;
+272:		#endif
+273:		#if defined( USE_UV ) || defined( USE_ANISOTROPY )
+274:		  varying vec2 vUv;
+275:		#endif
+276:		#ifdef USE_MAP
+277:		  varying vec2 vMapUv;
+278:		#endif
+279:		#ifdef USE_ALPHAMAP
+280:		  varying vec2 vAlphaMapUv;
+281:		#endif
+282:		#ifdef USE_LIGHTMAP
+283:		  varying vec2 vLightMapUv;
+284:		#endif
+285:		#ifdef USE_AOMAP
+286:		  varying vec2 vAoMapUv;
+287:		#endif
+288:		#ifdef USE_BUMPMAP
+289:		  varying vec2 vBumpMapUv;
+290:		#endif
+291:		#ifdef USE_NORMALMAP
+292:		  varying vec2 vNormalMapUv;
+293:		#endif
+294:		#ifdef USE_EMISSIVEMAP
+295:		  varying vec2 vEmissiveMapUv;
+296:		#endif
+297:		#ifdef USE_METALNESSMAP
+298:		  varying vec2 vMetalnessMapUv;
+299:		#endif
+300:		#ifdef USE_ROUGHNESSMAP
+301:		  varying vec2 vRoughnessMapUv;
+302:		#endif
+303:		#ifdef USE_ANISOTROPYMAP
+304:		  varying vec2 vAnisotropyMapUv;
+305:		#endif
+306:		#ifdef USE_CLEARCOATMAP
+307:		  varying vec2 vClearcoatMapUv;
+308:		#endif
+309:		#ifdef USE_CLEARCOAT_NORMALMAP
+310:		  varying vec2 vClearcoatNormalMapUv;
+311:		#endif
+312:		#ifdef USE_CLEARCOAT_ROUGHNESSMAP
+313:		  varying vec2 vClearcoatRoughnessMapUv;
+314:		#endif
+315:		#ifdef USE_IRIDESCENCEMAP
+316:		  varying vec2 vIridescenceMapUv;
+317:		#endif
+318:		#ifdef USE_IRIDESCENCE_THICKNESSMAP
+319:		  varying vec2 vIridescenceThicknessMapUv;
+320:		#endif
+321:		#ifdef USE_SHEEN_COLORMAP
+322:		  varying vec2 vSheenColorMapUv;
+323:		#endif
+324:		#ifdef USE_SHEEN_ROUGHNESSMAP
+325:		  varying vec2 vSheenRoughnessMapUv;
+326:		#endif
+327:		#ifdef USE_SPECULARMAP
+328:		  varying vec2 vSpecularMapUv;
+329:		#endif
+330:		#ifdef USE_SPECULAR_COLORMAP
+331:		  varying vec2 vSpecularColorMapUv;
+332:		#endif
+333:		#ifdef USE_SPECULAR_INTENSITYMAP
+334:		  varying vec2 vSpecularIntensityMapUv;
+335:		#endif
+336:		#ifdef USE_TRANSMISSIONMAP
+337:		  uniform mat3 transmissionMapTransform;
+338:		  varying vec2 vTransmissionMapUv;
+339:		#endif
+340:		#ifdef USE_THICKNESSMAP
+341:		  uniform mat3 thicknessMapTransform;
+342:		  varying vec2 vThicknessMapUv;
+343:		#endif
+344:		#ifdef USE_MAP
+345:		  uniform sampler2D map;
+346:		#endif
+347:		#ifdef USE_ALPHAMAP
+348:		  uniform sampler2D alphaMap;
+349:		#endif
+350:		#ifdef USE_ALPHATEST
+351:		  uniform float alphaTest;
+352:		#endif
+353:		#ifdef USE_ALPHAHASH
+354:		  const float ALPHA_HASH_SCALE = 0.05;
+355:		  float hash2D( vec2 value ) {
+356:		    return fract( 1.0e4 * sin( 17.0 * value.x + 0.1 * value.y ) * ( 0.1 + abs( sin( 13.0 * value.y + value.x ) ) ) );
+357:		  }
+358:		  float hash3D( vec3 value ) {
+359:		    return hash2D( vec2( hash2D( value.xy ), value.z ) );
+360:		  }
+361:		  float getAlphaHashThreshold( vec3 position ) {
+362:		    float maxDeriv = max(
+363:		      length( dFdx( position.xyz ) ),
+364:		      length( dFdy( position.xyz ) )
+365:		    );
+366:		    float pixScale = 1.0 / ( ALPHA_HASH_SCALE * maxDeriv );
+367:		    vec2 pixScales = vec2(
+368:		      exp2( floor( log2( pixScale ) ) ),
+369:		      exp2( ceil( log2( pixScale ) ) )
+370:		    );
+371:		    vec2 alpha = vec2(
+372:		      hash3D( floor( pixScales.x * position.xyz ) ),
+373:		      hash3D( floor( pixScales.y * position.xyz ) )
+374:		    );
+375:		    float lerpFactor = fract( log2( pixScale ) );
+376:		    float x = ( 1.0 - lerpFactor ) * alpha.x + lerpFactor * alpha.y;
+377:		    float a = min( lerpFactor, 1.0 - lerpFactor );
+378:		    vec3 cases = vec3(
+379:		      x * x / ( 2.0 * a * ( 1.0 - a ) ),
+380:		      ( x - 0.5 * a ) / ( 1.0 - a ),
+381:		      1.0 - ( ( 1.0 - x ) * ( 1.0 - x ) / ( 2.0 * a * ( 1.0 - a ) ) )
+382:		    );
+383:		    float threshold = ( x < ( 1.0 - a ) )
+384:		      ? ( ( x < a ) ? cases.x : cases.y )
+385:		      : cases.z;
+386:		    return clamp( threshold , 1.0e-6, 1.0 );
+387:		  }
+388:		#endif
+389:		#ifdef USE_AOMAP
+390:		  uniform sampler2D aoMap;
+391:		  uniform float aoMapIntensity;
+392:		#endif
+393:		#ifdef USE_LIGHTMAP
+394:		  uniform sampler2D lightMap;
+395:		  uniform float lightMapIntensity;
+396:		#endif
+397:		#ifdef USE_EMISSIVEMAP
+398:		  uniform sampler2D emissiveMap;
+399:		#endif
+400:		#ifdef USE_IRIDESCENCE
+401:		  const mat3 XYZ_TO_REC709 = mat3(
+402:		     3.2404542, -0.9692660,  0.0556434,
+403:		    -1.5371385,  1.8760108, -0.2040259,
+404:		    -0.4985314,  0.0415560,  1.0572252
+405:		  );
+406:		  vec3 Fresnel0ToIor( vec3 fresnel0 ) {
+407:		    vec3 sqrtF0 = sqrt( fresnel0 );
+408:		    return ( vec3( 1.0 ) + sqrtF0 ) / ( vec3( 1.0 ) - sqrtF0 );
+409:		  }
+410:		  vec3 IorToFresnel0( vec3 transmittedIor, float incidentIor ) {
+411:		    return pow2( ( transmittedIor - vec3( incidentIor ) ) / ( transmittedIor + vec3( incidentIor ) ) );
+412:		  }
+413:		  float IorToFresnel0( float transmittedIor, float incidentIor ) {
+414:		    return pow2( ( transmittedIor - incidentIor ) / ( transmittedIor + incidentIor ));
+415:		  }
+416:		  vec3 evalSensitivity( float OPD, vec3 shift ) {
+417:		    float phase = 2.0 * PI * OPD * 1.0e-9;
+418:		    vec3 val = vec3( 5.4856e-13, 4.4201e-13, 5.2481e-13 );
+419:		    vec3 pos = vec3( 1.6810e+06, 1.7953e+06, 2.2084e+06 );
+420:		    vec3 var = vec3( 4.3278e+09, 9.3046e+09, 6.6121e+09 );
+421:		    vec3 xyz = val * sqrt( 2.0 * PI * var ) * cos( pos * phase + shift ) * exp( - pow2( phase ) * var );
+422:		    xyz.x += 9.7470e-14 * sqrt( 2.0 * PI * 4.5282e+09 ) * cos( 2.2399e+06 * phase + shift[ 0 ] ) * exp( - 4.5282e+09 * pow2( phase ) );
+423:		    xyz /= 1.0685e-7;
+424:		    vec3 rgb = XYZ_TO_REC709 * xyz;
+425:		    return rgb;
+426:		  }
+427:		  vec3 evalIridescence( float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0 ) {
+428:		    vec3 I;
+429:		    float iridescenceIOR = mix( outsideIOR, eta2, smoothstep( 0.0, 0.03, thinFilmThickness ) );
+430:		    float sinTheta2Sq = pow2( outsideIOR / iridescenceIOR ) * ( 1.0 - pow2( cosTheta1 ) );
+431:		    float cosTheta2Sq = 1.0 - sinTheta2Sq;
+432:		    if ( cosTheta2Sq < 0.0 ) {
+433:		      return vec3( 1.0 );
+434:		    }
+435:		    float cosTheta2 = sqrt( cosTheta2Sq );
+436:		    float R0 = IorToFresnel0( iridescenceIOR, outsideIOR );
+437:		    float R12 = F_Schlick( R0, 1.0, cosTheta1 );
+438:		    float T121 = 1.0 - R12;
+439:		    float phi12 = 0.0;
+440:		    if ( iridescenceIOR < outsideIOR ) phi12 = PI;
+441:		    float phi21 = PI - phi12;
+442:		    vec3 baseIOR = Fresnel0ToIor( clamp( baseF0, 0.0, 0.9999 ) );    vec3 R1 = IorToFresnel0( baseIOR, iridescenceIOR );
+443:		    vec3 R23 = F_Schlick( R1, 1.0, cosTheta2 );
+444:		    vec3 phi23 = vec3( 0.0 );
+445:		    if ( baseIOR[ 0 ] < iridescenceIOR ) phi23[ 0 ] = PI;
+446:		    if ( baseIOR[ 1 ] < iridescenceIOR ) phi23[ 1 ] = PI;
+447:		    if ( baseIOR[ 2 ] < iridescenceIOR ) phi23[ 2 ] = PI;
+448:		    float OPD = 2.0 * iridescenceIOR * thinFilmThickness * cosTheta2;
+449:		    vec3 phi = vec3( phi21 ) + phi23;
+450:		    vec3 R123 = clamp( R12 * R23, 1e-5, 0.9999 );
+451:		    vec3 r123 = sqrt( R123 );
+452:		    vec3 Rs = pow2( T121 ) * R23 / ( vec3( 1.0 ) - R123 );
+453:		    vec3 C0 = R12 + Rs;
+454:		    I = C0;
+455:		    vec3 Cm = Rs - T121;
+456:		    for ( int m = 1; m <= 2; ++ m ) {
+457:		      Cm *= r123;
+458:		      vec3 Sm = 2.0 * evalSensitivity( float( m ) * OPD, float( m ) * phi );
+459:		      I += Cm * Sm;
+460:		    }
+461:		    return max( I, vec3( 0.0 ) );
+462:		  }
+463:		#endif
+464:		#ifdef ENVMAP_TYPE_CUBE_UV
+465:		  #define cubeUV_minMipLevel 4.0
+466:		  #define cubeUV_minTileSize 16.0
+467:		  float getFace( vec3 direction ) {
+468:		    vec3 absDirection = abs( direction );
+469:		    float face = - 1.0;
+470:		    if ( absDirection.x > absDirection.z ) {
+471:		      if ( absDirection.x > absDirection.y )
+472:		        face = direction.x > 0.0 ? 0.0 : 3.0;
+473:		      else
+474:		        face = direction.y > 0.0 ? 1.0 : 4.0;
+475:		    } else {
+476:		      if ( absDirection.z > absDirection.y )
+477:		        face = direction.z > 0.0 ? 2.0 : 5.0;
+478:		      else
+479:		        face = direction.y > 0.0 ? 1.0 : 4.0;
+480:		    }
+481:		    return face;
+482:		  }
+483:		  vec2 getUV( vec3 direction, float face ) {
+484:		    vec2 uv;
+485:		    if ( face == 0.0 ) {
+486:		      uv = vec2( direction.z, direction.y ) / abs( direction.x );
+487:		    } else if ( face == 1.0 ) {
+488:		      uv = vec2( - direction.x, - direction.z ) / abs( direction.y );
+489:		    } else if ( face == 2.0 ) {
+490:		      uv = vec2( - direction.x, direction.y ) / abs( direction.z );
+491:		    } else if ( face == 3.0 ) {
+492:		      uv = vec2( - direction.z, direction.y ) / abs( direction.x );
+493:		    } else if ( face == 4.0 ) {
+494:		      uv = vec2( - direction.x, direction.z ) / abs( direction.y );
+495:		    } else {
+496:		      uv = vec2( direction.x, direction.y ) / abs( direction.z );
+497:		    }
+498:		    return 0.5 * ( uv + 1.0 );
+499:		  }
+500:		  vec3 bilinearCubeUV( sampler2D envMap, vec3 direction, float mipInt ) {
+501:		    float face = getFace( direction );
+502:		    float filterInt = max( cubeUV_minMipLevel - mipInt, 0.0 );
+503:		    mipInt = max( mipInt, cubeUV_minMipLevel );
+504:		    float faceSize = exp2( mipInt );
+505:		    highp vec2 uv = getUV( direction, face ) * ( faceSize - 2.0 ) + 1.0;
+506:		    if ( face > 2.0 ) {
+507:		      uv.y += faceSize;
+508:		      face -= 3.0;
+509:		    }
+510:		    uv.x += face * faceSize;
+511:		    uv.x += filterInt * 3.0 * cubeUV_minTileSize;
+512:		    uv.y += 4.0 * ( exp2( CUBEUV_MAX_MIP ) - faceSize );
+513:		    uv.x *= CUBEUV_TEXEL_WIDTH;
+514:		    uv.y *= CUBEUV_TEXEL_HEIGHT;
+515:		    #ifdef texture2DGradEXT
+516:		      return texture2DGradEXT( envMap, uv, vec2( 0.0 ), vec2( 0.0 ) ).rgb;
+517:		    #else
+518:		      return texture2D( envMap, uv ).rgb;
+519:		    #endif
+520:		  }
+521:		  #define cubeUV_r0 1.0
+522:		  #define cubeUV_m0 - 2.0
+523:		  #define cubeUV_r1 0.8
+524:		  #define cubeUV_m1 - 1.0
+525:		  #define cubeUV_r4 0.4
+526:		  #define cubeUV_m4 2.0
+527:		  #define cubeUV_r5 0.305
+528:		  #define cubeUV_m5 3.0
+529:		  #define cubeUV_r6 0.21
+530:		  #define cubeUV_m6 4.0
+531:		  float roughnessToMip( float roughness ) {
+532:		    float mip = 0.0;
+533:		    if ( roughness >= cubeUV_r1 ) {
+534:		      mip = ( cubeUV_r0 - roughness ) * ( cubeUV_m1 - cubeUV_m0 ) / ( cubeUV_r0 - cubeUV_r1 ) + cubeUV_m0;
+535:		    } else if ( roughness >= cubeUV_r4 ) {
+536:		      mip = ( cubeUV_r1 - roughness ) * ( cubeUV_m4 - cubeUV_m1 ) / ( cubeUV_r1 - cubeUV_r4 ) + cubeUV_m1;
+537:		    } else if ( roughness >= cubeUV_r5 ) {
+538:		      mip = ( cubeUV_r4 - roughness ) * ( cubeUV_m5 - cubeUV_m4 ) / ( cubeUV_r4 - cubeUV_r5 ) + cubeUV_m4;
+539:		    } else if ( roughness >= cubeUV_r6 ) {
+540:		      mip = ( cubeUV_r5 - roughness ) * ( cubeUV_m6 - cubeUV_m5 ) / ( cubeUV_r5 - cubeUV_r6 ) + cubeUV_m5;
+541:		    } else {
+542:		      mip = - 2.0 * log2( 1.16 * roughness );    }
+543:		    return mip;
+544:		  }
+545:		  vec4 textureCubeUV( sampler2D envMap, vec3 sampleDir, float roughness ) {
+546:		    float mip = clamp( roughnessToMip( roughness ), cubeUV_m0, CUBEUV_MAX_MIP );
+547:		    float mipF = fract( mip );
+548:		    float mipInt = floor( mip );
+549:		    vec3 color0 = bilinearCubeUV( envMap, sampleDir, mipInt );
+550:		    if ( mipF == 0.0 ) {
+551:		      return vec4( color0, 1.0 );
+552:		    } else {
+553:		      vec3 color1 = bilinearCubeUV( envMap, sampleDir, mipInt + 1.0 );
+554:		      return vec4( mix( color0, color1, mipF ), 1.0 );
+555:		    }
+556:		  }
+557:		#endif
+558:		#ifdef USE_ENVMAP
+559:		  uniform float envMapIntensity;
+560:		  uniform float flipEnvMap;
+561:		  uniform mat3 envMapRotation;
+562:		  #ifdef ENVMAP_TYPE_CUBE
+563:		    uniform samplerCube envMap;
+564:		  #else
+565:		    uniform sampler2D envMap;
+566:		  #endif
+567:		  
+568:		#endif
+569:		#ifdef USE_ENVMAP
+570:		  vec3 getIBLIrradiance( const in vec3 normal ) {
+571:		    #ifdef ENVMAP_TYPE_CUBE_UV
+572:		      vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+573:		      vec4 envMapColor = textureCubeUV( envMap, envMapRotation * worldNormal, 1.0 );
+574:		      return PI * envMapColor.rgb * envMapIntensity;
+575:		    #else
+576:		      return vec3( 0.0 );
+577:		    #endif
+578:		  }
+579:		  vec3 getIBLRadiance( const in vec3 viewDir, const in vec3 normal, const in float roughness ) {
+580:		    #ifdef ENVMAP_TYPE_CUBE_UV
+581:		      vec3 reflectVec = reflect( - viewDir, normal );
+582:		      reflectVec = normalize( mix( reflectVec, normal, roughness * roughness) );
+583:		      reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
+584:		      vec4 envMapColor = textureCubeUV( envMap, envMapRotation * reflectVec, roughness );
+585:		      return envMapColor.rgb * envMapIntensity;
+586:		    #else
+587:		      return vec3( 0.0 );
+588:		    #endif
+589:		  }
+590:		  #ifdef USE_ANISOTROPY
+591:		    vec3 getIBLAnisotropyRadiance( const in vec3 viewDir, const in vec3 normal, const in float roughness, const in vec3 bitangent, const in float anisotropy ) {
+592:		      #ifdef ENVMAP_TYPE_CUBE_UV
+593:		        vec3 bentNormal = cross( bitangent, viewDir );
+594:		        bentNormal = normalize( cross( bentNormal, bitangent ) );
+595:		        bentNormal = normalize( mix( bentNormal, normal, pow2( pow2( 1.0 - anisotropy * ( 1.0 - roughness ) ) ) ) );
+596:		        return getIBLRadiance( viewDir, bentNormal, roughness );
+597:		      #else
+598:		        return vec3( 0.0 );
+599:		      #endif
+600:		    }
+601:		  #endif
+602:		#endif
+603:		#ifdef USE_FOG
+604:		  uniform vec3 fogColor;
+605:		  varying float vFogDepth;
+606:		  #ifdef FOG_EXP2
+607:		    uniform float fogDensity;
+608:		  #else
+609:		    uniform float fogNear;
+610:		    uniform float fogFar;
+611:		  #endif
+612:		#endif
+613:		uniform bool receiveShadow;
+614:		uniform vec3 ambientLightColor;
+615:		#if defined( USE_LIGHT_PROBES )
+616:		  uniform vec3 lightProbe[ 9 ];
+617:		#endif
+618:		vec3 shGetIrradianceAt( in vec3 normal, in vec3 shCoefficients[ 9 ] ) {
+619:		  float x = normal.x, y = normal.y, z = normal.z;
+620:		  vec3 result = shCoefficients[ 0 ] * 0.886227;
+621:		  result += shCoefficients[ 1 ] * 2.0 * 0.511664 * y;
+622:		  result += shCoefficients[ 2 ] * 2.0 * 0.511664 * z;
+623:		  result += shCoefficients[ 3 ] * 2.0 * 0.511664 * x;
+624:		  result += shCoefficients[ 4 ] * 2.0 * 0.429043 * x * y;
+625:		  result += shCoefficients[ 5 ] * 2.0 * 0.429043 * y * z;
+626:		  result += shCoefficients[ 6 ] * ( 0.743125 * z * z - 0.247708 );
+627:		  result += shCoefficients[ 7 ] * 2.0 * 0.429043 * x * z;
+628:		  result += shCoefficients[ 8 ] * 0.429043 * ( x * x - y * y );
+629:		  return result;
+630:		}
+631:		vec3 getLightProbeIrradiance( const in vec3 lightProbe[ 9 ], const in vec3 normal ) {
+632:		  vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+633:		  vec3 irradiance = shGetIrradianceAt( worldNormal, lightProbe );
+634:		  return irradiance;
+635:		}
+636:		vec3 getAmbientLightIrradiance( const in vec3 ambientLightColor ) {
+637:		  vec3 irradiance = ambientLightColor;
+638:		  return irradiance;
+639:		}
+640:		float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {
+641:		  float distanceFalloff = 1.0 / max( pow( lightDistance, decayExponent ), 0.01 );
+642:		  if ( cutoffDistance > 0.0 ) {
+643:		    distanceFalloff *= pow2( saturate( 1.0 - pow4( lightDistance / cutoffDistance ) ) );
+644:		  }
+645:		  return distanceFalloff;
+646:		}
+647:		float getSpotAttenuation( const in float coneCosine, const in float penumbraCosine, const in float angleCosine ) {
+648:		  return smoothstep( coneCosine, penumbraCosine, angleCosine );
+649:		}
+650:		#if 0 > 0
+651:		  struct DirectionalLight {
+652:		    vec3 direction;
+653:		    vec3 color;
+654:		  };
+655:		  uniform DirectionalLight directionalLights[ 0 ];
+656:		  void getDirectionalLightInfo( const in DirectionalLight directionalLight, out IncidentLight light ) {
+657:		    light.color = directionalLight.color;
+658:		    light.direction = directionalLight.direction;
+659:		    light.visible = true;
+660:		  }
+661:		#endif
+662:		#if 0 > 0
+663:		  struct PointLight {
+664:		    vec3 position;
+665:		    vec3 color;
+666:		    float distance;
+667:		    float decay;
+668:		  };
+669:		  uniform PointLight pointLights[ 0 ];
+670:		  void getPointLightInfo( const in PointLight pointLight, const in vec3 geometryPosition, out IncidentLight light ) {
+671:		    vec3 lVector = pointLight.position - geometryPosition;
+672:		    light.direction = normalize( lVector );
+673:		    float lightDistance = length( lVector );
+674:		    light.color = pointLight.color;
+675:		    light.color *= getDistanceAttenuation( lightDistance, pointLight.distance, pointLight.decay );
+676:		    light.visible = ( light.color != vec3( 0.0 ) );
+677:		  }
+678:		#endif
+679:		#if 1 > 0
+680:		  struct SpotLight {
+681:		    vec3 position;
+682:		    vec3 direction;
+683:		    vec3 color;
+684:		    float distance;
+685:		    float decay;
+686:		    float coneCos;
+687:		    float penumbraCos;
+688:		  };
+689:		  uniform SpotLight spotLights[ 1 ];
+690:		  void getSpotLightInfo( const in SpotLight spotLight, const in vec3 geometryPosition, out IncidentLight light ) {
+691:		    vec3 lVector = spotLight.position - geometryPosition;
+692:		    light.direction = normalize( lVector );
+693:		    float angleCos = dot( light.direction, spotLight.direction );
+694:		    float spotAttenuation = getSpotAttenuation( spotLight.coneCos, spotLight.penumbraCos, angleCos );
+695:		    if ( spotAttenuation > 0.0 ) {
+696:		      float lightDistance = length( lVector );
+697:		      light.color = spotLight.color * spotAttenuation;
+698:		      light.color *= getDistanceAttenuation( lightDistance, spotLight.distance, spotLight.decay );
+699:		      light.visible = ( light.color != vec3( 0.0 ) );
+700:		    } else {
+701:		      light.color = vec3( 0.0 );
+702:		      light.visible = false;
+703:		    }
+704:		  }
+705:		#endif
+706:		#if 0 > 0
+707:		  struct RectAreaLight {
+708:		    vec3 color;
+709:		    vec3 position;
+710:		    vec3 halfWidth;
+711:		    vec3 halfHeight;
+712:		  };
+713:		  uniform sampler2D ltc_1;  uniform sampler2D ltc_2;
+714:		  uniform RectAreaLight rectAreaLights[ 0 ];
+715:		#endif
+716:		#if 0 > 0
+717:		  struct HemisphereLight {
+718:		    vec3 direction;
+719:		    vec3 skyColor;
+720:		    vec3 groundColor;
+721:		  };
+722:		  uniform HemisphereLight hemisphereLights[ 0 ];
+723:		  vec3 getHemisphereLightIrradiance( const in HemisphereLight hemiLight, const in vec3 normal ) {
+724:		    float dotNL = dot( normal, hemiLight.direction );
+725:		    float hemiDiffuseWeight = 0.5 * dotNL + 0.5;
+726:		    vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );
+727:		    return irradiance;
+728:		  }
+729:		#endif
+730:		#ifndef FLAT_SHADED
+731:		  varying vec3 vNormal;
+732:		  #ifdef USE_TANGENT
+733:		    varying vec3 vTangent;
+734:		    varying vec3 vBitangent;
+735:		  #endif
+736:		#endif
+737:		struct PhysicalMaterial {
+738:		  vec3 diffuseColor;
+739:		  float roughness;
+740:		  vec3 specularColor;
+741:		  float specularF90;
+742:		  float dispersion;
+743:		  #ifdef USE_CLEARCOAT
+744:		    float clearcoat;
+745:		    float clearcoatRoughness;
+746:		    vec3 clearcoatF0;
+747:		    float clearcoatF90;
+748:		  #endif
+749:		  #ifdef USE_IRIDESCENCE
+750:		    float iridescence;
+751:		    float iridescenceIOR;
+752:		    float iridescenceThickness;
+753:		    vec3 iridescenceFresnel;
+754:		    vec3 iridescenceF0;
+755:		  #endif
+756:		  #ifdef USE_SHEEN
+757:		    vec3 sheenColor;
+758:		    float sheenRoughness;
+759:		  #endif
+760:		  #ifdef IOR
+761:		    float ior;
+762:		  #endif
+763:		  #ifdef USE_TRANSMISSION
+764:		    float transmission;
+765:		    float transmissionAlpha;
+766:		    float thickness;
+767:		    float attenuationDistance;
+768:		    vec3 attenuationColor;
+769:		  #endif
+770:		  #ifdef USE_ANISOTROPY
+771:		    float anisotropy;
+772:		    float alphaT;
+773:		    vec3 anisotropyT;
+774:		    vec3 anisotropyB;
+775:		  #endif
+776:		};
+777:		vec3 clearcoatSpecularDirect = vec3( 0.0 );
+778:		vec3 clearcoatSpecularIndirect = vec3( 0.0 );
+779:		vec3 sheenSpecularDirect = vec3( 0.0 );
+780:		vec3 sheenSpecularIndirect = vec3(0.0 );
+781:		vec3 Schlick_to_F0( const in vec3 f, const in float f90, const in float dotVH ) {
+782:		    float x = clamp( 1.0 - dotVH, 0.0, 1.0 );
+783:		    float x2 = x * x;
+784:		    float x5 = clamp( x * x2 * x2, 0.0, 0.9999 );
+785:		    return ( f - vec3( f90 ) * x5 ) / ( 1.0 - x5 );
+786:		}
+787:		float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const in float dotNV ) {
+788:		  float a2 = pow2( alpha );
+789:		  float gv = dotNL * sqrt( a2 + ( 1.0 - a2 ) * pow2( dotNV ) );
+790:		  float gl = dotNV * sqrt( a2 + ( 1.0 - a2 ) * pow2( dotNL ) );
+791:		  return 0.5 / max( gv + gl, EPSILON );
+792:		}
+793:		float D_GGX( const in float alpha, const in float dotNH ) {
+794:		  float a2 = pow2( alpha );
+795:		  float denom = pow2( dotNH ) * ( a2 - 1.0 ) + 1.0;
+796:		  return RECIPROCAL_PI * a2 / pow2( denom );
+797:		}
+798:		#ifdef USE_ANISOTROPY
+799:		  float V_GGX_SmithCorrelated_Anisotropic( const in float alphaT, const in float alphaB, const in float dotTV, const in float dotBV, const in float dotTL, const in float dotBL, const in float dotNV, const in float dotNL ) {
+800:		    float gv = dotNL * length( vec3( alphaT * dotTV, alphaB * dotBV, dotNV ) );
+801:		    float gl = dotNV * length( vec3( alphaT * dotTL, alphaB * dotBL, dotNL ) );
+802:		    float v = 0.5 / ( gv + gl );
+803:		    return saturate(v);
+804:		  }
+805:		  float D_GGX_Anisotropic( const in float alphaT, const in float alphaB, const in float dotNH, const in float dotTH, const in float dotBH ) {
+806:		    float a2 = alphaT * alphaB;
+807:		    highp vec3 v = vec3( alphaB * dotTH, alphaT * dotBH, a2 * dotNH );
+808:		    highp float v2 = dot( v, v );
+809:		    float w2 = a2 / v2;
+810:		    return RECIPROCAL_PI * a2 * pow2 ( w2 );
+811:		  }
+812:		#endif
+813:		#ifdef USE_CLEARCOAT
+814:		  vec3 BRDF_GGX_Clearcoat( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material) {
+815:		    vec3 f0 = material.clearcoatF0;
+816:		    float f90 = material.clearcoatF90;
+817:		    float roughness = material.clearcoatRoughness;
+818:		    float alpha = pow2( roughness );
+819:		    vec3 halfDir = normalize( lightDir + viewDir );
+820:		    float dotNL = saturate( dot( normal, lightDir ) );
+821:		    float dotNV = saturate( dot( normal, viewDir ) );
+822:		    float dotNH = saturate( dot( normal, halfDir ) );
+823:		    float dotVH = saturate( dot( viewDir, halfDir ) );
+824:		    vec3 F = F_Schlick( f0, f90, dotVH );
+825:		    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+826:		    float D = D_GGX( alpha, dotNH );
+827:		    return F * ( V * D );
+828:		  }
+829:		#endif
+830:		vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) {
+831:		  vec3 f0 = material.specularColor;
+832:		  float f90 = material.specularF90;
+833:		  float roughness = material.roughness;
+834:		  float alpha = pow2( roughness );
+835:		  vec3 halfDir = normalize( lightDir + viewDir );
+836:		  float dotNL = saturate( dot( normal, lightDir ) );
+837:		  float dotNV = saturate( dot( normal, viewDir ) );
+838:		  float dotNH = saturate( dot( normal, halfDir ) );
+839:		  float dotVH = saturate( dot( viewDir, halfDir ) );
+840:		  vec3 F = F_Schlick( f0, f90, dotVH );
+841:		  #ifdef USE_IRIDESCENCE
+842:		    F = mix( F, material.iridescenceFresnel, material.iridescence );
+843:		  #endif
+844:		  #ifdef USE_ANISOTROPY
+845:		    float dotTL = dot( material.anisotropyT, lightDir );
+846:		    float dotTV = dot( material.anisotropyT, viewDir );
+847:		    float dotTH = dot( material.anisotropyT, halfDir );
+848:		    float dotBL = dot( material.anisotropyB, lightDir );
+849:		    float dotBV = dot( material.anisotropyB, viewDir );
+850:		    float dotBH = dot( material.anisotropyB, halfDir );
+851:		    float V = V_GGX_SmithCorrelated_Anisotropic( material.alphaT, alpha, dotTV, dotBV, dotTL, dotBL, dotNV, dotNL );
+852:		    float D = D_GGX_Anisotropic( material.alphaT, alpha, dotNH, dotTH, dotBH );
+853:		  #else
+854:		    float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+855:		    float D = D_GGX( alpha, dotNH );
+856:		  #endif
+857:		  return F * ( V * D );
+858:		}
+859:		vec2 LTC_Uv( const in vec3 N, const in vec3 V, const in float roughness ) {
+860:		  const float LUT_SIZE = 64.0;
+861:		  const float LUT_SCALE = ( LUT_SIZE - 1.0 ) / LUT_SIZE;
+862:		  const float LUT_BIAS = 0.5 / LUT_SIZE;
+863:		  float dotNV = saturate( dot( N, V ) );
+864:		  vec2 uv = vec2( roughness, sqrt( 1.0 - dotNV ) );
+865:		  uv = uv * LUT_SCALE + LUT_BIAS;
+866:		  return uv;
+867:		}
+868:		float LTC_ClippedSphereFormFactor( const in vec3 f ) {
+869:		  float l = length( f );
+870:		  return max( ( l * l + f.z ) / ( l + 1.0 ), 0.0 );
+871:		}
+872:		vec3 LTC_EdgeVectorFormFactor( const in vec3 v1, const in vec3 v2 ) {
+873:		  float x = dot( v1, v2 );
+874:		  float y = abs( x );
+875:		  float a = 0.8543985 + ( 0.4965155 + 0.0145206 * y ) * y;
+876:		  float b = 3.4175940 + ( 4.1616724 + y ) * y;
+877:		  float v = a / b;
+878:		  float theta_sintheta = ( x > 0.0 ) ? v : 0.5 * inversesqrt( max( 1.0 - x * x, 1e-7 ) ) - v;
+879:		  return cross( v1, v2 ) * theta_sintheta;
+880:		}
+881:		vec3 LTC_Evaluate( const in vec3 N, const in vec3 V, const in vec3 P, const in mat3 mInv, const in vec3 rectCoords[ 4 ] ) {
+882:		  vec3 v1 = rectCoords[ 1 ] - rectCoords[ 0 ];
+883:		  vec3 v2 = rectCoords[ 3 ] - rectCoords[ 0 ];
+884:		  vec3 lightNormal = cross( v1, v2 );
+885:		  if( dot( lightNormal, P - rectCoords[ 0 ] ) < 0.0 ) return vec3( 0.0 );
+886:		  vec3 T1, T2;
+887:		  T1 = normalize( V - N * dot( V, N ) );
+888:		  T2 = - cross( N, T1 );
+889:		  mat3 mat = mInv * transposeMat3( mat3( T1, T2, N ) );
+890:		  vec3 coords[ 4 ];
+891:		  coords[ 0 ] = mat * ( rectCoords[ 0 ] - P );
+892:		  coords[ 1 ] = mat * ( rectCoords[ 1 ] - P );
+893:		  coords[ 2 ] = mat * ( rectCoords[ 2 ] - P );
+894:		  coords[ 3 ] = mat * ( rectCoords[ 3 ] - P );
+895:		  coords[ 0 ] = normalize( coords[ 0 ] );
+896:		  coords[ 1 ] = normalize( coords[ 1 ] );
+897:		  coords[ 2 ] = normalize( coords[ 2 ] );
+898:		  coords[ 3 ] = normalize( coords[ 3 ] );
+899:		  vec3 vectorFormFactor = vec3( 0.0 );
+900:		  vectorFormFactor += LTC_EdgeVectorFormFactor( coords[ 0 ], coords[ 1 ] );
+901:		  vectorFormFactor += LTC_EdgeVectorFormFactor( coords[ 1 ], coords[ 2 ] );
+902:		  vectorFormFactor += LTC_EdgeVectorFormFactor( coords[ 2 ], coords[ 3 ] );
+903:		  vectorFormFactor += LTC_EdgeVectorFormFactor( coords[ 3 ], coords[ 0 ] );
+904:		  float result = LTC_ClippedSphereFormFactor( vectorFormFactor );
+905:		  return vec3( result );
+906:		}
+907:		#if defined( USE_SHEEN )
+908:		float D_Charlie( float roughness, float dotNH ) {
+909:		  float alpha = pow2( roughness );
+910:		  float invAlpha = 1.0 / alpha;
+911:		  float cos2h = dotNH * dotNH;
+912:		  float sin2h = max( 1.0 - cos2h, 0.0078125 );
+913:		  return ( 2.0 + invAlpha ) * pow( sin2h, invAlpha * 0.5 ) / ( 2.0 * PI );
+914:		}
+915:		float V_Neubelt( float dotNV, float dotNL ) {
+916:		  return saturate( 1.0 / ( 4.0 * ( dotNL + dotNV - dotNL * dotNV ) ) );
+917:		}
+918:		vec3 BRDF_Sheen( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, vec3 sheenColor, const in float sheenRoughness ) {
+919:		  vec3 halfDir = normalize( lightDir + viewDir );
+920:		  float dotNL = saturate( dot( normal, lightDir ) );
+921:		  float dotNV = saturate( dot( normal, viewDir ) );
+922:		  float dotNH = saturate( dot( normal, halfDir ) );
+923:		  float D = D_Charlie( sheenRoughness, dotNH );
+924:		  float V = V_Neubelt( dotNV, dotNL );
+925:		  return sheenColor * ( D * V );
+926:		}
+927:		#endif
+928:		float IBLSheenBRDF( const in vec3 normal, const in vec3 viewDir, const in float roughness ) {
+929:		  float dotNV = saturate( dot( normal, viewDir ) );
+930:		  float r2 = roughness * roughness;
+931:		  float a = roughness < 0.25 ? -339.2 * r2 + 161.4 * roughness - 25.9 : -8.48 * r2 + 14.3 * roughness - 9.95;
+932:		  float b = roughness < 0.25 ? 44.0 * r2 - 23.7 * roughness + 3.26 : 1.97 * r2 - 3.27 * roughness + 0.72;
+933:		  float DG = exp( a * dotNV + b ) + ( roughness < 0.25 ? 0.0 : 0.1 * ( roughness - 0.25 ) );
+934:		  return saturate( DG * RECIPROCAL_PI );
+935:		}
+936:		vec2 DFGApprox( const in vec3 normal, const in vec3 viewDir, const in float roughness ) {
+937:		  float dotNV = saturate( dot( normal, viewDir ) );
+938:		  const vec4 c0 = vec4( - 1, - 0.0275, - 0.572, 0.022 );
+939:		  const vec4 c1 = vec4( 1, 0.0425, 1.04, - 0.04 );
+940:		  vec4 r = roughness * c0 + c1;
+941:		  float a004 = min( r.x * r.x, exp2( - 9.28 * dotNV ) ) * r.x + r.y;
+942:		  vec2 fab = vec2( - 1.04, 1.04 ) * a004 + r.zw;
+943:		  return fab;
+944:		}
+945:		vec3 EnvironmentBRDF( const in vec3 normal, const in vec3 viewDir, const in vec3 specularColor, const in float specularF90, const in float roughness ) {
+946:		  vec2 fab = DFGApprox( normal, viewDir, roughness );
+947:		  return specularColor * fab.x + specularF90 * fab.y;
+948:		}
+949:		#ifdef USE_IRIDESCENCE
+950:		void computeMultiscatteringIridescence( const in vec3 normal, const in vec3 viewDir, const in vec3 specularColor, const in float specularF90, const in float iridescence, const in vec3 iridescenceF0, const in float roughness, inout vec3 singleScatter, inout vec3 multiScatter ) {
+951:		#else
+952:		void computeMultiscattering( const in vec3 normal, const in vec3 viewDir, const in vec3 specularColor, const in float specularF90, const in float roughness, inout vec3 singleScatter, inout vec3 multiScatter ) {
+953:		#endif
+954:		  vec2 fab = DFGApprox( normal, viewDir, roughness );
+955:		  #ifdef USE_IRIDESCENCE
+956:		    vec3 Fr = mix( specularColor, iridescenceF0, iridescence );
+957:		  #else
+958:		    vec3 Fr = specularColor;
+959:		  #endif
+960:		  vec3 FssEss = Fr * fab.x + specularF90 * fab.y;
+961:		  float Ess = fab.x + fab.y;
+962:		  float Ems = 1.0 - Ess;
+963:		  vec3 Favg = Fr + ( 1.0 - Fr ) * 0.047619;  vec3 Fms = FssEss * Favg / ( 1.0 - Ems * Favg );
+964:		  singleScatter += FssEss;
+965:		  multiScatter += Fms * Ems;
+966:		}
+967:		#if 0 > 0
+968:		  void RE_Direct_RectArea_Physical( const in RectAreaLight rectAreaLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+969:		    vec3 normal = geometryNormal;
+970:		    vec3 viewDir = geometryViewDir;
+971:		    vec3 position = geometryPosition;
+972:		    vec3 lightPos = rectAreaLight.position;
+973:		    vec3 halfWidth = rectAreaLight.halfWidth;
+974:		    vec3 halfHeight = rectAreaLight.halfHeight;
+975:		    vec3 lightColor = rectAreaLight.color;
+976:		    float roughness = material.roughness;
+977:		    vec3 rectCoords[ 4 ];
+978:		    rectCoords[ 0 ] = lightPos + halfWidth - halfHeight;    rectCoords[ 1 ] = lightPos - halfWidth - halfHeight;
+979:		    rectCoords[ 2 ] = lightPos - halfWidth + halfHeight;
+980:		    rectCoords[ 3 ] = lightPos + halfWidth + halfHeight;
+981:		    vec2 uv = LTC_Uv( normal, viewDir, roughness );
+982:		    vec4 t1 = texture2D( ltc_1, uv );
+983:		    vec4 t2 = texture2D( ltc_2, uv );
+984:		    mat3 mInv = mat3(
+985:		      vec3( t1.x, 0, t1.y ),
+986:		      vec3(    0, 1,    0 ),
+987:		      vec3( t1.z, 0, t1.w )
+988:		    );
+989:		    vec3 fresnel = ( material.specularColor * t2.x + ( vec3( 1.0 ) - material.specularColor ) * t2.y );
+990:		    reflectedLight.directSpecular += lightColor * fresnel * LTC_Evaluate( normal, viewDir, position, mInv, rectCoords );
+991:		    reflectedLight.directDiffuse += lightColor * material.diffuseColor * LTC_Evaluate( normal, viewDir, position, mat3( 1.0 ), rectCoords );
+992:		  }
+993:		#endif
+994:		void RE_Direct_Physical( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+995:		  float dotNL = saturate( dot( geometryNormal, directLight.direction ) );
+996:		  vec3 irradiance = dotNL * directLight.color;
+997:		  #ifdef USE_CLEARCOAT
+998:		    float dotNLcc = saturate( dot( geometryClearcoatNormal, directLight.direction ) );
+999:		    vec3 ccIrradiance = dotNLcc * directLight.color;
+1000:		    clearcoatSpecularDirect += ccIrradiance * BRDF_GGX_Clearcoat( directLight.direction, geometryViewDir, geometryClearcoatNormal, material );
+1001:		  #endif
+1002:		  #ifdef USE_SHEEN
+1003:		    sheenSpecularDirect += irradiance * BRDF_Sheen( directLight.direction, geometryViewDir, geometryNormal, material.sheenColor, material.sheenRoughness );
+1004:		  #endif
+1005:		  reflectedLight.directSpecular += irradiance * BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, material );
+1006:		  reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );
+1007:		}
+1008:		void RE_IndirectDiffuse_Physical( const in vec3 irradiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+1009:		  reflectedLight.indirectDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );
+1010:		}
+1011:		void RE_IndirectSpecular_Physical( const in vec3 radiance, const in vec3 irradiance, const in vec3 clearcoatRadiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
+1012:		  #ifdef USE_CLEARCOAT
+1013:		    clearcoatSpecularIndirect += clearcoatRadiance * EnvironmentBRDF( geometryClearcoatNormal, geometryViewDir, material.clearcoatF0, material.clearcoatF90, material.clearcoatRoughness );
+1014:		  #endif
+1015:		  #ifdef USE_SHEEN
+1016:		    sheenSpecularIndirect += irradiance * material.sheenColor * IBLSheenBRDF( geometryNormal, geometryViewDir, material.sheenRoughness );
+1017:		  #endif
+1018:		  vec3 singleScattering = vec3( 0.0 );
+1019:		  vec3 multiScattering = vec3( 0.0 );
+1020:		  vec3 cosineWeightedIrradiance = irradiance * RECIPROCAL_PI;
+1021:		  #ifdef USE_IRIDESCENCE
+1022:		    computeMultiscatteringIridescence( geometryNormal, geometryViewDir, material.specularColor, material.specularF90, material.iridescence, material.iridescenceFresnel, material.roughness, singleScattering, multiScattering );
+1023:		  #else
+1024:		    computeMultiscattering( geometryNormal, geometryViewDir, material.specularColor, material.specularF90, material.roughness, singleScattering, multiScattering );
+1025:		  #endif
+1026:		  vec3 totalScattering = singleScattering + multiScattering;
+1027:		  vec3 diffuse = material.diffuseColor * ( 1.0 - max( max( totalScattering.r, totalScattering.g ), totalScattering.b ) );
+1028:		  reflectedLight.indirectSpecular += radiance * singleScattering;
+1029:		  reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;
+1030:		  reflectedLight.indirectDiffuse += diffuse * cosineWeightedIrradiance;
+1031:		}
+1032:		#define RE_Direct        RE_Direct_Physical
+1033:		#define RE_Direct_RectArea    RE_Direct_RectArea_Physical
+1034:		#define RE_IndirectDiffuse    RE_IndirectDiffuse_Physical
+1035:		#define RE_IndirectSpecular    RE_IndirectSpecular_Physical
+1036:		float computeSpecularOcclusion( const in float dotNV, const in float ambientOcclusion, const in float roughness ) {
+1037:		  return saturate( pow( dotNV + ambientOcclusion, exp2( - 16.0 * roughness - 1.0 ) ) - 1.0 + ambientOcclusion );
+1038:		}
+1039:		#ifdef USE_TRANSMISSION
+1040:		  uniform float transmission;
+1041:		  uniform float thickness;
+1042:		  uniform float attenuationDistance;
+1043:		  uniform vec3 attenuationColor;
+1044:		  #ifdef USE_TRANSMISSIONMAP
+1045:		    uniform sampler2D transmissionMap;
+1046:		  #endif
+1047:		  #ifdef USE_THICKNESSMAP
+1048:		    uniform sampler2D thicknessMap;
+1049:		  #endif
+1050:		  uniform vec2 transmissionSamplerSize;
+1051:		  uniform sampler2D transmissionSamplerMap;
+1052:		  uniform mat4 modelMatrix;
+1053:		  uniform mat4 projectionMatrix;
+1054:		  varying vec3 vWorldPosition;
+1055:		  float w0( float a ) {
+1056:		    return ( 1.0 / 6.0 ) * ( a * ( a * ( - a + 3.0 ) - 3.0 ) + 1.0 );
+1057:		  }
+1058:		  float w1( float a ) {
+1059:		    return ( 1.0 / 6.0 ) * ( a *  a * ( 3.0 * a - 6.0 ) + 4.0 );
+1060:		  }
+1061:		  float w2( float a ){
+1062:		    return ( 1.0 / 6.0 ) * ( a * ( a * ( - 3.0 * a + 3.0 ) + 3.0 ) + 1.0 );
+1063:		  }
+1064:		  float w3( float a ) {
+1065:		    return ( 1.0 / 6.0 ) * ( a * a * a );
+1066:		  }
+1067:		  float g0( float a ) {
+1068:		    return w0( a ) + w1( a );
+1069:		  }
+1070:		  float g1( float a ) {
+1071:		    return w2( a ) + w3( a );
+1072:		  }
+1073:		  float h0( float a ) {
+1074:		    return - 1.0 + w1( a ) / ( w0( a ) + w1( a ) );
+1075:		  }
+1076:		  float h1( float a ) {
+1077:		    return 1.0 + w3( a ) / ( w2( a ) + w3( a ) );
+1078:		  }
+1079:		  vec4 bicubic( sampler2D tex, vec2 uv, vec4 texelSize, float lod ) {
+1080:		    uv = uv * texelSize.zw + 0.5;
+1081:		    vec2 iuv = floor( uv );
+1082:		    vec2 fuv = fract( uv );
+1083:		    float g0x = g0( fuv.x );
+1084:		    float g1x = g1( fuv.x );
+1085:		    float h0x = h0( fuv.x );
+1086:		    float h1x = h1( fuv.x );
+1087:		    float h0y = h0( fuv.y );
+1088:		    float h1y = h1( fuv.y );
+1089:		    vec2 p0 = ( vec2( iuv.x + h0x, iuv.y + h0y ) - 0.5 ) * texelSize.xy;
+1090:		    vec2 p1 = ( vec2( iuv.x + h1x, iuv.y + h0y ) - 0.5 ) * texelSize.xy;
+1091:		    vec2 p2 = ( vec2( iuv.x + h0x, iuv.y + h1y ) - 0.5 ) * texelSize.xy;
+1092:		    vec2 p3 = ( vec2( iuv.x + h1x, iuv.y + h1y ) - 0.5 ) * texelSize.xy;
+1093:		    return g0( fuv.y ) * ( g0x * textureLod( tex, p0, lod ) + g1x * textureLod( tex, p1, lod ) ) +
+1094:		      g1( fuv.y ) * ( g0x * textureLod( tex, p2, lod ) + g1x * textureLod( tex, p3, lod ) );
+1095:		  }
+1096:		  vec4 textureBicubic( sampler2D sampler, vec2 uv, float lod ) {
+1097:		    vec2 fLodSize = vec2( textureSize( sampler, int( lod ) ) );
+1098:		    vec2 cLodSize = vec2( textureSize( sampler, int( lod + 1.0 ) ) );
+1099:		    vec2 fLodSizeInv = 1.0 / fLodSize;
+1100:		    vec2 cLodSizeInv = 1.0 / cLodSize;
+1101:		    vec4 fSample = bicubic( sampler, uv, vec4( fLodSizeInv, fLodSize ), floor( lod ) );
+1102:		    vec4 cSample = bicubic( sampler, uv, vec4( cLodSizeInv, cLodSize ), ceil( lod ) );
+1103:		    return mix( fSample, cSample, fract( lod ) );
+1104:		  }
+1105:		  vec3 getVolumeTransmissionRay( const in vec3 n, const in vec3 v, const in float thickness, const in float ior, const in mat4 modelMatrix ) {
+1106:		    vec3 refractionVector = refract( - v, normalize( n ), 1.0 / ior );
+1107:		    vec3 modelScale;
+1108:		    modelScale.x = length( vec3( modelMatrix[ 0 ].xyz ) );
+1109:		    modelScale.y = length( vec3( modelMatrix[ 1 ].xyz ) );
+1110:		    modelScale.z = length( vec3( modelMatrix[ 2 ].xyz ) );
+1111:		    return normalize( refractionVector ) * thickness * modelScale;
+1112:		  }
+1113:		  float applyIorToRoughness( const in float roughness, const in float ior ) {
+1114:		    return roughness * clamp( ior * 2.0 - 2.0, 0.0, 1.0 );
+1115:		  }
+1116:		  vec4 getTransmissionSample( const in vec2 fragCoord, const in float roughness, const in float ior ) {
+1117:		    float lod = log2( transmissionSamplerSize.x ) * applyIorToRoughness( roughness, ior );
+1118:		    return textureBicubic( transmissionSamplerMap, fragCoord.xy, lod );
+1119:		  }
+1120:		  vec3 volumeAttenuation( const in float transmissionDistance, const in vec3 attenuationColor, const in float attenuationDistance ) {
+1121:		    if ( isinf( attenuationDistance ) ) {
+1122:		      return vec3( 1.0 );
+1123:		    } else {
+1124:		      vec3 attenuationCoefficient = -log( attenuationColor ) / attenuationDistance;
+1125:		      vec3 transmittance = exp( - attenuationCoefficient * transmissionDistance );      return transmittance;
+1126:		    }
+1127:		  }
+1128:		  vec4 getIBLVolumeRefraction( const in vec3 n, const in vec3 v, const in float roughness, const in vec3 diffuseColor,
+1129:		    const in vec3 specularColor, const in float specularF90, const in vec3 position, const in mat4 modelMatrix,
+1130:		    const in mat4 viewMatrix, const in mat4 projMatrix, const in float dispersion, const in float ior, const in float thickness,
+1131:		    const in vec3 attenuationColor, const in float attenuationDistance ) {
+1132:		    vec4 transmittedLight;
+1133:		    vec3 transmittance;
+1134:		    #ifdef USE_DISPERSION
+1135:		      float halfSpread = ( ior - 1.0 ) * 0.025 * dispersion;
+1136:		      vec3 iors = vec3( ior - halfSpread, ior, ior + halfSpread );
+1137:		      for ( int i = 0; i < 3; i ++ ) {
+1138:		        vec3 transmissionRay = getVolumeTransmissionRay( n, v, thickness, iors[ i ], modelMatrix );
+1139:		        vec3 refractedRayExit = position + transmissionRay;
+1140:		        vec4 ndcPos = projMatrix * viewMatrix * vec4( refractedRayExit, 1.0 );
+1141:		        vec2 refractionCoords = ndcPos.xy / ndcPos.w;
+1142:		        refractionCoords += 1.0;
+1143:		        refractionCoords /= 2.0;
+1144:		        vec4 transmissionSample = getTransmissionSample( refractionCoords, roughness, iors[ i ] );
+1145:		        transmittedLight[ i ] = transmissionSample[ i ];
+1146:		        transmittedLight.a += transmissionSample.a;
+1147:		        transmittance[ i ] = diffuseColor[ i ] * volumeAttenuation( length( transmissionRay ), attenuationColor, attenuationDistance )[ i ];
+1148:		      }
+1149:		      transmittedLight.a /= 3.0;
+1150:		    #else
+1151:		      vec3 transmissionRay = getVolumeTransmissionRay( n, v, thickness, ior, modelMatrix );
+1152:		      vec3 refractedRayExit = position + transmissionRay;
+1153:		      vec4 ndcPos = projMatrix * viewMatrix * vec4( refractedRayExit, 1.0 );
+1154:		      vec2 refractionCoords = ndcPos.xy / ndcPos.w;
+1155:		      refractionCoords += 1.0;
+1156:		      refractionCoords /= 2.0;
+1157:		      transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );
+1158:		      transmittance = diffuseColor * volumeAttenuation( length( transmissionRay ), attenuationColor, attenuationDistance );
+1159:		    #endif
+1160:		    vec3 attenuatedColor = transmittance * transmittedLight.rgb;
+1161:		    vec3 F = EnvironmentBRDF( n, v, specularColor, specularF90, roughness );
+1162:		    float transmittanceFactor = ( transmittance.r + transmittance.g + transmittance.b ) / 3.0;
+1163:		    return vec4( ( 1.0 - F ) * attenuatedColor, 1.0 - ( 1.0 - transmittedLight.a ) * transmittanceFactor );
+1164:		  }
+1165:		#endif
+1166:		#if 0 > 0
+1167:		  varying vec4 vSpotLightCoord[ 0 ];
+1168:		#endif
+1169:		#if 0 > 0
+1170:		  uniform sampler2D spotLightMap[ 0 ];
+1171:		#endif
+1172:		#ifdef USE_SHADOWMAP
+1173:		  #if 0 > 0
+1174:		    uniform sampler2D directionalShadowMap[ 0 ];
+1175:		    varying vec4 vDirectionalShadowCoord[ 0 ];
+1176:		    struct DirectionalLightShadow {
+1177:		      float shadowIntensity;
+1178:		      float shadowBias;
+1179:		      float shadowNormalBias;
+1180:		      float shadowRadius;
+1181:		      vec2 shadowMapSize;
+1182:		    };
+1183:		    uniform DirectionalLightShadow directionalLightShadows[ 0 ];
+1184:		  #endif
+1185:		  #if 0 > 0
+1186:		    uniform sampler2D spotShadowMap[ 0 ];
+1187:		    struct SpotLightShadow {
+1188:		      float shadowIntensity;
+1189:		      float shadowBias;
+1190:		      float shadowNormalBias;
+1191:		      float shadowRadius;
+1192:		      vec2 shadowMapSize;
+1193:		    };
+1194:		    uniform SpotLightShadow spotLightShadows[ 0 ];
+1195:		  #endif
+1196:		  #if 0 > 0
+1197:		    uniform sampler2D pointShadowMap[ 0 ];
+1198:		    varying vec4 vPointShadowCoord[ 0 ];
+1199:		    struct PointLightShadow {
+1200:		      float shadowIntensity;
+1201:		      float shadowBias;
+1202:		      float shadowNormalBias;
+1203:		      float shadowRadius;
+1204:		      vec2 shadowMapSize;
+1205:		      float shadowCameraNear;
+1206:		      float shadowCameraFar;
+1207:		    };
+1208:		    uniform PointLightShadow pointLightShadows[ 0 ];
+1209:		  #endif
+1210:		  float texture2DCompare( sampler2D depths, vec2 uv, float compare ) {
+1211:		    return step( compare, unpackRGBAToDepth( texture2D( depths, uv ) ) );
+1212:		  }
+1213:		  vec2 texture2DDistribution( sampler2D shadow, vec2 uv ) {
+1214:		    return unpackRGBATo2Half( texture2D( shadow, uv ) );
+1215:		  }
+1216:		  float VSMShadow (sampler2D shadow, vec2 uv, float compare ){
+1217:		    float occlusion = 1.0;
+1218:		    vec2 distribution = texture2DDistribution( shadow, uv );
+1219:		    float hard_shadow = step( compare , distribution.x );
+1220:		    if (hard_shadow != 1.0 ) {
+1221:		      float distance = compare - distribution.x ;
+1222:		      float variance = max( 0.00000, distribution.y * distribution.y );
+1223:		      float softness_probability = variance / (variance + distance * distance );      softness_probability = clamp( ( softness_probability - 0.3 ) / ( 0.95 - 0.3 ), 0.0, 1.0 );      occlusion = clamp( max( hard_shadow, softness_probability ), 0.0, 1.0 );
+1224:		    }
+1225:		    return occlusion;
+1226:		  }
+1227:		  float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+1228:		    float shadow = 1.0;
+1229:		    shadowCoord.xyz /= shadowCoord.w;
+1230:		    shadowCoord.z += shadowBias;
+1231:		    bool inFrustum = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
+1232:		    bool frustumTest = inFrustum && shadowCoord.z <= 1.0;
+1233:		    if ( frustumTest ) {
+1234:		    #if defined( SHADOWMAP_TYPE_PCF )
+1235:		      vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
+1236:		      float dx0 = - texelSize.x * shadowRadius;
+1237:		      float dy0 = - texelSize.y * shadowRadius;
+1238:		      float dx1 = + texelSize.x * shadowRadius;
+1239:		      float dy1 = + texelSize.y * shadowRadius;
+1240:		      float dx2 = dx0 / 2.0;
+1241:		      float dy2 = dy0 / 2.0;
+1242:		      float dx3 = dx1 / 2.0;
+1243:		      float dy3 = dy1 / 2.0;
+1244:		      shadow = (
+1245:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, dy0 ), shadowCoord.z ) +
+1246:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy0 ), shadowCoord.z ) +
+1247:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, dy0 ), shadowCoord.z ) +
+1248:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, dy2 ), shadowCoord.z ) +
+1249:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy2 ), shadowCoord.z ) +
+1250:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, dy2 ), shadowCoord.z ) +
+1251:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, 0.0 ), shadowCoord.z ) +
+1252:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, 0.0 ), shadowCoord.z ) +
+1253:		        texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z ) +
+1254:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, 0.0 ), shadowCoord.z ) +
+1255:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, 0.0 ), shadowCoord.z ) +
+1256:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, dy3 ), shadowCoord.z ) +
+1257:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy3 ), shadowCoord.z ) +
+1258:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, dy3 ), shadowCoord.z ) +
+1259:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, dy1 ), shadowCoord.z ) +
+1260:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy1 ), shadowCoord.z ) +
+1261:		        texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, dy1 ), shadowCoord.z )
+1262:		      ) * ( 1.0 / 17.0 );
+1263:		    #elif defined( SHADOWMAP_TYPE_PCF_SOFT )
+1264:		      vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
+1265:		      float dx = texelSize.x;
+1266:		      float dy = texelSize.y;
+1267:		      vec2 uv = shadowCoord.xy;
+1268:		      vec2 f = fract( uv * shadowMapSize + 0.5 );
+1269:		      uv -= f * texelSize;
+1270:		      shadow = (
+1271:		        texture2DCompare( shadowMap, uv, shadowCoord.z ) +
+1272:		        texture2DCompare( shadowMap, uv + vec2( dx, 0.0 ), shadowCoord.z ) +
+1273:		        texture2DCompare( shadowMap, uv + vec2( 0.0, dy ), shadowCoord.z ) +
+1274:		        texture2DCompare( shadowMap, uv + texelSize, shadowCoord.z ) +
+1275:		        mix( texture2DCompare( shadowMap, uv + vec2( -dx, 0.0 ), shadowCoord.z ),
+1276:		           texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, 0.0 ), shadowCoord.z ),
+1277:		           f.x ) +
+1278:		        mix( texture2DCompare( shadowMap, uv + vec2( -dx, dy ), shadowCoord.z ),
+1279:		           texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, dy ), shadowCoord.z ),
+1280:		           f.x ) +
+1281:		        mix( texture2DCompare( shadowMap, uv + vec2( 0.0, -dy ), shadowCoord.z ),
+1282:		           texture2DCompare( shadowMap, uv + vec2( 0.0, 2.0 * dy ), shadowCoord.z ),
+1283:		           f.y ) +
+1284:		        mix( texture2DCompare( shadowMap, uv + vec2( dx, -dy ), shadowCoord.z ),
+1285:		           texture2DCompare( shadowMap, uv + vec2( dx, 2.0 * dy ), shadowCoord.z ),
+1286:		           f.y ) +
+1287:		        mix( mix( texture2DCompare( shadowMap, uv + vec2( -dx, -dy ), shadowCoord.z ),
+1288:		              texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, -dy ), shadowCoord.z ),
+1289:		              f.x ),
+1290:		           mix( texture2DCompare( shadowMap, uv + vec2( -dx, 2.0 * dy ), shadowCoord.z ),
+1291:		              texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, 2.0 * dy ), shadowCoord.z ),
+1292:		              f.x ),
+1293:		           f.y )
+1294:		      ) * ( 1.0 / 9.0 );
+1295:		    #elif defined( SHADOWMAP_TYPE_VSM )
+1296:		      shadow = VSMShadow( shadowMap, shadowCoord.xy, shadowCoord.z );
+1297:		    #else
+1298:		      shadow = texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z );
+1299:		    #endif
+1300:		    }
+1301:		    return mix( 1.0, shadow, shadowIntensity );
+1302:		  }
+1303:		  vec2 cubeToUV( vec3 v, float texelSizeY ) {
+1304:		    vec3 absV = abs( v );
+1305:		    float scaleToCube = 1.0 / max( absV.x, max( absV.y, absV.z ) );
+1306:		    absV *= scaleToCube;
+1307:		    v *= scaleToCube * ( 1.0 - 2.0 * texelSizeY );
+1308:		    vec2 planar = v.xy;
+1309:		    float almostATexel = 1.5 * texelSizeY;
+1310:		    float almostOne = 1.0 - almostATexel;
+1311:		    if ( absV.z >= almostOne ) {
+1312:		      if ( v.z > 0.0 )
+1313:		        planar.x = 4.0 - v.x;
+1314:		    } else if ( absV.x >= almostOne ) {
+1315:		      float signX = sign( v.x );
+1316:		      planar.x = v.z * signX + 2.0 * signX;
+1317:		    } else if ( absV.y >= almostOne ) {
+1318:		      float signY = sign( v.y );
+1319:		      planar.x = v.x + 2.0 * signY + 2.0;
+1320:		      planar.y = v.z * signY - 2.0;
+1321:		    }
+1322:		    return vec2( 0.125, 0.25 ) * planar + vec2( 0.375, 0.75 );
+1323:		  }
+1324:		  float getPointShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord, float shadowCameraNear, float shadowCameraFar ) {
+1325:		    float shadow = 1.0;
+1326:		    vec3 lightToPosition = shadowCoord.xyz;
+1327:		    
+1328:		    float lightToPositionLength = length( lightToPosition );
+1329:		    if ( lightToPositionLength - shadowCameraFar <= 0.0 && lightToPositionLength - shadowCameraNear >= 0.0 ) {
+1330:		      float dp = ( lightToPositionLength - shadowCameraNear ) / ( shadowCameraFar - shadowCameraNear );      dp += shadowBias;
+1331:		      vec3 bd3D = normalize( lightToPosition );
+1332:		      vec2 texelSize = vec2( 1.0 ) / ( shadowMapSize * vec2( 4.0, 2.0 ) );
+1333:		      #if defined( SHADOWMAP_TYPE_PCF ) || defined( SHADOWMAP_TYPE_PCF_SOFT ) || defined( SHADOWMAP_TYPE_VSM )
+1334:		        vec2 offset = vec2( - 1, 1 ) * shadowRadius * texelSize.y;
+1335:		        shadow = (
+1336:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xyy, texelSize.y ), dp ) +
+1337:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yyy, texelSize.y ), dp ) +
+1338:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xyx, texelSize.y ), dp ) +
+1339:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yyx, texelSize.y ), dp ) +
+1340:		          texture2DCompare( shadowMap, cubeToUV( bd3D, texelSize.y ), dp ) +
+1341:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xxy, texelSize.y ), dp ) +
+1342:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yxy, texelSize.y ), dp ) +
+1343:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xxx, texelSize.y ), dp ) +
+1344:		          texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yxx, texelSize.y ), dp )
+1345:		        ) * ( 1.0 / 9.0 );
+1346:		      #else
+1347:		        shadow = texture2DCompare( shadowMap, cubeToUV( bd3D, texelSize.y ), dp );
+1348:		      #endif
+1349:		    }
+1350:		    return mix( 1.0, shadow, shadowIntensity );
+1351:		  }
+1352:		#endif
+1353:		#ifdef USE_BUMPMAP
+1354:		  uniform sampler2D bumpMap;
+1355:		  uniform float bumpScale;
+1356:		  vec2 dHdxy_fwd() {
+1357:		    vec2 dSTdx = dFdx( vBumpMapUv );
+1358:		    vec2 dSTdy = dFdy( vBumpMapUv );
+1359:		    float Hll = bumpScale * texture2D( bumpMap, vBumpMapUv ).x;
+1360:		    float dBx = bumpScale * texture2D( bumpMap, vBumpMapUv + dSTdx ).x - Hll;
+1361:		    float dBy = bumpScale * texture2D( bumpMap, vBumpMapUv + dSTdy ).x - Hll;
+1362:		    return vec2( dBx, dBy );
+1363:		  }
+1364:		  vec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
+1365:		    vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) );
+1366:		    vec3 vSigmaY = normalize( dFdy( surf_pos.xyz ) );
+1367:		    vec3 vN = surf_norm;
+1368:		    vec3 R1 = cross( vSigmaY, vN );
+1369:		    vec3 R2 = cross( vN, vSigmaX );
+1370:		    float fDet = dot( vSigmaX, R1 ) * faceDirection;
+1371:		    vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );
+1372:		    return normalize( abs( fDet ) * surf_norm - vGrad );
+1373:		  }
+1374:		#endif
+1375:		#ifdef USE_NORMALMAP
+1376:		  uniform sampler2D normalMap;
+1377:		  uniform vec2 normalScale;
+1378:		#endif
+1379:		#ifdef USE_NORMALMAP_OBJECTSPACE
+1380:		  uniform mat3 normalMatrix;
+1381:		#endif
+1382:		#if ! defined ( USE_TANGENT ) && ( defined ( USE_NORMALMAP_TANGENTSPACE ) || defined ( USE_CLEARCOAT_NORMALMAP ) || defined( USE_ANISOTROPY ) )
+1383:		  mat3 getTangentFrame( vec3 eye_pos, vec3 surf_norm, vec2 uv ) {
+1384:		    vec3 q0 = dFdx( eye_pos.xyz );
+1385:		    vec3 q1 = dFdy( eye_pos.xyz );
+1386:		    vec2 st0 = dFdx( uv.st );
+1387:		    vec2 st1 = dFdy( uv.st );
+1388:		    vec3 N = surf_norm;
+1389:		    vec3 q1perp = cross( q1, N );
+1390:		    vec3 q0perp = cross( N, q0 );
+1391:		    vec3 T = q1perp * st0.x + q0perp * st1.x;
+1392:		    vec3 B = q1perp * st0.y + q0perp * st1.y;
+1393:		    float det = max( dot( T, T ), dot( B, B ) );
+1394:		    float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
+1395:		    return mat3( T * scale, B * scale, N );
+1396:		  }
+1397:		#endif
+1398:		#ifdef USE_CLEARCOATMAP
+1399:		  uniform sampler2D clearcoatMap;
+1400:		#endif
+1401:		#ifdef USE_CLEARCOAT_NORMALMAP
+1402:		  uniform sampler2D clearcoatNormalMap;
+1403:		  uniform vec2 clearcoatNormalScale;
+1404:		#endif
+1405:		#ifdef USE_CLEARCOAT_ROUGHNESSMAP
+1406:		  uniform sampler2D clearcoatRoughnessMap;
+1407:		#endif
+1408:		#ifdef USE_IRIDESCENCEMAP
+1409:		  uniform sampler2D iridescenceMap;
+1410:		#endif
+1411:		#ifdef USE_IRIDESCENCE_THICKNESSMAP
+1412:		  uniform sampler2D iridescenceThicknessMap;
+1413:		#endif
+1414:		#ifdef USE_ROUGHNESSMAP
+1415:		  uniform sampler2D roughnessMap;
+1416:		#endif
+1417:		#ifdef USE_METALNESSMAP
+1418:		  uniform sampler2D metalnessMap;
+1419:		#endif
+1420:		#if defined( USE_LOGDEPTHBUF )
+1421:		  uniform float logDepthBufFC;
+1422:		  varying float vFragDepth;
+1423:		  varying float vIsPerspective;
+1424:		#endif
+1425:		#if 0 > 0
+1426:		  varying vec3 vClipPosition;
+1427:		  uniform vec4 clippingPlanes[ 0 ];
+1428:		#endif
+1429:		
+1430:		          // THREE-CustomShaderMaterial by Faraz Shaikh: https://github.com/FarazzShaikh/THREE-CustomShaderMaterial
+1431:		  
+1432:		          //~CSM_DEFAULTS
+1433:		          
+1434:		    varying mat4 csm_internal_vModelViewMatrix;
+1435:		
+1436:		          
+1437:		    
+1438:		#ifdef IS_VERTEX
+1439:		    vec3 csm_Position;
+1440:		    vec4 csm_PositionRaw;
+1441:		    vec3 csm_Normal;
+1442:		
+1443:		    // csm_PointSize
+1444:		    #ifdef IS_POINTSMATERIAL
+1445:		        float csm_PointSize;
+1446:		    #endif
+1447:		#else
+1448:		    vec4 csm_DiffuseColor;
+1449:		    vec4 csm_FragColor;
+1450:		    float csm_UnlitFac;
+1451:		
+1452:		    // csm_Emissive, csm_Roughness, csm_Metalness
+1453:		    #if defined IS_MESHSTANDARDMATERIAL || defined IS_MESHPHYSICALMATERIAL
+1454:		        vec3 csm_Emissive;
+1455:		        float csm_Roughness;
+1456:		        float csm_Metalness;
+1457:		        float csm_Iridescence;
+1458:		        
+1459:		        #if defined IS_MESHPHYSICALMATERIAL
+1460:		            float csm_Clearcoat;
+1461:		            float csm_ClearcoatRoughness;
+1462:		            vec3 csm_ClearcoatNormal;
+1463:		            float csm_Transmission;
+1464:		            float csm_Thickness;
+1465:		        #endif
+1466:		    #endif
+1467:		
+1468:		    // csm_AO
+1469:		    #if defined IS_MESHSTANDARDMATERIAL || defined IS_MESHPHYSICALMATERIAL || defined IS_MESHBASICMATERIAL || defined IS_MESHLAMBERTMATERIAL || defined IS_MESHPHONGMATERIAL || defined IS_MESHTOONMATERIAL
+1470:		        float csm_AO;
+1471:		    #endif
+1472:		
+1473:		    // csm_Bump
+1474:		    #if defined IS_MESHLAMBERTMATERIAL || defined IS_MESHMATCAPMATERIAL || defined IS_MESHNORMALMATERIAL || defined IS_MESHPHONGMATERIAL || defined IS_MESHPHYSICALMATERIAL || defined IS_MESHSTANDARDMATERIAL || defined IS_MESHTOONMATERIAL || defined IS_SHADOWMATERIAL 
+1475:		        vec3 csm_Bump;
+1476:		        vec3 csm_FragNormal;
+1477:		    #endif
+1478:		
+1479:		    float csm_DepthAlpha;
+1480:		#endif
+1481:		
+1482:		  
+1483:		          uniform samplerCube h3IndexMap;
+1484:		uniform sampler2D h3NeighborMap;
+1485:		uniform sampler2D h3PositionMap;
+1486:		uniform sampler2D map;
+1487:		uniform usampler2D hexTileIntBuffer;
+1488:		uniform sampler2D hexTileFloatBuffer;
+1489:		uniform vec3 uOffset;
+1490:		uniform float uRadius;
+1491:		uniform float uSelectedTile;
+1492:		uniform uint uMapMode;
+1493:		uniform uint uMapLayers;
+1494:		
+1495:		const int NOAA_RAMP_SIZE = 18;
+1496:		
+1497:		vec4 noaaRampColors[NOAA_RAMP_SIZE] = vec4[](
+1498:		    vec4(1.0, 1.0, 1.0, 1.0),      
+1499:		    vec4(0.878, 0.843, 0.816, 1.0), 
+1500:		    vec4(0.804, 0.725, 0.612, 1.0), 
+1501:		    vec4(0.729, 0.580, 0.408, 1.0), 
+1502:		    vec4(0.608, 0.494, 0.263, 1.0), 
+1503:		    vec4(0.459, 0.459, 0.176, 1.0), 
+1504:		    vec4(0.271, 0.424, 0.094, 1.0), 
+1505:		    vec4(0.090, 0.333, 0.082, 1.0), 
+1506:		    vec4(0.000, 0.251, 0.137, 1.0), 
+1507:		    vec4(0.878, 0.988, 0.894, 1.0), 
+1508:		    vec4(0.671, 0.886, 0.843, 1.0), 
+1509:		    vec4(0.475, 0.776, 0.804, 1.0), 
+1510:		    vec4(0.361, 0.675, 0.792, 1.0), 
+1511:		    vec4(0.247, 0.569, 0.780, 1.0), 
+1512:		    vec4(0.176, 0.459, 0.690, 1.0), 
+1513:		    vec4(0.133, 0.333, 0.502, 1.0), 
+1514:		    vec4(0.114, 0.251, 0.322, 1.0), 
+1515:		    vec4(0.102, 0.204, 0.204, 1.0)  
+1516:		);
+1517:		
+1518:		float noaaRampElevations[NOAA_RAMP_SIZE] = float[](
+1519:		    8000.0,
+1520:		    4000.0, 
+1521:		    2000.0,
+1522:		    1000.0,
+1523:		    500.0,
+1524:		    250.0,
+1525:		    50.0,
+1526:		    10.0,
+1527:		    0.1,
+1528:		    0.0,
+1529:		    -2.0,
+1530:		    -10.0,
+1531:		    -50.0,
+1532:		    -250.0,
+1533:		    -1000.0,
+1534:		    -2000.0,
+1535:		    -4000.0,
+1536:		    -8000.0
+1537:		);
+1538:		
+1539:		vec4 getColorForElevation(float elevation) {
+1540:		    
+1541:		    if (elevation >= noaaRampElevations[0]) {
+1542:		        return noaaRampColors[0];
+1543:		    }
+1544:		    if (elevation <= noaaRampElevations[NOAA_RAMP_SIZE-1]) {
+1545:		        return noaaRampColors[NOAA_RAMP_SIZE-1];
+1546:		    }
+1547:		
+1548:		    
+1549:		    for (int i = 0; i < NOAA_RAMP_SIZE-1; i++) {
+1550:		        if (elevation <= noaaRampElevations[i] && elevation > noaaRampElevations[i+1]) {
+1551:		            
+1552:		            float t = (elevation - noaaRampElevations[i+1]) / 
+1553:		                     (noaaRampElevations[i] - noaaRampElevations[i+1]);
+1554:		            return mix(noaaRampColors[i+1], noaaRampColors[i], t);
+1555:		        }
+1556:		    }
+1557:		
+1558:		    
+1559:		    return noaaRampColors[0];
+1560:		}
+1561:		
+1562:		float remap(in float value, in float x1, in float y1, in float x2, in float y2) {
+1563:		    return ((value - x1) * (y2 - x2)) / (y1 - x1) + x2;
+1564:		}
+1565:		
+1566:		float greatCircleDistance(vec3 a, vec3 b) {
+1567:		    
+1568:		    vec3 na = normalize(a);
+1569:		    vec3 nb = normalize(b);
+1570:		    
+1571:		    
+1572:		    float cosTheta = clamp(dot(na, nb), -1.0, 1.0);
+1573:		    
+1574:		    
+1575:		    return acos(cosTheta);
+1576:		}
+1577:		
+1578:		const float RAD2DEG = 180.0 / 3.1415926535897932384626433832795;
+1579:		struct LatLong {
+1580:		    float lat;
+1581:		    float lon;
+1582:		};
+1583:		
+1584:		LatLong getLatLong(vec3 position, float radius) {
+1585:		    
+1586:		    float longitude = atan(position.x, position.z) * RAD2DEG;
+1587:		    float latitude = atan(-position.y, length(position.xz)) * RAD2DEG;
+1588:		    return LatLong(latitude, longitude);
+1589:		}
+1590:		
+1591:		vec2 getLatLongUV(LatLong latLong) {
+1592:		    return vec2(
+1593:		        remap(latLong.lon, -180., 180., 0., 1.),
+1594:		        remap(latLong.lat, -90., 90., 0., 1.)
+1595:		    );
+1596:		}
+1597:		bool getMapLayer(uint layer) {
+1598:		    return bool((uMapLayers >> layer) & 1u);
+1599:		}
+1600:		vec2 random2(float n) {
+1601:		    vec2 s = vec2(n);
+1602:		    return -1.0 + 2.0 * fract(sin(vec2(dot(s,vec2(127.1,311.7)),
+1603:		                                     dot(s,vec2(269.5,183.3))))*43758.5453123);
+1604:		}
+1605:		
+1606:		vec3 hash31(float p) {
+1607:		   vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
+1608:		   p3 += dot(p3, p3.yzx+33.33);
+1609:		   return fract((p3.xxy+p3.yzz)*p3.zyx); 
+1610:		}
+1611:		
+1612:		vec3 hashFloat(float f) {
+1613:		    
+1614:		    uint seed = uint(f);
+1615:		    
+1616:		    
+1617:		    seed ^= (seed << 13u);
+1618:		    seed ^= (seed >> 17u);
+1619:		    seed ^= (seed << 5u);
+1620:		    
+1621:		    
+1622:		    return vec3(
+1623:		        float((seed >> 16u) & 0xFFu) / 255.0,
+1624:		        float((seed >> 8u) & 0xFFu) / 255.0,
+1625:		        float(seed & 0xFFu) / 255.0
+1626:		    );
+1627:		}
+1628:		
+1629:		vec3 jitterPosition(vec3 position, float seed, float amount) {
+1630:		    
+1631:		    vec2 rand = random2(seed);
+1632:		    vec3 tangent = normalize(cross(position, vec3(0.0, 1.0, 0.0)));
+1633:		    vec3 bitangent = normalize(cross(position, tangent));
+1634:		    
+1635:		    
+1636:		    return normalize(position + (tangent * rand.x + bitangent * rand.y) * amount);
+1637:		}
+1638:		uint getNeighborH3Id(float baseId, float direction) {
+1639:		    
+1640:		    float index = baseId * 6.0 + direction;
+1641:		    vec2 texSize = vec2(textureSize(h3NeighborMap, 0));
+1642:		    float texWidth = texSize.x;
+1643:		    float texHeight = texSize.y;
+1644:		
+1645:		    
+1646:		    float row = floor(index / texWidth);
+1647:		    float col = mod(index, texWidth);
+1648:		
+1649:		    
+1650:		    vec2 uv = vec2(
+1651:		        (col + 0.5) / texWidth,
+1652:		        (row + 0.5) / texHeight
+1653:		    );
+1654:		
+1655:		    vec4 packed = texture2D(h3NeighborMap, uv);
+1656:		    
+1657:		    
+1658:		    uint r = uint(floor(packed.r * 255.0 + 0.5));
+1659:		    uint g = uint(floor(packed.g * 255.0 + 0.5));
+1660:		    uint b = uint(floor(packed.b * 255.0 + 0.5));
+1661:		    
+1662:		    
+1663:		    if (r == 255u && g == 255u && b == 255u) {
+1664:		        return 0u;
+1665:		    }
+1666:		    
+1667:		    return (r << 16u) | (g << 8u) | b;
+1668:		}
+1669:		
+1670:		vec3 getH3Position(float h3Id) {
+1671:		    ivec2 texSize = textureSize(h3PositionMap, 0);
+1672:		    float texWidth = float(texSize.x);
+1673:		    float texHeight = float(texSize.y);
+1674:		    
+1675:		    
+1676:		    float row = floor(h3Id / texWidth);
+1677:		    float col = h3Id - row * texWidth;
+1678:		
+1679:		    
+1680:		    row = min(row, texHeight - 1.0);
+1681:		
+1682:		    
+1683:		    vec2 uv = vec2(
+1684:		        (col + 0.5) / texWidth,
+1685:		        (row + 0.5) / texHeight
+1686:		    );
+1687:		
+1688:		    vec3 position = texture2D(h3PositionMap, uv).xyz;
+1689:		    
+1690:		    return position;
+1691:		}
+1692:		
+1693:		uint getH3IdentifierCube(vec3 direction) {
+1694:		    vec4 color = textureCube(h3IndexMap, direction);
+1695:		    uint r = uint(floor(color.r * 255.0 + 0.5));
+1696:		    uint g = uint(floor(color.g * 255.0 + 0.5));
+1697:		    uint b = uint(floor(color.b * 255.0 + 0.5));
+1698:		
+1699:		    
+1700:		    if (r == 255u && g == 255u && b == 255u) {
+1701:		        return 0u;
+1702:		    }
+1703:		
+1704:		    return (r << 16) | (g << 8) | b;
+1705:		}
+1706:		
+1707:		uint findClosestCell(vec3 position, uint initialId) {
+1708:		    vec3 normalizedPos = normalize(position);
+1709:		    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+1710:		    float minDist = greatCircleDistance(normalizedPos, initialCenter);
+1711:		    uint closestId = initialId;
+1712:		    
+1713:		    for (int i = 0; i < 6; i++) {
+1714:		        uint neighborId = getNeighborH3Id(float(initialId), float(i));
+1715:		        if (neighborId == 0u) continue;
+1716:		        
+1717:		        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+1718:		        float dist = greatCircleDistance(normalizedPos, neighborCenter);
+1719:		        
+1720:		        if (dist < minDist) {
+1721:		            minDist = dist;
+1722:		            closestId = neighborId;
+1723:		        }
+1724:		    }
+1725:		    
+1726:		    return closestId;
+1727:		}
+1728:		
+1729:		vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
+1730:		    vec3 normalizedPos = normalize(position);
+1731:		    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+1732:		    float minDist = greatCircleDistance(normalizedPos, initialCenter);
+1733:		    float secondMinDist = 1000.0;
+1734:		    uint closestId = initialId;
+1735:		    uint secondClosestId = initialId;
+1736:		    
+1737:		    for (int i = 0; i < 6; i++) {
+1738:		        uint neighborId = getNeighborH3Id(float(initialId), float(i));
+1739:		        if (neighborId == 0u) continue;
+1740:		        
+1741:		        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+1742:		        float dist = greatCircleDistance(normalizedPos, neighborCenter);
+1743:		        
+1744:		        if (dist < minDist) {
+1745:		            secondMinDist = minDist;
+1746:		            secondClosestId = closestId;
+1747:		            minDist = dist;
+1748:		            closestId = neighborId;
+1749:		        } else if (dist < secondMinDist) {
+1750:		            secondMinDist = dist;
+1751:		            secondClosestId = neighborId;
+1752:		        }
+1753:		    }
+1754:		    
+1755:		    return vec2(float(closestId), float(secondClosestId));
+1756:		}
+1757:		vec2 getHexTileUV(float tileIndex, vec2 textureSize) {
+1758:		    float row = floor(tileIndex / textureSize.x);
+1759:		    float col = mod(tileIndex, textureSize.x);
+1760:		    
+1761:		    return vec2(
+1762:		        (col + 0.5) / textureSize.x,
+1763:		        (row + 0.5) / textureSize.y
+1764:		    );
+1765:		}
+1766:		
+1767:		struct HexTileIntData {
+1768:		    uint tectonicPlate;
+1769:		    uint crustData;
+1770:		    uint biomeData;
+1771:		    uint reserved;
+1772:		};
+1773:		
+1774:		HexTileIntData getHexTileIntData(float tileIndex) {
+1775:		    vec2 textureSize = vec2(textureSize(hexTileIntBuffer, 0));
+1776:		    vec2 uv = getHexTileUV(tileIndex, textureSize);
+1777:		    uvec4 rawData = texture(hexTileIntBuffer, uv);
+1778:		    
+1779:		    HexTileIntData result;
+1780:		    result.tectonicPlate = rawData.r;
+1781:		    result.crustData = rawData.g;
+1782:		    result.biomeData = rawData.b;
+1783:		    result.reserved = rawData.a;
+1784:		    
+1785:		    return result;
+1786:		}
+1787:		
+1788:		bool isOceanicCrust(uint crustData) {
+1789:		    return (crustData / 10u) == 0u;
+1790:		}
+1791:		
+1792:		uint getCrustSubtype(uint crustData) {
+1793:		    return crustData % 10u;
+1794:		}
+1795:		
+1796:		uint getBiomeType(uint biomeData) {
+1797:		    return biomeData >> 1u;
+1798:		}
+1799:		
+1800:		bool hasHotspot(uint biomeData) {
+1801:		    return (biomeData & 1u) == 1u;
+1802:		}
+1803:		
+1804:		struct HexTileFloatData {
+1805:		    float evapotranspiration;
+1806:		    float annualPrecipitation;
+1807:		    float annualTemperature;
+1808:		    float elevation;
+1809:		};
+1810:		
+1811:		float validateHexTileFloatData(float tileIndex) {
+1812:		    vec2 textureSize = vec2(textureSize(hexTileFloatBuffer, 0));
+1813:		    vec2 uv = getHexTileUV(tileIndex, textureSize);
+1814:		    vec4 data = texture2D(hexTileFloatBuffer, uv);
+1815:		    return data.a;
+1816:		}
+1817:		
+1818:		HexTileFloatData getHexTileFloatData(float tileIndex) {
+1819:		    vec2 textureSize = vec2(textureSize(hexTileFloatBuffer, 0));
+1820:		    vec2 uv = getHexTileUV(tileIndex, textureSize);
+1821:		    vec4 data = texture2D(hexTileFloatBuffer, uv);
+1822:		    
+1823:		    HexTileFloatData result;
+1824:		    result.evapotranspiration = data.r;
+1825:		    result.annualPrecipitation = data.g * 5000.0; 
+1826:		    result.annualTemperature = data.b * 100.0 - 50.0; 
+1827:		    result.elevation = data.a;
+1828:		    
+1829:		    return result;
+1830:		}
+1831:		float getGrid(vec2 localPosition, float size, float thickness) {
+1832:		    vec2 r = localPosition.xy / size;
+1833:		    vec2 grid = abs(fract(r - 0.5) - 0.5) / fwidth(r);
+1834:		    float line = min(grid.x, grid.y) + 1.0 - thickness;
+1835:		    return 1.0 - min(line, 1.0);
+1836:		}
+1837:		
+1838:		float getGridFromFloat(float localPosition, float size, float thickness) {
+1839:		    float r = localPosition / size;
+1840:		    float grid = abs(fract(r - 0.5) - 0.5) / fwidth(r);
+1841:		    float line = grid + 1.0 - thickness;
+1842:		    return 1.0 - min(line, 1.0);
+1843:		}
+1844:		
+1845:		float getEdgeFactor(vec3 position, uint cellId, float edgeWidth) {
+1846:		    vec3 normalizedPos = normalize(position);
+1847:		    vec3 cellCenter = normalize(getH3Position(float(cellId)));
+1848:		    float distToCenter = greatCircleDistance(normalizedPos, cellCenter);
+1849:		    
+1850:		    
+1851:		    float minNeighborDist = 1000.0;
+1852:		    for (int i = 0; i < 6; i++) {
+1853:		        uint neighborId = getNeighborH3Id(float(cellId), float(i));
+1854:		        if (neighborId == 0u) continue;
+1855:		        
+1856:		        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+1857:		        float dist = greatCircleDistance(normalizedPos, neighborCenter);
+1858:		        minNeighborDist = min(minNeighborDist, dist);
+1859:		    }
+1860:		    
+1861:		    
+1862:		    float edgeSharpness = 4.0;
+1863:		    
+1864:		    
+1865:		    float edgeFactor = abs(distToCenter - minNeighborDist);
+1866:		    return 1.0 - smoothstep(0.0, edgeWidth, edgeFactor * edgeSharpness);
+1867:		}
+1868:		float calculateDiffuseLighting(vec3 normal, vec3 lightDir) {
+1869:		    return max(dot(normal, lightDir), 0.0);
+1870:		}
+1871:		
+1872:		vec3 calculateSurfaceNormal(vec3 position, uint cellId) {
+1873:		    
+1874:		    vec3 cellCenter = normalize(getH3Position(float(cellId)));
+1875:		    
+1876:		    
+1877:		    return normalize(position);
+1878:		}
+1879:		
+1880:		vec3 applyLighting(vec3 baseColor, vec3 normal, vec3 lightDir) {
+1881:		    
+1882:		    float ambientStrength = 0.00001;
+1883:		    vec3 ambient = ambientStrength * baseColor;
+1884:		    
+1885:		    
+1886:		    float diff = calculateDiffuseLighting(normal, lightDir);
+1887:		    vec3 diffuse = diff * baseColor;
+1888:		    
+1889:		    
+1890:		    return ambient + diffuse;
+1891:		}
+1892:		
+1893:		varying vec2 vUv;
+1894:		varying vec4 vWorldPosition;
+1895:		varying float vInstanceId;
+1896:		
+1897:		
+1898:		          
+1899:		          void main() {
+1900:		            {
+1901:		              
+1902:		
+1903:		#ifdef IS_VERTEX
+1904:		    // csm_Position & csm_PositionRaw
+1905:		    #ifdef IS_UNKNOWN
+1906:		        csm_Position = vec3(0.0);
+1907:		        csm_PositionRaw = vec4(0.0);
+1908:		        csm_Normal = vec3(0.0);
+1909:		    #else
+1910:		        csm_Position = position;
+1911:		        csm_PositionRaw = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+1912:		        csm_Normal = normal;
+1913:		    #endif
+1914:		
+1915:		    // csm_PointSize
+1916:		    #ifdef IS_POINTSMATERIAL
+1917:		        csm_PointSize = size;
+1918:		    #endif
+1919:		#else
+1920:		    csm_UnlitFac = 0.0;
+1921:		
+1922:		    // csm_DiffuseColor & csm_FragColor
+1923:		    #if defined IS_UNKNOWN || defined IS_SHADERMATERIAL || defined IS_MESHDEPTHMATERIAL || defined IS_MESHDISTANCEMATERIAL || defined IS_MESHNORMALMATERIAL || defined IS_SHADOWMATERIAL
+1924:		        csm_DiffuseColor = vec4(1.0, 0.0, 1.0, 1.0);
+1925:		        csm_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+1926:		    #else
+1927:		        #ifdef USE_MAP
+1928:		            vec4 _csm_sampledDiffuseColor = texture2D(map, vMapUv);
+1929:		
+1930:		            #ifdef DECODE_VIDEO_TEXTURE
+1931:		            // inline sRGB decode (TODO: Remove this code when https://crbug.com/1256340 is solved)
+1932:		            _csm_sampledDiffuseColor = vec4(mix(pow(_csm_sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), _csm_sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(_csm_sampledDiffuseColor.rgb, vec3(0.04045)))), _csm_sampledDiffuseColor.w);
+1933:		            #endif
+1934:		
+1935:		            csm_DiffuseColor = vec4(diffuse, opacity) * _csm_sampledDiffuseColor;
+1936:		            csm_FragColor = vec4(diffuse, opacity) * _csm_sampledDiffuseColor;
+1937:		        #else
+1938:		            csm_DiffuseColor = vec4(diffuse, opacity);
+1939:		            csm_FragColor = vec4(diffuse, opacity);
+1940:		        #endif
+1941:		    #endif
+1942:		
+1943:		    // csm_Emissive, csm_Roughness, csm_Metalness
+1944:		    #if defined IS_MESHSTANDARDMATERIAL || defined IS_MESHPHYSICALMATERIAL
+1945:		        csm_Emissive = emissive;
+1946:		        csm_Roughness = roughness;
+1947:		        csm_Metalness = metalness;
+1948:		
+1949:		        #ifdef USE_IRIDESCENCE
+1950:		            csm_Iridescence = iridescence;
+1951:		        #else
+1952:		            csm_Iridescence = 0.0;
+1953:		        #endif
+1954:		
+1955:		        #if defined IS_MESHPHYSICALMATERIAL
+1956:		            #ifdef USE_CLEARCOAT
+1957:		                csm_Clearcoat = clearcoat;
+1958:		                csm_ClearcoatRoughness = clearcoatRoughness;
+1959:		            #else
+1960:		                csm_Clearcoat = 0.0;
+1961:		                csm_ClearcoatRoughness = 0.0;
+1962:		            #endif
+1963:		
+1964:		            #ifdef USE_TRANSMISSION
+1965:		                csm_Transmission = transmission;
+1966:		                csm_Thickness = thickness;
+1967:		            #else
+1968:		                csm_Transmission = 0.0;
+1969:		                csm_Thickness = 0.0;
+1970:		            #endif
+1971:		        #endif
+1972:		    #endif
+1973:		
+1974:		    // csm_AO
+1975:		    #if defined IS_MESHSTANDARDMATERIAL || defined IS_MESHPHYSICALMATERIAL || defined IS_MESHBASICMATERIAL || defined IS_MESHLAMBERTMATERIAL || defined IS_MESHPHONGMATERIAL || defined IS_MESHTOONMATERIAL
+1976:		        csm_AO = 0.0;
+1977:		    #endif
+1978:		
+1979:		    // csm_Bump
+1980:		    #if defined IS_MESHLAMBERTMATERIAL || defined IS_MESHMATCAPMATERIAL || defined IS_MESHNORMALMATERIAL || defined IS_MESHPHONGMATERIAL || defined IS_MESHPHYSICALMATERIAL || defined IS_MESHSTANDARDMATERIAL || defined IS_MESHTOONMATERIAL || defined IS_SHADOWMATERIAL 
+1981:		        csm_Bump = vec3(0.0);
+1982:		        #ifdef FLAT_SHADED
+1983:		            vec3 fdx = dFdx( vViewPosition );
+1984:		            vec3 fdy = dFdy( vViewPosition );
+1985:		            csm_FragNormal = normalize( cross( fdx, fdy ) );
+1986:		        #else
+1987:		            csm_FragNormal = normalize(vNormal);
+1988:		            #ifdef DOUBLE_SIDED
+1989:		                csm_FragNormal *= gl_FrontFacing ? 1.0 : - 1.0;
+1990:		            #endif
+1991:		        #endif
+1992:		    #endif
+1993:		
+1994:		    csm_DepthAlpha = 1.0;
+1995:		#endif
+1996:		
+1997:		            }
+1998:		            
+1999:		    
+2000:		
+2001:		
+2002:		            
+2003:		    vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
+2004:		    vec3 sphereDirection = normalize(worldPos - uOffset);
+2005:		    vec3 spherePos = uOffset + sphereDirection * uRadius;
+2006:		    
+2007:		    uint currentId = getH3IdentifierCube(sphereDirection);
+2008:		
+2009:		    vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId);
+2010:		    uint closestId = uint(closestAndSecondClosest.x);
+2011:		    uint secondClosestId = uint(closestAndSecondClosest.y);
+2012:		
+2013:		    
+2014:		    LatLong latlong = getLatLong(worldPos, uRadius);
+2015:		    float lineWidth = 1.0;
+2016:		    float latRepititions = 18.;
+2017:		    float lonRepititions = 36.;
+2018:		    vec2 latlongUV = vec2(
+2019:		        -remap(latlong.lat, -90., 90., 0., 1.),
+2020:		        remap(latlong.lon, -180., 180., 0., 1.)
+2021:		    );
+2022:		    vec2 latlongUVWithReps = vec2(
+2023:		        latlongUV.x * latRepititions,
+2024:		        latlongUV.y * lonRepititions
+2025:		    );
+2026:		
+2027:		    
+2028:		    vec3 currentCellColor = hashFloat(float(currentId));
+2029:		    vec3 cellColor = hashFloat(float(closestId));
+2030:		    
+2031:		    
+2032:		    HexTileIntData intData = getHexTileIntData(float(closestId));
+2033:		    HexTileFloatData floatData = getHexTileFloatData(float(closestId));
+2034:		
+2035:		    HexTileIntData secondIntData = getHexTileIntData(float(secondClosestId));
+2036:		    HexTileFloatData secondFloatData = getHexTileFloatData(float(secondClosestId));
+2037:		
+2038:		    float elevation = floatData.elevation;
+2039:		
+2040:		    
+2041:		    vec3 baseColor = vec3(0.3);
+2042:		
+2043:		    if (uMapMode == 1u) {
+2044:		        baseColor = getColorForElevation(remap(elevation, -1.0, 1.0, -8000.0, 8000.0)).rgb;
+2045:		    }
+2046:		    if (uMapMode == 2u) {
+2047:		        baseColor = vec3(hashFloat(float(intData.tectonicPlate)));
+2048:		    }
+2049:		    if (uMapMode == 3u) {
+2050:		        baseColor = cellColor;
+2051:		    }
+2052:		
+2053:		    
+2054:		    float showGrid = 0.0;
+2055:		    if (getMapLayer(1u)) {
+2056:		        showGrid = 1.0;
+2057:		    }
+2058:		
+2059:		    
+2060:		    float axialTilt = 23.4;
+2061:		    vec2 arcticCircleLines = vec2(90.- - axialTilt, - (90.- - axialTilt));
+2062:		    vec2 tropicLines = vec2(axialTilt, -axialTilt);
+2063:		
+2064:		    float uSubgridAlpha = 0.0;
+2065:		    float uContourAlpha = 0.0;
+2066:		    float uLatLongGridAlpha = 0.5;
+2067:		    float uPolarCirclesAlpha = 1.0;
+2068:		    float uTropicsAlpha = 1.0;
+2069:		    float uEquatorAlpha = 1.0;
+2070:		    float uPrimeMeridianAlpha = 0.8;
+2071:		    
+2072:		    
+2073:		    float grid = getGrid(latlongUVWithReps, 1.0, lineWidth) * uLatLongGridAlpha;
+2074:		    float grid2 = getGrid(latlongUVWithReps, 0.5, lineWidth) * uSubgridAlpha;
+2075:		    float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
+2076:		    float combinedGrid = (grid + grid2 + grid3) * showGrid;
+2077:		
+2078:		    
+2079:		    vec3 lightDir = normalize(vec3(1.0, 0.4, 0.0)); 
+2080:		    
+2081:		    
+2082:		    
+2083:		    
+2084:		    
+2085:		    
+2086:		
+2087:		    vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
+2088:		
+2089:		    
+2090:		    float primeMeridian = getGridFromFloat(latlongUV.y, 0.5, lineWidth * 1.2);
+2091:		    float equator = getGridFromFloat(latlongUV.x, 0.5, lineWidth * 1.2);
+2092:		    float tropicCapricorn = getGridFromFloat(latlongUV.x + remap(tropicLines.x, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+2093:		    float tropicCancer = getGridFromFloat(latlongUV.x + remap(tropicLines.y, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+2094:		    float arcticCircle = getGridFromFloat(latlongUV.x + remap(arcticCircleLines.x, -90., 90., 0., 1.), 1.0 , lineWidth * 1.2);
+2095:		    float antarcticCircle = getGridFromFloat(latlongUV.x + remap(arcticCircleLines.y, -90., 90., 0., 1.), 1.0, lineWidth * 1.2);
+2096:		    float combinedGrid2 = primeMeridian + equator;
+2097:		    float tropics = tropicCapricorn + tropicCancer;
+2098:		    float polarCircles = arcticCircle + antarcticCircle;
+2099:		
+2100:		    vec3 combinedGridColors = mix(whiteGridColors, vec3(1.0, 0.0, 0.0), combinedGrid2 * uLatLongGridAlpha * showGrid);
+2101:		    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), tropics * uTropicsAlpha * showGrid);
+2102:		    combinedGridColors = mix(combinedGridColors, vec3(1.0, 1.0, 0.0), polarCircles * uPolarCirclesAlpha * showGrid);
+2103:		
+2104:		    
+2105:		    if (uSelectedTile > -1.0 && uSelectedTile == float(closestId)) {
+2106:		        combinedGridColors = vec3(1.0, 0.0, 0.0);
+2107:		    }
+2108:		
+2109:		    
+2110:		    vec3 edgeColor = vec3(0.0, 0.0, 0.0);
+2111:		    bool isEdge = intData.tectonicPlate != secondIntData.tectonicPlate;
+2112:		    float edgeWidth = 0.0006;
+2113:		    
+2114:		    float edge = 0.0;
+2115:		    if (getMapLayer(0u)) {
+2116:		        edge = getEdgeFactor(spherePos, closestId, edgeWidth);
+2117:		    }
+2118:		
+2119:		    vec3 finalColor = mix(combinedGridColors, edgeColor, edge);
+2120:		    finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
+2121:		
+2122:		    
+2123:		    csm_DiffuseColor = vec4(finalColor, 1.0);
+2124:		
+2125:		            //~CSM_MAIN_END
+2126:		          
+2127:		  vec4 diffuseColor = vec4( diffuse, opacity );
+2128:		#if 0 > 0
+2129:		  vec4 plane;
+2130:		  #ifdef ALPHA_TO_COVERAGE
+2131:		    float distanceToPlane, distanceGradient;
+2132:		    float clipOpacity = 1.0;
+2133:		    
+2134:		    #if 0 < 0
+2135:		      float unionClipOpacity = 1.0;
+2136:		      
+2137:		      clipOpacity *= 1.0 - unionClipOpacity;
+2138:		    #endif
+2139:		    diffuseColor.a *= clipOpacity;
+2140:		    if ( diffuseColor.a == 0.0 ) discard;
+2141:		  #else
+2142:		    
+2143:		    #if 0 < 0
+2144:		      bool clipped = true;
+2145:		      
+2146:		      if ( clipped ) discard;
+2147:		    #endif
+2148:		  #endif
+2149:		#endif
+2150:		  ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+2151:		  vec3 totalEmissiveRadiance = emissive;
+2152:		#if defined( USE_LOGDEPTHBUF )
+2153:		  gl_FragDepth = vIsPerspective == 0.0 ? gl_FragCoord.z : log2( vFragDepth ) * logDepthBufFC * 0.5;
+2154:		#endif
+2155:		#ifdef USE_MAP
+2156:		  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+2157:		  #ifdef DECODE_VIDEO_TEXTURE
+2158:		    sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
+2159:		  #endif
+2160:		  diffuseColor *= sampledDiffuseColor;
+2161:		#endif
+2162:		  
+2163:		#if defined( USE_COLOR_ALPHA )
+2164:		  diffuseColor *= vColor;
+2165:		#elif defined( USE_COLOR )
+2166:		  diffuseColor.rgb *= vColor;
+2167:		#endif
+2168:		    diffuseColor = csm_DiffuseColor;
+2169:		  
+2170:		#ifdef USE_ALPHAMAP
+2171:		  diffuseColor.a *= texture2D( alphaMap, vAlphaMapUv ).g;
+2172:		#endif
+2173:		#ifdef USE_ALPHATEST
+2174:		  #ifdef ALPHA_TO_COVERAGE
+2175:		  diffuseColor.a = smoothstep( alphaTest, alphaTest + fwidth( diffuseColor.a ), diffuseColor.a );
+2176:		  if ( diffuseColor.a == 0.0 ) discard;
+2177:		  #else
+2178:		  if ( diffuseColor.a < alphaTest ) discard;
+2179:		  #endif
+2180:		#endif
+2181:		#ifdef USE_ALPHAHASH
+2182:		  if ( diffuseColor.a < getAlphaHashThreshold( vPosition ) ) discard;
+2183:		#endif
+2184:		float roughnessFactor = roughness;
+2185:		#ifdef USE_ROUGHNESSMAP
+2186:		  vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );
+2187:		  roughnessFactor *= texelRoughness.g;
+2188:		#endif
+2189:		float metalnessFactor = metalness;
+2190:		#ifdef USE_METALNESSMAP
+2191:		  vec4 texelMetalness = texture2D( metalnessMap, vMetalnessMapUv );
+2192:		  metalnessFactor *= texelMetalness.b;
+2193:		#endif
+2194:		float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;
+2195:		#ifdef FLAT_SHADED
+2196:		  vec3 fdx = dFdx( vViewPosition );
+2197:		  vec3 fdy = dFdy( vViewPosition );
+2198:		  vec3 normal = normalize( cross( fdx, fdy ) );
+2199:		#else
+2200:		  vec3 normal = normalize( vNormal );
+2201:		  #ifdef DOUBLE_SIDED
+2202:		    normal *= faceDirection;
+2203:		  #endif
+2204:		#endif
+2205:		#if defined( USE_NORMALMAP_TANGENTSPACE ) || defined( USE_CLEARCOAT_NORMALMAP ) || defined( USE_ANISOTROPY )
+2206:		  #ifdef USE_TANGENT
+2207:		    mat3 tbn = mat3( normalize( vTangent ), normalize( vBitangent ), normal );
+2208:		  #else
+2209:		    mat3 tbn = getTangentFrame( - vViewPosition, normal,
+2210:		    #if defined( USE_NORMALMAP )
+2211:		      vNormalMapUv
+2212:		    #elif defined( USE_CLEARCOAT_NORMALMAP )
+2213:		      vClearcoatNormalMapUv
+2214:		    #else
+2215:		      vUv
+2216:		    #endif
+2217:		    );
+2218:		  #endif
+2219:		  #if defined( DOUBLE_SIDED ) && ! defined( FLAT_SHADED )
+2220:		    tbn[0] *= faceDirection;
+2221:		    tbn[1] *= faceDirection;
+2222:		  #endif
+2223:		#endif
+2224:		#ifdef USE_CLEARCOAT_NORMALMAP
+2225:		  #ifdef USE_TANGENT
+2226:		    mat3 tbn2 = mat3( normalize( vTangent ), normalize( vBitangent ), normal );
+2227:		  #else
+2228:		    mat3 tbn2 = getTangentFrame( - vViewPosition, normal, vClearcoatNormalMapUv );
+2229:		  #endif
+2230:		  #if defined( DOUBLE_SIDED ) && ! defined( FLAT_SHADED )
+2231:		    tbn2[0] *= faceDirection;
+2232:		    tbn2[1] *= faceDirection;
+2233:		  #endif
+2234:		#endif
+2235:		vec3 nonPerturbedNormal = normal;
+2236:		#ifdef USE_NORMALMAP_OBJECTSPACE
+2237:		  normal = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+2238:		  #ifdef FLIP_SIDED
+2239:		    normal = - normal;
+2240:		  #endif
+2241:		  #ifdef DOUBLE_SIDED
+2242:		    normal = normal * faceDirection;
+2243:		  #endif
+2244:		  normal = normalize( normalMatrix * normal );
+2245:		#elif defined( USE_NORMALMAP_TANGENTSPACE )
+2246:		  vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+2247:		  mapN.xy *= normalScale;
+2248:		  normal = normalize( tbn * mapN );
+2249:		#elif defined( USE_BUMPMAP )
+2250:		  normal = perturbNormalArb( - vViewPosition, normal, dHdxy_fwd(), faceDirection );
+2251:		#endif
+2252:		#ifdef USE_CLEARCOAT
+2253:		  vec3 clearcoatNormal = nonPerturbedNormal;
+2254:		#endif
+2255:		#ifdef USE_CLEARCOAT_NORMALMAP
+2256:		  vec3 clearcoatMapN = texture2D( clearcoatNormalMap, vClearcoatNormalMapUv ).xyz * 2.0 - 1.0;
+2257:		  clearcoatMapN.xy *= clearcoatNormalScale;
+2258:		  clearcoatNormal = normalize( tbn2 * clearcoatMapN );
+2259:		#endif
+2260:		#ifdef USE_EMISSIVEMAP
+2261:		  vec4 emissiveColor = texture2D( emissiveMap, vEmissiveMapUv );
+2262:		  #ifdef DECODE_VIDEO_TEXTURE_EMISSIVE
+2263:		    emissiveColor = sRGBTransferEOTF( emissiveColor );
+2264:		  #endif
+2265:		  totalEmissiveRadiance *= emissiveColor.rgb;
+2266:		#endif
+2267:		  PhysicalMaterial material;
+2268:		material.diffuseColor = diffuseColor.rgb * ( 1.0 - metalnessFactor );
+2269:		vec3 dxy = max( abs( dFdx( nonPerturbedNormal ) ), abs( dFdy( nonPerturbedNormal ) ) );
+2270:		float geometryRoughness = max( max( dxy.x, dxy.y ), dxy.z );
+2271:		material.roughness = max( roughnessFactor, 0.0525 );material.roughness += geometryRoughness;
+2272:		material.roughness = min( material.roughness, 1.0 );
+2273:		#ifdef IOR
+2274:		  material.ior = ior;
+2275:		  #ifdef USE_SPECULAR
+2276:		    float specularIntensityFactor = specularIntensity;
+2277:		    vec3 specularColorFactor = specularColor;
+2278:		    #ifdef USE_SPECULAR_COLORMAP
+2279:		      specularColorFactor *= texture2D( specularColorMap, vSpecularColorMapUv ).rgb;
+2280:		    #endif
+2281:		    #ifdef USE_SPECULAR_INTENSITYMAP
+2282:		      specularIntensityFactor *= texture2D( specularIntensityMap, vSpecularIntensityMapUv ).a;
+2283:		    #endif
+2284:		    material.specularF90 = mix( specularIntensityFactor, 1.0, metalnessFactor );
+2285:		  #else
+2286:		    float specularIntensityFactor = 1.0;
+2287:		    vec3 specularColorFactor = vec3( 1.0 );
+2288:		    material.specularF90 = 1.0;
+2289:		  #endif
+2290:		  material.specularColor = mix( min( pow2( ( material.ior - 1.0 ) / ( material.ior + 1.0 ) ) * specularColorFactor, vec3( 1.0 ) ) * specularIntensityFactor, diffuseColor.rgb, metalnessFactor );
+2291:		#else
+2292:		  material.specularColor = mix( vec3( 0.04 ), diffuseColor.rgb, metalnessFactor );
+2293:		  material.specularF90 = 1.0;
+2294:		#endif
+2295:		#ifdef USE_CLEARCOAT
+2296:		  material.clearcoat = clearcoat;
+2297:		  material.clearcoatRoughness = clearcoatRoughness;
+2298:		  material.clearcoatF0 = vec3( 0.04 );
+2299:		  material.clearcoatF90 = 1.0;
+2300:		  #ifdef USE_CLEARCOATMAP
+2301:		    material.clearcoat *= texture2D( clearcoatMap, vClearcoatMapUv ).x;
+2302:		  #endif
+2303:		  #ifdef USE_CLEARCOAT_ROUGHNESSMAP
+2304:		    material.clearcoatRoughness *= texture2D( clearcoatRoughnessMap, vClearcoatRoughnessMapUv ).y;
+2305:		  #endif
+2306:		  material.clearcoat = saturate( material.clearcoat );  material.clearcoatRoughness = max( material.clearcoatRoughness, 0.0525 );
+2307:		  material.clearcoatRoughness += geometryRoughness;
+2308:		  material.clearcoatRoughness = min( material.clearcoatRoughness, 1.0 );
+2309:		#endif
+2310:		#ifdef USE_DISPERSION
+2311:		  material.dispersion = dispersion;
+2312:		#endif
+2313:		#ifdef USE_IRIDESCENCE
+2314:		  material.iridescence = iridescence;
+2315:		  material.iridescenceIOR = iridescenceIOR;
+2316:		  #ifdef USE_IRIDESCENCEMAP
+2317:		    material.iridescence *= texture2D( iridescenceMap, vIridescenceMapUv ).r;
+2318:		  #endif
+2319:		  #ifdef USE_IRIDESCENCE_THICKNESSMAP
+2320:		    material.iridescenceThickness = (iridescenceThicknessMaximum - iridescenceThicknessMinimum) * texture2D( iridescenceThicknessMap, vIridescenceThicknessMapUv ).g + iridescenceThicknessMinimum;
+2321:		  #else
+2322:		    material.iridescenceThickness = iridescenceThicknessMaximum;
+2323:		  #endif
+2324:		#endif
+2325:		#ifdef USE_SHEEN
+2326:		  material.sheenColor = sheenColor;
+2327:		  #ifdef USE_SHEEN_COLORMAP
+2328:		    material.sheenColor *= texture2D( sheenColorMap, vSheenColorMapUv ).rgb;
+2329:		  #endif
+2330:		  material.sheenRoughness = clamp( sheenRoughness, 0.07, 1.0 );
+2331:		  #ifdef USE_SHEEN_ROUGHNESSMAP
+2332:		    material.sheenRoughness *= texture2D( sheenRoughnessMap, vSheenRoughnessMapUv ).a;
+2333:		  #endif
+2334:		#endif
+2335:		#ifdef USE_ANISOTROPY
+2336:		  #ifdef USE_ANISOTROPYMAP
+2337:		    mat2 anisotropyMat = mat2( anisotropyVector.x, anisotropyVector.y, - anisotropyVector.y, anisotropyVector.x );
+2338:		    vec3 anisotropyPolar = texture2D( anisotropyMap, vAnisotropyMapUv ).rgb;
+2339:		    vec2 anisotropyV = anisotropyMat * normalize( 2.0 * anisotropyPolar.rg - vec2( 1.0 ) ) * anisotropyPolar.b;
+2340:		  #else
+2341:		    vec2 anisotropyV = anisotropyVector;
+2342:		  #endif
+2343:		  material.anisotropy = length( anisotropyV );
+2344:		  if( material.anisotropy == 0.0 ) {
+2345:		    anisotropyV = vec2( 1.0, 0.0 );
+2346:		  } else {
+2347:		    anisotropyV /= material.anisotropy;
+2348:		    material.anisotropy = saturate( material.anisotropy );
+2349:		  }
+2350:		  material.alphaT = mix( pow2( material.roughness ), 1.0, pow2( material.anisotropy ) );
+2351:		  material.anisotropyT = tbn[ 0 ] * anisotropyV.x + tbn[ 1 ] * anisotropyV.y;
+2352:		  material.anisotropyB = tbn[ 1 ] * anisotropyV.x - tbn[ 0 ] * anisotropyV.y;
+2353:		#endif
+2354:		
+2355:		vec3 geometryPosition = - vViewPosition;
+2356:		vec3 geometryNormal = normal;
+2357:		vec3 geometryViewDir = ( isOrthographic ) ? vec3( 0, 0, 1 ) : normalize( vViewPosition );
+2358:		vec3 geometryClearcoatNormal = vec3( 0.0 );
+2359:		#ifdef USE_CLEARCOAT
+2360:		  geometryClearcoatNormal = clearcoatNormal;
+2361:		#endif
+2362:		#ifdef USE_IRIDESCENCE
+2363:		  float dotNVi = saturate( dot( normal, geometryViewDir ) );
+2364:		  if ( material.iridescenceThickness == 0.0 ) {
+2365:		    material.iridescence = 0.0;
+2366:		  } else {
+2367:		    material.iridescence = saturate( material.iridescence );
+2368:		  }
+2369:		  if ( material.iridescence > 0.0 ) {
+2370:		    material.iridescenceFresnel = evalIridescence( 1.0, material.iridescenceIOR, dotNVi, material.iridescenceThickness, material.specularColor );
+2371:		    material.iridescenceF0 = Schlick_to_F0( material.iridescenceFresnel, 1.0, dotNVi );
+2372:		  }
+2373:		#endif
+2374:		IncidentLight directLight;
+2375:		#if ( 0 > 0 ) && defined( RE_Direct )
+2376:		  PointLight pointLight;
+2377:		  #if defined( USE_SHADOWMAP ) && 0 > 0
+2378:		  PointLightShadow pointLightShadow;
+2379:		  #endif
+2380:		  
+2381:		#endif
+2382:		#if ( 1 > 0 ) && defined( RE_Direct )
+2383:		  SpotLight spotLight;
+2384:		  vec4 spotColor;
+2385:		  vec3 spotLightCoord;
+2386:		  bool inSpotLightMap;
+2387:		  #if defined( USE_SHADOWMAP ) && 0 > 0
+2388:		  SpotLightShadow spotLightShadow;
+2389:		  #endif
+2390:		  
+2391:		    spotLight = spotLights[ 0 ];
+2392:		    getSpotLightInfo( spotLight, geometryPosition, directLight );
+2393:		    #if ( 0 < 0 )
+2394:		    #define SPOT_LIGHT_MAP_INDEX 0
+2395:		    #elif ( 0 < 0 )
+2396:		    #define SPOT_LIGHT_MAP_INDEX 0
+2397:		    #else
+2398:		    #define SPOT_LIGHT_MAP_INDEX ( 0 - 0 + 0 )
+2399:		    #endif
+2400:		    #if ( SPOT_LIGHT_MAP_INDEX < 0 )
+2401:		      spotLightCoord = vSpotLightCoord[ 0 ].xyz / vSpotLightCoord[ 0 ].w;
+2402:		      inSpotLightMap = all( lessThan( abs( spotLightCoord * 2. - 1. ), vec3( 1.0 ) ) );
+2403:		      spotColor = texture2D( spotLightMap[ SPOT_LIGHT_MAP_INDEX ], spotLightCoord.xy );
+2404:		      directLight.color = inSpotLightMap ? directLight.color * spotColor.rgb : directLight.color;
+2405:		    #endif
+2406:		    #undef SPOT_LIGHT_MAP_INDEX
+2407:		    #if defined( USE_SHADOWMAP ) && ( 0 < 0 )
+2408:		    spotLightShadow = spotLightShadows[ 0 ];
+2409:		    directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow( spotShadowMap[ 0 ], spotLightShadow.shadowMapSize, spotLightShadow.shadowIntensity, spotLightShadow.shadowBias, spotLightShadow.shadowRadius, vSpotLightCoord[ 0 ] ) : 1.0;
+2410:		    #endif
+2411:		    RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+2412:		  
+2413:		#endif
+2414:		#if ( 0 > 0 ) && defined( RE_Direct )
+2415:		  DirectionalLight directionalLight;
+2416:		  #if defined( USE_SHADOWMAP ) && 0 > 0
+2417:		  DirectionalLightShadow directionalLightShadow;
+2418:		  #endif
+2419:		  
+2420:		#endif
+2421:		#if ( 0 > 0 ) && defined( RE_Direct_RectArea )
+2422:		  RectAreaLight rectAreaLight;
+2423:		  
+2424:		#endif
+2425:		#if defined( RE_IndirectDiffuse )
+2426:		  vec3 iblIrradiance = vec3( 0.0 );
+2427:		  vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );
+2428:		  #if defined( USE_LIGHT_PROBES )
+2429:		    irradiance += getLightProbeIrradiance( lightProbe, geometryNormal );
+2430:		  #endif
+2431:		  #if ( 0 > 0 )
+2432:		    
+2433:		  #endif
+2434:		#endif
+2435:		#if defined( RE_IndirectSpecular )
+2436:		  vec3 radiance = vec3( 0.0 );
+2437:		  vec3 clearcoatRadiance = vec3( 0.0 );
+2438:		#endif
+2439:		#if defined( RE_IndirectDiffuse )
+2440:		  #ifdef USE_LIGHTMAP
+2441:		    vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );
+2442:		    vec3 lightMapIrradiance = lightMapTexel.rgb * lightMapIntensity;
+2443:		    irradiance += lightMapIrradiance;
+2444:		  #endif
+2445:		  #if defined( USE_ENVMAP ) && defined( STANDARD ) && defined( ENVMAP_TYPE_CUBE_UV )
+2446:		    iblIrradiance += getIBLIrradiance( geometryNormal );
+2447:		  #endif
+2448:		#endif
+2449:		#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
+2450:		  #ifdef USE_ANISOTROPY
+2451:		    radiance += getIBLAnisotropyRadiance( geometryViewDir, geometryNormal, material.roughness, material.anisotropyB, material.anisotropy );
+2452:		  #else
+2453:		    radiance += getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );
+2454:		  #endif
+2455:		  #ifdef USE_CLEARCOAT
+2456:		    clearcoatRadiance += getIBLRadiance( geometryViewDir, geometryClearcoatNormal, material.clearcoatRoughness );
+2457:		  #endif
+2458:		#endif
+2459:		#if defined( RE_IndirectDiffuse )
+2460:		  RE_IndirectDiffuse( irradiance, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+2461:		#endif
+2462:		#if defined( RE_IndirectSpecular )
+2463:		  RE_IndirectSpecular( radiance, iblIrradiance, clearcoatRadiance, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+2464:		#endif
+2465:		#ifdef USE_AOMAP
+2466:		  float ambientOcclusion = ( texture2D( aoMap, vAoMapUv ).r - 1.0 ) * aoMapIntensity + 1.0;
+2467:		  reflectedLight.indirectDiffuse *= ambientOcclusion;
+2468:		  #if defined( USE_CLEARCOAT ) 
+2469:		    clearcoatSpecularIndirect *= ambientOcclusion;
+2470:		  #endif
+2471:		  #if defined( USE_SHEEN ) 
+2472:		    sheenSpecularIndirect *= ambientOcclusion;
+2473:		  #endif
+2474:		  #if defined( USE_ENVMAP ) && defined( STANDARD )
+2475:		    float dotNV = saturate( dot( geometryNormal, geometryViewDir ) );
+2476:		    reflectedLight.indirectSpecular *= computeSpecularOcclusion( dotNV, ambientOcclusion, material.roughness );
+2477:		  #endif
+2478:		#endif
+2479:		  vec3 totalDiffuse = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
+2480:		  vec3 totalSpecular = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
+2481:		  #ifdef USE_TRANSMISSION
+2482:		  material.transmission = transmission;
+2483:		  material.transmissionAlpha = 1.0;
+2484:		  material.thickness = thickness;
+2485:		  material.attenuationDistance = attenuationDistance;
+2486:		  material.attenuationColor = attenuationColor;
+2487:		  #ifdef USE_TRANSMISSIONMAP
+2488:		    material.transmission *= texture2D( transmissionMap, vTransmissionMapUv ).r;
+2489:		  #endif
+2490:		  #ifdef USE_THICKNESSMAP
+2491:		    material.thickness *= texture2D( thicknessMap, vThicknessMapUv ).g;
+2492:		  #endif
+2493:		  vec3 pos = vWorldPosition;
+2494:		  vec3 v = normalize( cameraPosition - pos );
+2495:		  vec3 n = inverseTransformDirection( normal, viewMatrix );
+2496:		  vec4 transmitted = getIBLVolumeRefraction(
+2497:		    n, v, material.roughness, material.diffuseColor, material.specularColor, material.specularF90,
+2498:		    pos, modelMatrix, viewMatrix, projectionMatrix, material.dispersion, material.ior, material.thickness,
+2499:		    material.attenuationColor, material.attenuationDistance );
+2500:		  material.transmissionAlpha = mix( material.transmissionAlpha, transmitted.a, material.transmission );
+2501:		  totalDiffuse = mix( totalDiffuse, transmitted.rgb, material.transmission );
+2502:		#endif
+2503:		  vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;
+2504:		  #ifdef USE_SHEEN
+2505:		    float sheenEnergyComp = 1.0 - 0.157 * max3( material.sheenColor );
+2506:		    outgoingLight = outgoingLight * sheenEnergyComp + sheenSpecularDirect + sheenSpecularIndirect;
+2507:		  #endif
+2508:		  #ifdef USE_CLEARCOAT
+2509:		    float dotNVcc = saturate( dot( geometryClearcoatNormal, geometryViewDir ) );
+2510:		    vec3 Fcc = F_Schlick( material.clearcoatF0, material.clearcoatF90, dotNVcc );
+2511:		    outgoingLight = outgoingLight * ( 1.0 - material.clearcoat * Fcc ) + ( clearcoatSpecularDirect + clearcoatSpecularIndirect ) * material.clearcoat;
+2512:		  #endif
+2513:		#ifdef OPAQUE
+2514:		diffuseColor.a = 1.0;
+2515:		#endif
+2516:		#ifdef USE_TRANSMISSION
+2517:		diffuseColor.a *= material.transmissionAlpha;
+2518:		#endif
+2519:		gl_FragColor = vec4( outgoingLight, diffuseColor.a );
+2520:		#if defined( TONE_MAPPING )
+2521:		  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+2522:		#endif
+2523:		gl_FragColor = linearToOutputTexel( gl_FragColor );
+2524:		#ifdef USE_FOG
+2525:		  #ifdef FOG_EXP2
+2526:		    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+2527:		  #else
+2528:		    float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+2529:		  #endif
+2530:		  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+2531:		#endif
+2532:		#ifdef PREMULTIPLIED_ALPHA
+2533:		  gl_FragColor.rgb *= gl_FragColor.a;
+2534:		#endif
+2535:		#ifdef DITHERING
+2536:		  gl_FragColor.rgb = dithering( gl_FragColor.rgb );
+2537:		#endif
+2538:		}

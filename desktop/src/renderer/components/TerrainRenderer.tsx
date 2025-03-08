@@ -2,6 +2,7 @@ import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
 import { integerToRGB } from "@/lib/images/colorUtils";
 import { getState } from "@/state/Context";
+import { ShaderUtils } from "@/utils/three.utils";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -31,6 +32,7 @@ export function TerrainRenderer({
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
+  const renderer = useThree((state) => state.gl);
   const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const [hovering, setHovering] = useState(false);
   const hoveredHexTileIndex = useRef(-1);
@@ -38,6 +40,7 @@ export function TerrainRenderer({
   const positionKey = position.toArray().join(",");
 
   useEffect(() => {
+    if (!renderer) return;
     let stale = false;
     console.log("Initializing terrain with:", {
       radius,
@@ -52,6 +55,7 @@ export function TerrainRenderer({
     instancerRef.current.initialize().then(() => {
       if (!stale) {
         scene.add(instancerRef.current.mesh);
+        ShaderUtils.init(renderer, scene, camera, instancerRef.current.mesh);
       }
     });
 
@@ -61,7 +65,7 @@ export function TerrainRenderer({
       instancerRef.current?.dispose();
       scene.remove(instancerRef.current?.mesh);
     };
-  }, [radius, positionKey, camera]);
+  }, [radius, positionKey, camera, renderer]);
 
   useFrame(({ camera }) => {
     if (!instancerRef.current || !quadtreeRef.current) return;
@@ -140,7 +144,7 @@ export function TerrainRenderer({
         onPointerEnter={handlePointerEnter}
       >
         <sphereGeometry args={[radius, 64, 64]} />
-        <meshBasicMaterial color="red" />
+        <meshStandardMaterial color="blue" />
       </mesh>
     </>
   );

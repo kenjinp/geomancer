@@ -2160,6 +2160,11 @@
   dependencies:
     "@octokit/openapi-types" "^12.11.0"
 
+"@petamoriken/float16@^3.9.1":
+  version "3.9.1"
+  resolved "https://registry.yarnpkg.com/@petamoriken/float16/-/float16-3.9.1.tgz#f1239d6721f25c1bf921dde0d7d678efef9c1de2"
+  integrity sha512-j+ejhYwY6PeB+v1kn7lZFACUIG97u90WxMuGosILFsl9d4Ovi0sjk0GlPfoEcx+FzvXZDAfioD+NGnnPamXgMA==
+
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
@@ -3836,6 +3841,29 @@
   dependencies:
     defer-to-connect "^2.0.0"
 
+"@takram/three-atmosphere@^0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@takram/three-atmosphere/-/three-atmosphere-0.10.0.tgz#bd2593760893468cd8742cf4d0a6129832919412"
+  integrity sha512-1t5+jCXKn5LK5ANHbL9iPLikVEd0YpGr1Qtzof3MSwpTGoyggWTMWXPdDCZCkAYD5HN8JFWmhCRCqNfiYIXnVQ==
+  dependencies:
+    "@takram/three-geospatial" "0.0.1-alpha.9"
+    astronomy-engine "^2.1.19"
+    react-merge-refs "^2.1.1"
+    three-stdlib "2.35.14"
+    tiny-invariant "^1.3.3"
+    url-join "^5.0.0"
+
+"@takram/three-geospatial@0.0.1-alpha.9":
+  version "0.0.1-alpha.9"
+  resolved "https://registry.yarnpkg.com/@takram/three-geospatial/-/three-geospatial-0.0.1-alpha.9.tgz#b4e9e212a3c725ef17f80f819c53bf9f8505b586"
+  integrity sha512-0/KGV1ZTIO0/iJOpWXpx5wFEeAqoMUDwMuE5kL1OzSf+COFviGvqtgZlqia95kAzlZSNXQoeEGg4IlvOVdw3Aw==
+  dependencies:
+    "@petamoriken/float16" "^3.9.1"
+    react-merge-refs "^2.1.1"
+    three-stdlib "2.35.14"
+    tiny-invariant "^1.3.3"
+    type-fest "^4.33.0"
+
 "@tanstack/react-virtual@3.11.2":
   version "3.11.2"
   resolved "https://registry.yarnpkg.com/@tanstack/react-virtual/-/react-virtual-3.11.2.tgz#d6b9bd999c181f0a2edce270c87a2febead04322"
@@ -4455,6 +4483,11 @@ assertion-error@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/assertion-error/-/assertion-error-2.0.1.tgz#f641a196b335690b1070bf00b6e7593fec190bf7"
   integrity sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==
+
+astronomy-engine@^2.1.19:
+  version "2.1.19"
+  resolved "https://registry.yarnpkg.com/astronomy-engine/-/astronomy-engine-2.1.19.tgz#41b9fd2afb7eba3485e3803cbd9033011f8557af"
+  integrity sha512-8yWKNf7UeNbH458h3sAJ6ZgAjE5jTXp/mNNRFoC20j2SHwZIjAQeEsBB2Q3uCFRaTCCJRv33K2XhkhZQMXoX6w==
 
 async-await-mutex-lock@^1.0.11:
   version "1.0.12"
@@ -7979,6 +8012,11 @@ react-is@^16.13.1, react-is@^16.7.0:
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-16.13.1.tgz#789729a4dc36de2999dc156dd6c1d9c18cea56a4"
   integrity sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==
 
+react-merge-refs@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/react-merge-refs/-/react-merge-refs-2.1.1.tgz#e46763f8f1b881c0226ee54a1a2a10ffefba0233"
+  integrity sha512-jLQXJ/URln51zskhgppGJ2ub7b2WFKGq3cl3NYKtlHoTG+dN2q7EzWrn3hN3EgPsTMvpR9tpq5ijdp7YwFZkag==
+
 react-reconciler@0.31.0-rc.1:
   version "0.31.0-rc.1"
   resolved "https://registry.yarnpkg.com/react-reconciler/-/react-reconciler-0.31.0-rc.1.tgz#39e9fdbe57dfb0a9310f48720b8a5180756ed3a1"
@@ -8883,6 +8921,18 @@ three-mesh-bvh@^0.7.8:
   resolved "https://registry.yarnpkg.com/three-mesh-bvh/-/three-mesh-bvh-0.7.8.tgz#83156e4d3945734db076de1c94809331481b3fdd"
   integrity sha512-BGEZTOIC14U0XIRw3tO4jY7IjP7n7v24nv9JXS1CyeVRWOCkcOMhRnmENUjuV39gktAw4Ofhr0OvIAiTspQrrw==
 
+three-stdlib@2.35.14:
+  version "2.35.14"
+  resolved "https://registry.yarnpkg.com/three-stdlib/-/three-stdlib-2.35.14.tgz#04494f396e166ad46f93a58b2fa926c6d00bc836"
+  integrity sha512-kpCaEg59M9usFTgHC+YZNKvx7nMoLI2zQxZBV8pjoNW6vNZmGyXpaLBL09A2oLCsS3KepgMFkOuk6lRoebTNvA==
+  dependencies:
+    "@types/draco3d" "^1.4.0"
+    "@types/offscreencanvas" "^2019.6.4"
+    "@types/webxr" "^0.5.2"
+    draco3d "^1.4.1"
+    fflate "^0.6.9"
+    potpack "^1.0.1"
+
 three-stdlib@^2.28.7, three-stdlib@^2.35.12, three-stdlib@^2.35.6:
   version "2.35.12"
   resolved "https://registry.yarnpkg.com/three-stdlib/-/three-stdlib-2.35.12.tgz#e2b05e9a42c21fa1792a24d5e3de8cc7105502a5"
@@ -8909,6 +8959,11 @@ tiny-each-async@2.0.3:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/tiny-each-async/-/tiny-each-async-2.0.3.tgz#8ebbbfd6d6295f1370003fbb37162afe5a0a51d1"
   integrity sha512-5ROII7nElnAirvFn8g7H7MtpfV1daMcyfTGQwsn/x2VtyV+VPiO5CjReCJtWLvoKTDEDmZocf3cNPraiMnBXLA==
+
+tiny-invariant@^1.3.3:
+  version "1.3.3"
+  resolved "https://registry.yarnpkg.com/tiny-invariant/-/tiny-invariant-1.3.3.tgz#46680b7a873a0d5d10005995eb90a70d74d60127"
+  integrity sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==
 
 tinybench@^2.9.0:
   version "2.9.0"
@@ -9064,6 +9119,11 @@ type-fest@^1.0.2:
   resolved "https://registry.yarnpkg.com/type-fest/-/type-fest-1.4.0.tgz#e9fb813fe3bf1744ec359d55d1affefa76f14be1"
   integrity sha512-yGSza74xk0UG8k+pLh5oeoYirvIiWo5t0/o3zHHAO2tRDiZcxWP7fywNlXhqb6/r6sWvwi+RsyQMWhVLe4BVuA==
 
+type-fest@^4.33.0:
+  version "4.37.0"
+  resolved "https://registry.yarnpkg.com/type-fest/-/type-fest-4.37.0.tgz#7cf008bf77b63a33f7ca014fa2a3f09fd69e8937"
+  integrity sha512-S/5/0kFftkq27FPNye0XM1e2NsnoD/3FS+pBmbjmmtLT6I+i344KoOf7pvXreaFsDamWeaJX55nczA1m5PsBDg==
+
 type-is@~1.6.18:
   version "1.6.18"
   resolved "https://registry.yarnpkg.com/type-is/-/type-is-1.6.18.tgz#4e552cd05df09467dcbc4ef739de89f2cf37c131"
@@ -9208,6 +9268,11 @@ uri-js@^4.2.2:
   integrity sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==
   dependencies:
     punycode "^2.1.0"
+
+url-join@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/url-join/-/url-join-5.0.0.tgz#c2f1e5cbd95fa91082a93b58a1f42fecb4bdbcf1"
+  integrity sha512-n2huDr9h9yzd6exQVnH/jU5mr+Pfx08LRXXZhkLLetAMESRj+anQsTAh940iMrIetKAmry9coFuZQ2jY8/p3WA==
 
 use-composed-ref@^1.3.0:
   version "1.4.0"
