@@ -7,12 +7,13 @@ import {
   InstancedMesh,
   Material,
   Matrix4,
+  MeshPhysicalMaterial,
   PlaneGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
+import CustomShaderMaterial from "three-custom-shader-material/vanilla";
 import fragmentShader from "../shaders/terrain/terrain.frag";
-import vertexShader from "../shaders/terrain/terrain.vert";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 
 export class TerrainInstancer {
@@ -38,8 +39,47 @@ export class TerrainInstancer {
   public async initialize() {
     const { buffers, mapMode } = getState();
 
-    this.material = new ShaderMaterial({
-      vertexShader,
+    // Create a custom vertex shader that handles sphere projection and shadow mapping
+    const sphereProjectionVS = `
+    uniform float uRadius;
+    uniform vec3 uOffset;
+    varying vec4 vWorldPosition;
+    varying float vInstanceId;
+    varying vec3 vColor;
+    varying vec3 vSphereNormal;
+
+    void main() {
+      // Get instance ID
+      vInstanceId = float(gl_InstanceID);
+      
+      // Calculate sphere-projected position
+      vec4 instWorldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+      vec3 sphereDir = normalize(instWorldPos.xyz - uOffset);
+      vec3 spherePos = uOffset + sphereDir * uRadius;
+      
+      // Store for fragment shader and shadows
+      vWorldPosition = vec4(spherePos, 1.0);
+      vSphereNormal = sphereDir; // The normal is the same as the direction from center
+      
+      // This is the key part - we need to modify csm_Position with the right
+      // transformation that makes the final position end up on the sphere
+      vec4 spherePosView = viewMatrix * vec4(spherePos, 1.0);
+      mat4 invModelViewMat = inverse(modelViewMatrix);
+      mat4 invInstanceMat = inverse(instanceMatrix);
+      vec4 objectSpacePos = invInstanceMat * invModelViewMat * spherePosView;
+      
+      // Set the position for rendering
+      csm_Position = objectSpacePos.xyz;
+      
+      // Also update the normal to match the sphere surface
+      // Since we're projecting onto a sphere, the normal is the normalized direction from center
+      csm_Normal = normalize(sphereDir);
+    }
+    `;
+
+    this.material = new CustomShaderMaterial({
+      baseMaterial: MeshPhysicalMaterial,
+      vertexShader: sphereProjectionVS,
       fragmentShader,
       depthWrite: true,
       depthTest: true,
@@ -60,25 +100,22 @@ export class TerrainInstancer {
         hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
         hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
       },
-      // patchMap: {
-      //   "*": {
-      //     "vec4 mvPosition = vec4( transformed, 1.0 );": `
-      //     // Calculate sphere-projected position
-      //     vec4 instancedPosition = instanceMatrix * vec4(position, 1.0);
-      //     vec4 worldPosition = modelMatrix * instancedPosition;
-      //     vec3 sphereDirection = normalize(worldPosition.xyz - uOffset);
-      //     vec3 spherePosition = uOffset + sphereDirection * uRadius;
-
-      //     // Store the world position for fragment shader
-      //     vWorldPosition = vec4(spherePosition, 1.0);
-
-      //     // Set the position directly
-      //     vec4 mvPosition = viewMatrix * vec4(spherePosition, 1.0);
-      //     `,
-      //     "#ifdef USE_INSTANCING\n  mvPosition = instanceMatrix * mvPosition;\n#endif":
-      //       "// Instancing already applied",
-      //   },
-      // },
+      // Single focused patch for the worldPosition
+      patchMap: {
+        "*": {
+          // Vertex shader patches
+          "vec4 worldPosition = vec4( transformed, 1.0 );":
+            "vec4 worldPosition = vWorldPosition;",
+          "worldPosition = modelMatrix * worldPosition;":
+            "/* Already in world space */",
+          "vec4 shadowWorldPosition;":
+            "vec4 shadowWorldPosition = vWorldPosition;",
+          "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )":
+            "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )\n  shadowWorldPosition = vWorldPosition;",
+          "vec3 shadowWorldNormal = inverseTransformDirection( transformedNormal, viewMatrix );":
+            "vec3 shadowWorldNormal = vSphereNormal;",
+        },
+      },
     });
 
     subscribe((state) => {
@@ -96,6 +133,10 @@ export class TerrainInstancer {
       this.material,
       TerrainInstancer.INITIAL_CAPACITY
     );
+
+    // Enable shadow receiving and casting
+    this.instancedMesh.receiveShadow = true;
+    this.instancedMesh.castShadow = true;
 
     // Add instance color attribute
     const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);

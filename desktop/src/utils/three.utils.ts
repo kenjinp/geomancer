@@ -47,7 +47,7 @@ export class ShaderUtils {
       const shaderSource = (renderer as any)
         .getContext()
         .getShaderSource(program[1][shaderIdentifier]);
-      ShaderUtils.outputShader(`----${shaderName} Code----`, shaderSource);
+      ShaderUtils.outputShader(`// ----${shaderName} Code----`, shaderSource);
     }
   }
 
@@ -58,8 +58,8 @@ export class ShaderUtils {
     const linedCode = lines
       .map((line, i) => {
         const lineNum = i + 1;
-        const padding = lineNum < 10 ? " " : "";
-        return `${padding}${lineNum}:\t\t${line}`;
+        // const padding = lineNum < 10 ? " " : "";
+        return line;
       })
       .join("\n");
 

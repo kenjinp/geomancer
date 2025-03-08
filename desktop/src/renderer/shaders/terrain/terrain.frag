@@ -29,6 +29,7 @@ uniform uint uMapLayers;
 varying vec2 vUv;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
+varying vec3 vSphereNormal;
 
 void main() {
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
@@ -151,5 +152,6 @@ void main() {
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
 
     // Ensure proper depth handling and no color bleeding
-    gl_FragColor = vec4(finalColor, 1.0);
+    csm_DiffuseColor = vec4(finalColor, 1.0);
+    csm_FragNormal = normalize(vSphereNormal);
 } 
