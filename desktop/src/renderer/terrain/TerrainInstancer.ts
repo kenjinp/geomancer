@@ -7,13 +7,12 @@ import {
   InstancedMesh,
   Material,
   Matrix4,
-  MeshPhysicalMaterial,
   PlaneGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
-import CustomShaderMaterial from "three-custom-shader-material/vanilla";
-import fragmentShader from "../shaders/terrain/terrain.frag";
+import frag from "../shaders/terrain/terrain.frag.debug.glsl";
+import vert from "../shaders/terrain/terrain.vert.debug.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 
 export class TerrainInstancer {
@@ -77,10 +76,9 @@ export class TerrainInstancer {
     }
     `;
 
-    this.material = new CustomShaderMaterial({
-      baseMaterial: MeshPhysicalMaterial,
-      vertexShader: sphereProjectionVS,
-      fragmentShader,
+    this.material = new ShaderMaterial({
+      vertexShader: vert,
+      fragmentShader: frag,
       depthWrite: true,
       depthTest: true,
       stencilWrite: false,
@@ -101,21 +99,21 @@ export class TerrainInstancer {
         hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
       },
       // Single focused patch for the worldPosition
-      patchMap: {
-        "*": {
-          // Vertex shader patches
-          "vec4 worldPosition = vec4( transformed, 1.0 );":
-            "vec4 worldPosition = vWorldPosition;",
-          "worldPosition = modelMatrix * worldPosition;":
-            "/* Already in world space */",
-          "vec4 shadowWorldPosition;":
-            "vec4 shadowWorldPosition = vWorldPosition;",
-          "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )":
-            "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )\n  shadowWorldPosition = vWorldPosition;",
-          "vec3 shadowWorldNormal = inverseTransformDirection( transformedNormal, viewMatrix );":
-            "vec3 shadowWorldNormal = vSphereNormal;",
-        },
-      },
+      // patchMap: {
+      //   "*": {
+      //     // Vertex shader patches
+      //     "vec4 worldPosition = vec4( transformed, 1.0 );":
+      //       "vec4 worldPosition = vWorldPosition;",
+      //     "worldPosition = modelMatrix * worldPosition;":
+      //       "/* Already in world space */",
+      //     "vec4 shadowWorldPosition;":
+      //       "vec4 shadowWorldPosition = vWorldPosition;",
+      //     "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )":
+      //       "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )\n  shadowWorldPosition = vWorldPosition;",
+      //     "vec3 shadowWorldNormal = inverseTransformDirection( transformedNormal, viewMatrix );":
+      //       "vec3 shadowWorldNormal = vSphereNormal;",
+      //   },
+      // },
     });
 
     subscribe((state) => {

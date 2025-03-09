@@ -37,7 +37,7 @@ export class ShaderUtils {
     shaderName: string
   ): void {
     if (!(object instanceof Mesh)) {
-      return console.warn("Object is a Mesh, not a Material");
+      throw new Error("Object is not a mesh");
     }
     const material = object.material as Material;
     console.log("renderer", renderer);
@@ -47,6 +47,7 @@ export class ShaderUtils {
       const shaderSource = (renderer as any)
         .getContext()
         .getShaderSource(program[1][shaderIdentifier]);
+
       ShaderUtils.outputShader(`// ----${shaderName} Code----`, shaderSource);
     }
   }

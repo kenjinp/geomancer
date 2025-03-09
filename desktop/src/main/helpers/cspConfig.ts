@@ -16,6 +16,7 @@ export const cspConfig = {
     { development: ["'self'", "'unsafe-eval'"] },
     { development: ["'unsafe-inline'"] },
   ],
+  "style-src": ["'unsafe-inline'", "file:", { development: ["'self'"] }],
   "style-src-elem": ["'unsafe-inline'", { production: "file:" }],
   "worker-src": ["blob:"],
 };

@@ -1,5 +1,4 @@
 // ----Vertex Shader Code----
-#version 300 es
 
 #define attribute in
 #define varying out
@@ -23,31 +22,31 @@ precision highp float;
   precision highp usampler2DArray;
   
 #define HIGH_PRECISION
-#define SHADER_TYPE MeshPhysicalMaterial
-#define SHADER_NAME CustomShaderMaterial<MeshPhysicalMaterial>
+// #define SHADER_TYPE MeshPhysicalMaterial
+// #define SHADER_NAME CustomShaderMaterial<MeshPhysicalMaterial>
 #define STANDARD 
 #define PHYSICAL 
 #define USE_INSTANCING
 #define USE_LOGDEPTHBUF
-uniform mat4 modelMatrix;
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
-uniform mat4 viewMatrix;
-uniform mat3 normalMatrix;
-uniform vec3 cameraPosition;
-uniform bool isOrthographic;
-#ifdef USE_INSTANCING
-  attribute mat4 instanceMatrix;
-#endif
+// uniform mat4 modelMatrix;
+// uniform mat4 modelViewMatrix;
+// uniform mat4 projectionMatrix;
+// uniform mat4 viewMatrix;
+// uniform mat3 normalMatrix;
+// uniform vec3 cameraPosition;
+// uniform bool isOrthographic;
+// #ifdef USE_INSTANCING
+//   attribute mat4 instanceMatrix;
+// #endif
 #ifdef USE_INSTANCING_COLOR
   attribute vec3 instanceColor;
 #endif
 #ifdef USE_INSTANCING_MORPH
   uniform sampler2D morphTexture;
 #endif
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 uv;
+// attribute vec3 position;
+// attribute vec3 normal;
+// attribute vec2 uv;
 #ifdef USE_UV1
   attribute vec2 uv1;
 #endif
