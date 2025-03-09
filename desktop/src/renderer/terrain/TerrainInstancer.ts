@@ -18,7 +18,6 @@ import vertexDeclarations from "../shaders/terrain/chunks/declarations.vert.glsl
 import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
 import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
 import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
-import worldPositionVertex from "../shaders/terrain/chunks/worldPosition_vertex.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 
 // Extended interface for Physical Material with custom uniforms
@@ -109,11 +108,6 @@ export class TerrainInstancer {
         glsl: projectVertex,
         mode: "replace",
       },
-      {
-        chunk: "vec4 worldPosition = vec4( transformed, 1.0 );",
-        glsl: worldPositionVertex,
-        mode: "replace",
-      },
     ];
 
     const fragmentPatches: ShaderPatch[] = [
@@ -129,24 +123,21 @@ export class TerrainInstancer {
         mode: "replace",
       },
       {
-        chunk: "#include <output_fragment>",
+        chunk: "#include <opaque_fragment>",
         glsl: outputFragment,
-        mode: "replace",
+        mode: "after",
       },
     ];
 
     // Modify shader via onBeforeCompile using ShaderUtils
     this.material.onBeforeCompile = (shader) => {
+      // Apply the shader patches
       ShaderUtils.patchShader(
         shader,
         vertexPatches,
         fragmentPatches,
         customUniforms
       );
-
-      // For debugging
-      console.log("Modified vertex shader:", shader.vertexShader);
-      console.log("Modified fragment shader:", shader.fragmentShader);
     };
 
     // Set needsUpdate to trigger shader compilation
