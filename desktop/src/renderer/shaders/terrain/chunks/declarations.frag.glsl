@@ -1,4 +1,6 @@
-// Custom uniforms and varyings for the fragment shader
+precision highp float;
+
+// Custom terrain declarations
 uniform int uMapMode;
 uniform vec4 uMapLayers;
 uniform int uSelectedTile;

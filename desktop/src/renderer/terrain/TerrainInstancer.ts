@@ -10,6 +10,15 @@ import {
   PlaneGeometry,
   Vector3,
 } from "three";
+import { ShaderPatch, ShaderUtils } from "../../utils/shader.utils";
+import beginVertex from "../shaders/terrain/chunks/begin_vertex.glsl";
+import beginnormalVertex from "../shaders/terrain/chunks/beginnormal_vertex.glsl";
+import fragmentDeclarations from "../shaders/terrain/chunks/declarations.frag.glsl";
+import vertexDeclarations from "../shaders/terrain/chunks/declarations.vert.glsl";
+import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
+import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
+import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
+import worldPositionVertex from "../shaders/terrain/chunks/worldPosition_vertex.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 
 // Extended interface for Physical Material with custom uniforms
@@ -77,120 +86,62 @@ export class TerrainInstancer {
     // Store the custom uniforms directly on the material
     this.material.customUniforms = customUniforms;
 
-    // Modify shader via onBeforeCompile using a direct approach
+    // Define shader patches
+    const vertexPatches: ShaderPatch[] = [
+      {
+        chunk: "", // Empty chunk means this is a global definition
+        glsl: vertexDeclarations,
+        mode: "replace",
+        isGlobalDefinition: true,
+      },
+      {
+        chunk: "#include <beginnormal_vertex>",
+        glsl: beginnormalVertex,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <begin_vertex>",
+        glsl: beginVertex,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <project_vertex>",
+        glsl: projectVertex,
+        mode: "replace",
+      },
+      {
+        chunk: "vec4 worldPosition = vec4( transformed, 1.0 );",
+        glsl: worldPositionVertex,
+        mode: "replace",
+      },
+    ];
+
+    const fragmentPatches: ShaderPatch[] = [
+      {
+        chunk: "", // Empty chunk means this is a global definition
+        glsl: fragmentDeclarations,
+        mode: "replace",
+        isGlobalDefinition: true,
+      },
+      {
+        chunk: "#include <normal_fragment_begin>",
+        glsl: normalFragmentBegin,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <output_fragment>",
+        glsl: outputFragment,
+        mode: "replace",
+      },
+    ];
+
+    // Modify shader via onBeforeCompile using ShaderUtils
     this.material.onBeforeCompile = (shader) => {
-      // Add custom uniforms
-      Object.keys(customUniforms).forEach((key) => {
-        shader.uniforms[key] = customUniforms[key];
-      });
-
-      // Insert uniform and varying declarations at the top of vertex shader
-      shader.vertexShader = `// Custom terrain declarations
-        uniform float uRadius;
-        uniform vec3 uOffset;
-        varying vec4 vWorldPosition;
-        varying float vInstanceId;
-        varying vec3 vSphereNormal;
-        varying vec3 vOriginalPosition;
-        
-        ${shader.vertexShader}`;
-
-      // Replace beginnormal_vertex with our custom normals calculation
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <beginnormal_vertex>",
-        `// Original normal calculation
-        vec3 objectNormal = vec3( normal );
-        
-        // Sphere normal calculation
-        vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vec3 sphereDir = normalize(worldPos.xyz - uOffset);
-        // Keep original normal for debugging, but use sphere normal for lighting
-        objectNormal = normalize(mat3(transpose(inverse(modelMatrix * instanceMatrix))) * sphereDir);`
-      );
-
-      // Replace begin_vertex to store original position but keep standard behavior for now
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <begin_vertex>",
-        `// Original position
-        vec3 transformed = vec3( position );
-        vInstanceId = float(gl_InstanceID);
-        vOriginalPosition = position;`
-      );
-
-      // Modify project_vertex to do sphere projection but keep standard Three.js workflow
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <project_vertex>",
-        `// Start with standard vertex projection
-        #ifdef USE_INSTANCING
-        vec4 mvPosition = instanceMatrix * vec4( transformed, 1.0 );
-        #else
-        vec4 mvPosition = vec4( transformed, 1.0 );
-        #endif
-
-        // Calculate sphere-projected position
-        vec4 instWorldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vec3 spherePos = uOffset + sphereDir * uRadius;
-        
-        // Store data for fragment shader
-        vWorldPosition = vec4(spherePos, 1.0);
-        vSphereNormal = normalize(mat3(modelViewMatrix) * sphereDir);
-        
-        // Calculate model-view-projected position
-        vec4 spherePosView = viewMatrix * vec4(spherePos, 1.0);
-        mvPosition = spherePosView;
-        
-        // Standard Three.js position calculation
-        gl_Position = projectionMatrix * mvPosition;`
-      );
-
-      // Make sure worldPosition is correctly calculated for shadows
-      shader.vertexShader = shader.vertexShader.replace(
-        "vec4 worldPosition = vec4( transformed, 1.0 );",
-        "vec4 worldPosition = vec4( spherePos, 1.0 );"
-      );
-
-      // Insert uniform and varying declarations at the top of fragment shader
-      shader.fragmentShader = `// Custom terrain declarations
-        uniform int uMapMode;
-        uniform vec4 uMapLayers;
-        uniform int uSelectedTile;
-        uniform samplerCube h3IndexMap;
-        uniform sampler2D h3NeighborMap;
-        uniform sampler2D h3PositionMap;
-        uniform sampler2D hexTileIntBuffer;
-        uniform sampler2D hexTileFloatBuffer;
-        varying vec4 vWorldPosition;
-        varying float vInstanceId;
-        varying vec3 vSphereNormal;
-        varying vec3 vOriginalPosition;
-        
-        ${shader.fragmentShader}`;
-
-      // Replace normal_fragment_begin with our custom normal handling
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "#include <normal_fragment_begin>",
-        `// Use sphere normal for lighting
-        vec3 normal = normalize(vSphereNormal);
-        
-        #ifdef FLAT_SHADED
-          vec3 fdx = dFdx(vViewPosition);
-          vec3 fdy = dFdy(vViewPosition);
-          normal = normalize(cross(fdx, fdy));
-        #endif
-        
-        #ifdef DOUBLE_SIDED
-          normal = normal * (float(gl_FrontFacing) * 2.0 - 1.0);
-        #endif
-        
-        // For compatibility with the rest of the shader
-        vec3 nonPerturbedNormal = normal;`
-      );
-
-      // Add debug color to visualize the geometry is rendering
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "#include <output_fragment>",
-        `// Debug visualization - force a visible color
-        gl_FragColor = vec4(0.5 + 0.5 * normalize(vSphereNormal), 1.0);`
+      ShaderUtils.patchShader(
+        shader,
+        vertexPatches,
+        fragmentPatches,
+        customUniforms
       );
 
       // For debugging
