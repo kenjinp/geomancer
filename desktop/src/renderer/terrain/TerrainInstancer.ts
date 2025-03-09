@@ -5,15 +5,29 @@ import {
   DynamicDrawUsage,
   InstancedBufferAttribute,
   InstancedMesh,
-  Material,
   Matrix4,
+  MeshPhysicalMaterial,
   PlaneGeometry,
-  ShaderMaterial,
   Vector3,
 } from "three";
-import frag from "../shaders/terrain/terrain.frag.debug.glsl";
-import vert from "../shaders/terrain/terrain.vert.debug.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
+
+// Extended interface for Physical Material with custom uniforms
+interface TerrainMaterial extends MeshPhysicalMaterial {
+  customUniforms?: {
+    uMapMode: { value: number };
+    uMapLayers: { value: number };
+    uSelectedTile: { value: number };
+    uRadius: { value: number };
+    uOffset: { value: Vector3 };
+    h3IndexMap: { value: any };
+    h3NeighborMap: { value: any };
+    h3PositionMap: { value: any };
+    uModelMatrix: { value: Matrix4 };
+    hexTileIntBuffer: { value: any };
+    hexTileFloatBuffer: { value: any };
+  };
+}
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
@@ -22,7 +36,7 @@ export class TerrainInstancer {
   private quadtree: CubeSphereQuadtree;
   private radius: number;
   private offset: Vector3;
-  private material: Material;
+  private material: TerrainMaterial;
   constructor(quadtree: CubeSphereQuadtree) {
     this.quadtree = quadtree;
     this.radius = getState().planetology.radius;
@@ -38,87 +52,161 @@ export class TerrainInstancer {
   public async initialize() {
     const { buffers, mapMode } = getState();
 
-    // Create a custom vertex shader that handles sphere projection and shadow mapping
-    const sphereProjectionVS = `
-    uniform float uRadius;
-    uniform vec3 uOffset;
-    varying vec4 vWorldPosition;
-    varying float vInstanceId;
-    varying vec3 vColor;
-    varying vec3 vSphereNormal;
+    // Create custom uniforms
+    const customUniforms = {
+      uMapMode: { value: mapMode },
+      uMapLayers: { value: this.packMapLayers() },
+      uSelectedTile: { value: -1 },
+      uRadius: { value: this.radius },
+      uOffset: { value: this.offset },
+      h3IndexMap: { value: buffers.hexCubeMap.cubeTexture },
+      h3NeighborMap: { value: buffers.hexNeighborMap.texture },
+      h3PositionMap: { value: buffers.hexPositionMap.texture },
+      uModelMatrix: { value: new Matrix4() },
+      hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
+      hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
+    };
 
-    void main() {
-      // Get instance ID
-      vInstanceId = float(gl_InstanceID);
-      
-      // Calculate sphere-projected position
-      vec4 instWorldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-      vec3 sphereDir = normalize(instWorldPos.xyz - uOffset);
-      vec3 spherePos = uOffset + sphereDir * uRadius;
-      
-      // Store for fragment shader and shadows
-      vWorldPosition = vec4(spherePos, 1.0);
-      vSphereNormal = sphereDir; // The normal is the same as the direction from center
-      
-      // This is the key part - we need to modify csm_Position with the right
-      // transformation that makes the final position end up on the sphere
-      vec4 spherePosView = viewMatrix * vec4(spherePos, 1.0);
-      mat4 invModelViewMat = inverse(modelViewMatrix);
-      mat4 invInstanceMat = inverse(instanceMatrix);
-      vec4 objectSpacePos = invInstanceMat * invModelViewMat * spherePosView;
-      
-      // Set the position for rendering
-      csm_Position = objectSpacePos.xyz;
-      
-      // Also update the normal to match the sphere surface
-      // Since we're projecting onto a sphere, the normal is the normalized direction from center
-      csm_Normal = normalize(sphereDir);
-    }
-    `;
+    // Create physical material
+    this.material = new MeshPhysicalMaterial({
+      roughness: 0.5,
+      metalness: 0.0,
+      color: new Color(1, 1, 1),
+    }) as TerrainMaterial;
 
-    this.material = new ShaderMaterial({
-      vertexShader: vert,
-      fragmentShader: frag,
-      depthWrite: true,
-      depthTest: true,
-      stencilWrite: false,
-      transparent: false,
-      opacity: 1.0,
-      uniforms: {
-        uMapMode: { value: mapMode },
-        uMapLayers: { value: this.packMapLayers() },
-        uSelectedTile: { value: -1 },
-        uRadius: { value: this.radius },
-        uOffset: { value: this.offset },
-        h3IndexMap: { value: buffers.hexCubeMap.cubeTexture },
-        h3NeighborMap: { value: buffers.hexNeighborMap.texture },
-        h3PositionMap: { value: buffers.hexPositionMap.texture },
-        uModelMatrix: { value: new Matrix4() },
-        map: { value: null },
-        hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
-        hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
-      },
-      // Single focused patch for the worldPosition
-      // patchMap: {
-      //   "*": {
-      //     // Vertex shader patches
-      //     "vec4 worldPosition = vec4( transformed, 1.0 );":
-      //       "vec4 worldPosition = vWorldPosition;",
-      //     "worldPosition = modelMatrix * worldPosition;":
-      //       "/* Already in world space */",
-      //     "vec4 shadowWorldPosition;":
-      //       "vec4 shadowWorldPosition = vWorldPosition;",
-      //     "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )":
-      //       "#if ( defined( USE_SHADOWMAP ) && ( 0 > 0 || 0 > 0 ) ) || ( 0 > 0 )\n  shadowWorldPosition = vWorldPosition;",
-      //     "vec3 shadowWorldNormal = inverseTransformDirection( transformedNormal, viewMatrix );":
-      //       "vec3 shadowWorldNormal = vSphereNormal;",
-      //   },
-      // },
-    });
+    // Store the custom uniforms directly on the material
+    this.material.customUniforms = customUniforms;
 
+    // Modify shader via onBeforeCompile using a direct approach
+    this.material.onBeforeCompile = (shader) => {
+      // Add custom uniforms
+      Object.keys(customUniforms).forEach((key) => {
+        shader.uniforms[key] = customUniforms[key];
+      });
+
+      // Insert uniform and varying declarations at the top of vertex shader
+      shader.vertexShader = `// Custom terrain declarations
+        uniform float uRadius;
+        uniform vec3 uOffset;
+        varying vec4 vWorldPosition;
+        varying float vInstanceId;
+        varying vec3 vSphereNormal;
+        varying vec3 vOriginalPosition;
+        
+        ${shader.vertexShader}`;
+
+      // Replace beginnormal_vertex with our custom normals calculation
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <beginnormal_vertex>",
+        `// Original normal calculation
+        vec3 objectNormal = vec3( normal );
+        
+        // Sphere normal calculation
+        vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vec3 sphereDir = normalize(worldPos.xyz - uOffset);
+        // Keep original normal for debugging, but use sphere normal for lighting
+        objectNormal = normalize(mat3(transpose(inverse(modelMatrix * instanceMatrix))) * sphereDir);`
+      );
+
+      // Replace begin_vertex to store original position but keep standard behavior for now
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `// Original position
+        vec3 transformed = vec3( position );
+        vInstanceId = float(gl_InstanceID);
+        vOriginalPosition = position;`
+      );
+
+      // Modify project_vertex to do sphere projection but keep standard Three.js workflow
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <project_vertex>",
+        `// Start with standard vertex projection
+        #ifdef USE_INSTANCING
+        vec4 mvPosition = instanceMatrix * vec4( transformed, 1.0 );
+        #else
+        vec4 mvPosition = vec4( transformed, 1.0 );
+        #endif
+
+        // Calculate sphere-projected position
+        vec4 instWorldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vec3 spherePos = uOffset + sphereDir * uRadius;
+        
+        // Store data for fragment shader
+        vWorldPosition = vec4(spherePos, 1.0);
+        vSphereNormal = normalize(mat3(modelViewMatrix) * sphereDir);
+        
+        // Calculate model-view-projected position
+        vec4 spherePosView = viewMatrix * vec4(spherePos, 1.0);
+        mvPosition = spherePosView;
+        
+        // Standard Three.js position calculation
+        gl_Position = projectionMatrix * mvPosition;`
+      );
+
+      // Make sure worldPosition is correctly calculated for shadows
+      shader.vertexShader = shader.vertexShader.replace(
+        "vec4 worldPosition = vec4( transformed, 1.0 );",
+        "vec4 worldPosition = vec4( spherePos, 1.0 );"
+      );
+
+      // Insert uniform and varying declarations at the top of fragment shader
+      shader.fragmentShader = `// Custom terrain declarations
+        uniform int uMapMode;
+        uniform vec4 uMapLayers;
+        uniform int uSelectedTile;
+        uniform samplerCube h3IndexMap;
+        uniform sampler2D h3NeighborMap;
+        uniform sampler2D h3PositionMap;
+        uniform sampler2D hexTileIntBuffer;
+        uniform sampler2D hexTileFloatBuffer;
+        varying vec4 vWorldPosition;
+        varying float vInstanceId;
+        varying vec3 vSphereNormal;
+        varying vec3 vOriginalPosition;
+        
+        ${shader.fragmentShader}`;
+
+      // Replace normal_fragment_begin with our custom normal handling
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <normal_fragment_begin>",
+        `// Use sphere normal for lighting
+        vec3 normal = normalize(vSphereNormal);
+        
+        #ifdef FLAT_SHADED
+          vec3 fdx = dFdx(vViewPosition);
+          vec3 fdy = dFdy(vViewPosition);
+          normal = normalize(cross(fdx, fdy));
+        #endif
+        
+        #ifdef DOUBLE_SIDED
+          normal = normal * (float(gl_FrontFacing) * 2.0 - 1.0);
+        #endif
+        
+        // For compatibility with the rest of the shader
+        vec3 nonPerturbedNormal = normal;`
+      );
+
+      // Add debug color to visualize the geometry is rendering
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <output_fragment>",
+        `// Debug visualization - force a visible color
+        gl_FragColor = vec4(0.5 + 0.5 * normalize(vSphereNormal), 1.0);`
+      );
+
+      // For debugging
+      console.log("Modified vertex shader:", shader.vertexShader);
+      console.log("Modified fragment shader:", shader.fragmentShader);
+    };
+
+    // Set needsUpdate to trigger shader compilation
+    this.material.needsUpdate = true;
+
+    // Subscribe to state changes
     subscribe((state) => {
-      this.getMaterial().uniforms.uMapMode.value = state.mapMode;
-      this.getMaterial().uniforms.uMapLayers.value = this.packMapLayers();
+      if (this.material.customUniforms) {
+        this.material.customUniforms.uMapMode.value = state.mapMode;
+        this.material.customUniforms.uMapLayers.value = this.packMapLayers();
+      }
       this.updateCubeMapFromContext();
       this.updateNeighborMapFromContext();
       this.updatePositionMapFromContext();
@@ -316,69 +404,93 @@ export class TerrainInstancer {
     this.instancedMesh.setMatrixAt(instanceId, matrix);
   }
 
-  public getMaterial(): ShaderMaterial {
-    return this.material as ShaderMaterial;
+  public getMaterial(): TerrainMaterial {
+    return this.material;
   }
 
   public dispose() {
     // dispose of all textures
-    const material = this.getMaterial();
-    material.uniforms.h3IndexMap.value.dispose();
-    material.uniforms.h3NeighborMap.value.dispose();
-    material.uniforms.h3PositionMap.value.dispose();
-    material.uniforms.hexTileIntBuffer.value.dispose();
-    material.uniforms.hexTileFloatBuffer.value.dispose();
-    this.instancedMesh.geometry.dispose();
-    material.dispose();
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3IndexMap.value.dispose();
+      this.material.customUniforms.h3NeighborMap.value.dispose();
+      this.material.customUniforms.h3PositionMap.value.dispose();
+      this.material.customUniforms.hexTileIntBuffer.value.dispose();
+      this.material.customUniforms.hexTileFloatBuffer.value.dispose();
+    }
+    if (this.instancedMesh) {
+      this.instancedMesh.geometry.dispose();
+    }
+    this.material.dispose();
     this.nodeTransforms.clear();
   }
 
   public setRadius(radius: number, camera: Camera) {
     this.radius = radius;
-    this.getMaterial().uniforms.uRadius.value = radius;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uRadius.value = radius;
+    }
+
     this.processNodeUpdates(
       this.quadtree.getVisibleNodes(camera, radius, this.offset)
     );
-    this.getMaterial().needsUpdate = true;
+
+    this.material.needsUpdate = true;
   }
 
   public setSelectedTile(hexIndex: number | null) {
-    this.getMaterial().uniforms.uSelectedTile.value = hexIndex || -1;
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uSelectedTile.value = hexIndex || -1;
+    }
   }
 
   public setPosition(position: Vector3) {
     this.offset.copy(position);
-    this.getMaterial().uniforms.uOffset.value = position;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uOffset.value = position;
+    }
   }
 
   public updateCubeMapFromContext() {
     const buffers = getState().buffers;
-    this.getMaterial().uniforms.h3IndexMap.value =
-      buffers.hexCubeMap.cubeTexture;
-    this.getMaterial().needsUpdate = true;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3IndexMap.value =
+        buffers.hexCubeMap.cubeTexture;
+      this.material.needsUpdate = true;
+    }
   }
 
   public updateNeighborMapFromContext() {
     const buffers = getState().buffers;
-    this.getMaterial().uniforms.h3NeighborMap.value =
-      buffers.hexNeighborMap.texture;
-    this.getMaterial().needsUpdate = true;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3NeighborMap.value =
+        buffers.hexNeighborMap.texture;
+      this.material.needsUpdate = true;
+    }
   }
 
   public updatePositionMapFromContext() {
     const buffers = getState().buffers;
-    this.getMaterial().uniforms.h3PositionMap.value =
-      buffers.hexPositionMap.texture;
-    this.getMaterial().needsUpdate = true;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3PositionMap.value =
+        buffers.hexPositionMap.texture;
+      this.material.needsUpdate = true;
+    }
   }
 
   public updateTileBufferFromContext() {
     const buffers = getState().buffers;
-    const material = this.getMaterial();
-    material.uniforms.hexTileIntBuffer.value =
-      buffers.hexTileBuffer.getIntegerTexture();
-    material.uniforms.hexTileFloatBuffer.value =
-      buffers.hexTileBuffer.getFloatTexture();
-    this.getMaterial().needsUpdate = true;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.hexTileIntBuffer.value =
+        buffers.hexTileBuffer.getIntegerTexture();
+      this.material.customUniforms.hexTileFloatBuffer.value =
+        buffers.hexTileBuffer.getFloatTexture();
+      this.material.needsUpdate = true;
+    }
   }
 }
