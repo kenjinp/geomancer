@@ -4,6 +4,8 @@ import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
 import glsl from "vite-plugin-glsl";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { getLastCommit } from "./commit-info";
+const commitInfo = getLastCommit({});
 
 // https://vitejs.dev/config
 export default defineConfig({
@@ -23,5 +25,11 @@ export default defineConfig({
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
     },
+  },
+  define: {
+    __COMMIT_INFO__: JSON.stringify(commitInfo),
+    __BUILD_INFO__: JSON.stringify({
+      buildTime: Date.now(),
+    }),
   },
 });

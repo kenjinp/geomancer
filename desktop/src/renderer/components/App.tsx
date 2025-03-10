@@ -4,8 +4,10 @@ import "../styles/app.css";
 import { Home } from "../views/Home";
 import { Canvas } from "./Canvas";
 import { ColorRamp } from "./ColorRamp";
+import { Footer } from "./footer/Footer";
 import { MapModeBar } from "./MapModeBar";
 import { MouseFollower } from "./MouseFollower";
+import { WelcomeModal } from "./WelcomeModal";
 
 /**
  * Wrapper for the entire application.
@@ -29,14 +31,14 @@ export function App() {
       <div className="relative top-[32px] h-screen w-screen flex bg-gradient-to-t from-[#1E201A] to-[#282A23]">
         <PanelGroup direction="horizontal">
           {/* <Panel
-            defaultSize={33}
-            collapsible
-            order={0}
-            collapsedSize={0}
-            slot="blah"
-          >
-            <div id="node-debug" className="p-2"></div>
-          </Panel> */}
+              defaultSize={33}
+              collapsible
+              order={0}
+              collapsedSize={0}
+              slot="blah"
+            >
+              <div id="node-debug" className="p-2"></div>
+            </Panel> */}
           {/* <PanelResizeHandle className="w-1 bg-dark" /> */}
           <Panel defaultSize={75} order={1}>
             <div className="relative w-full h-full bg-dark">
@@ -51,14 +53,16 @@ export function App() {
                 <ColorRamp />
               </div>
             </div>
+            <Footer />
           </Panel>
           {/* <PanelResizeHandle className="w-1 bg-dark" />
-          <Panel defaultSize={25} collapsible order={2}>
-            <div id="node-debug" className="p-2"></div>
-          </Panel> */}
+            <Panel defaultSize={25} collapsible order={2}>
+              <div id="node-debug" className="p-2"></div>
+            </Panel> */}
         </PanelGroup>
       </div>
       {/* </QuadtreeProvider> */}
+      <WelcomeModal />
     </NextUIProvider>
   );
 }

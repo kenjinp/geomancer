@@ -24,7 +24,8 @@
       "@/*": ["src/*"],
       "@components/*": ["src/renderer/components/*"],
       "@views/*": ["src/renderer/views/*"],
-      "@lib/*": ["src/lib/*"]
+      "@lib/*": ["src/lib/*"],
+      "@constants": ["src/constants.ts"]
     }
   },
   "include": ["src", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
