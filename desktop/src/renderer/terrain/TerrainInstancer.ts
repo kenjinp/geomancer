@@ -15,11 +15,9 @@ import beginVertex from "../shaders/terrain/chunks/begin_vertex.glsl";
 import beginnormalVertex from "../shaders/terrain/chunks/beginnormal_vertex.glsl";
 import fragmentDeclarations from "../shaders/terrain/chunks/declarations.frag.glsl";
 import vertexDeclarations from "../shaders/terrain/chunks/declarations.vert.glsl";
-import lightsFragmentMaps from "../shaders/terrain/chunks/lights_fragment_maps.glsl";
 import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
 import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
 import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
-import shadowmapFragment from "../shaders/terrain/chunks/shadowmap_fragment.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 // Extended interface for Physical Material with custom uniforms
 interface TerrainMaterial extends MeshPhysicalMaterial {
@@ -132,16 +130,17 @@ export class TerrainInstancer {
         glsl: outputFragment,
         mode: "replace",
       },
-      {
-        chunk: "#include <lights_fragment_maps>",
-        glsl: lightsFragmentMaps,
-        mode: "replace",
-      },
-      {
-        chunk: "#include <shadowmap_fragment>",
-        glsl: shadowmapFragment,
-        mode: "replace",
-      },
+      // these dont do anything yet...
+      // {
+      //   chunk: "#include <lights_fragment_maps>",
+      //   glsl: lightsFragmentMaps,
+      //   mode: "replace",
+      // },
+      // {
+      //   chunk: "#include <shadowmap_fragment>",
+      //   glsl: shadowmapFragment,
+      //   mode: "replace",
+      // },
     ];
 
     // Modify shader via onBeforeCompile using ShaderUtils
