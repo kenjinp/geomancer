@@ -111,4 +111,9 @@
     
     diffuseColor.rgb = finalColor;
 
+    if (!getMapLayer(2u)) {
+      gl_FragColor = vec4(diffuseColor.rgb, 1.0);
+      return;
+    }
+
     
