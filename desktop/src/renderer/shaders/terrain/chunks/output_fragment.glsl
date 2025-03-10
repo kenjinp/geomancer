@@ -53,7 +53,6 @@
         baseColor = mix(baseColor, vec3(hashFloat(float(vInstanceId))), 0.5);
     }
 
-
     float showGrid = 0.0;
     if (getMapLayer(1u)) {
         showGrid = 1.0;
@@ -77,16 +76,7 @@
     float grid3 = getGrid(latlongUVWithReps, 0.1, lineWidth) * uSubgridAlpha;
     float combinedGrid = (grid + grid2 + grid3) * showGrid;
 
-    // Calculate surface normal and apply lighting
-    // apply lighting as if it's coming from 15 degrees north of the equator
-    vec3 surfaceNormal = calculateSurfaceNormal(spherePos, closestId);
-    
-    if (getMapLayer(2u)) {
-       // I tihnk this might be where the lighting should go???
-    }
-
     vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
-
     // globe grid
     float primeMeridian = getGridFromFloat(latlongUV.y, 0.5, lineWidth * 1.2);
     float equator = getGridFromFloat(latlongUV.x, 0.5, lineWidth * 1.2);

@@ -154,6 +154,7 @@ export class ShaderUtils {
     }
 
     console.warn(`Chunk '${chunk}' not found in shader: ${chunk}`);
+    console.log(shader);
     return shader;
   }
 }

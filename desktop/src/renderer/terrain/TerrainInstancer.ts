@@ -1,4 +1,4 @@
-import { getState, subscribe } from "@/state/Context";
+import { getState, MapLayer, subscribe } from "@/state/Context";
 import {
   Camera,
   Color,
@@ -19,8 +19,8 @@ import lightsFragmentMaps from "../shaders/terrain/chunks/lights_fragment_maps.g
 import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
 import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
 import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
+import shadowmapFragment from "../shaders/terrain/chunks/shadowmap_fragment.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
-
 // Extended interface for Physical Material with custom uniforms
 interface TerrainMaterial extends MeshPhysicalMaterial {
   customUniforms?: {
@@ -56,6 +56,10 @@ export class TerrainInstancer {
     const { mapLayers } = getState();
     // use bitpacking to pack the map layers into a single number
     return mapLayers.reduce((acc, layer) => acc | (1 << layer), 0);
+  }
+
+  private isMapLayerEnabled(layer: MapLayer): boolean {
+    return getState().mapLayers.includes(layer);
   }
 
   public async initialize() {
@@ -133,6 +137,11 @@ export class TerrainInstancer {
         glsl: lightsFragmentMaps,
         mode: "replace",
       },
+      {
+        chunk: "#include <shadowmap_fragment>",
+        glsl: shadowmapFragment,
+        mode: "replace",
+      },
     ];
 
     // Modify shader via onBeforeCompile using ShaderUtils
@@ -168,9 +177,14 @@ export class TerrainInstancer {
       TerrainInstancer.INITIAL_CAPACITY
     );
 
-    // Enable shadow receiving and casting
-    this.instancedMesh.receiveShadow = true;
+    // Set initial shadow settings based on current map layers
+    const useShadows = this.isMapLayerEnabled(MapLayer.REALISTIC_LIGHTING);
+    this.instancedMesh.receiveShadow = useShadows;
     this.instancedMesh.castShadow = true;
+
+    console.log(
+      `Initial shadow setting: ${useShadows ? "ENABLED" : "DISABLED"}`
+    );
 
     // Add instance color attribute
     const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
@@ -179,7 +193,7 @@ export class TerrainInstancer {
       new InstancedBufferAttribute(colors, 3, false, 1)
     );
 
-    this.instancedMesh.count = 0; // Start with 0 visible instances
+    this.instancedMesh.count = 0;
     this.instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
   }
 
