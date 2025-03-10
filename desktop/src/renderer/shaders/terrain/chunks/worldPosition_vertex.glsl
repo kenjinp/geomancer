@@ -1,0 +1,1 @@
+vec4 worldPosition = vec4( spherePos, 1.0 ); 

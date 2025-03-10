@@ -23,6 +23,14 @@ export class HexGrid {
     return HexGrid.allNodes(this.resolution);
   }
 
+  public static getNumCells(resolution: number) {
+    return h3.getNumCells(resolution);
+  }
+
+  public getNumCells() {
+    return h3.getNumCells(this.resolution);
+  }
+
   static allNodes(resolution: number) {
     if (cachedAllNodes.length > 0 && cachedIndexMap.size > 0) {
       console.log(

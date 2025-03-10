@@ -1,4 +1,5 @@
 import { EARTH_AUTHALIC_RADIUS } from "@/constants";
+import { runTaskGraph } from "@/tasks/TaskGraph";
 import { Html } from "@react-three/drei";
 import { useEffect, useState } from "react";
 import { TerrainRenderer } from "../components/TerrainRenderer";
@@ -9,6 +10,7 @@ export const Home: React.FC = () => {
   const [hasWebGPU, setHasWebGPU] = useState(false);
 
   useEffect(() => {
+    runTaskGraph();
     const checkWebGPU = async () => {
       setCheckingWebGPU(true);
       if (!navigator.gpu) {

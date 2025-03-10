@@ -1,9 +1,10 @@
 import * as h3 from "h3-js";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
-import { HexNeighborMapGenerator } from "../coordinate-systems/hex/maps/HexNeighborMapGenerator";
-import { HexTileBuffer } from "./HexTileBuffer";
+import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
+import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
+import { Plate } from "../model/tectonics/Plate";
 import { GPUDevice } from "./WebGPU";
-import floodfillShader from "./shaders/floodfill.wgsl";
+import floodfillShader from "./shaders/Floodfill.wgsl";
 
 const RESOLUTION_CELL_FACTORS: Record<number, number> = {
   0: 122, // Base icosahedron cells
@@ -50,32 +51,36 @@ export class HexGridFloodFill {
   private bindGroups: GPUBindGroup[] = [];
   private seedBuffer: GPUBuffer;
   private uniformBuffer: GPUBuffer;
-  public hexTileBuffer: HexTileBuffer;
+  private plates: Plate[];
+  constructor(
+    public readonly config: FloodFillConfig,
+    public hexTileBuffer: HexTileBuffer
+  ) {}
 
-  constructor(public readonly config: FloodFillConfig) {
-    this.hexTileBuffer = new HexTileBuffer(config.resolution);
-  }
-
-  public static async doFloodfill(resolution: number, seedCount: number) {
+  public static async doFloodfill(
+    resolution: number,
+    hexTileBuffer: HexTileBuffer,
+    neighborMap: HexNeighborMapGenerator,
+    plates: Plate[]
+  ) {
     const targetResolution = resolution;
+    if (plates.length === 0) {
+      throw new Error("No plates provided");
+    }
+    const seedCount = plates.length;
     const config = HexGridFloodFill.configFromResolutionDynamic(
       targetResolution,
       seedCount + 1
     );
-
     console.log("hex fill 1", config);
-    const floodFill = await HexGridFloodFill.create(config);
-
+    const floodFill = await HexGridFloodFill.create(config, hexTileBuffer);
+    floodFill.plates = plates;
     // Now get all H3 cells at the same resolution using HexGrid
     const h3Cells: string[] = HexGrid.allNodes(resolution);
 
     // Generate neighbor map
     console.log("hex fill 2 (generating neighbor map)");
     const timeStart = performance.now();
-    const neighborMap = await HexNeighborMapGenerator.loadFromWebP(
-      "textures/hex/neighbor-map.webp",
-      4
-    );
     await floodFill.initializeFromNeighborMap(neighborMap, h3Cells);
     const timeEnd = performance.now();
     console.log(`hex fill 3: neighbor map generation ${timeEnd - timeStart}ms`);
@@ -104,9 +109,10 @@ export class HexGridFloodFill {
   }
 
   public static async create(
-    config: FloodFillConfig
+    config: FloodFillConfig,
+    hexTileBuffer: HexTileBuffer
   ): Promise<HexGridFloodFill> {
-    const instance = new HexGridFloodFill(config);
+    const instance = new HexGridFloodFill(config, hexTileBuffer);
     await instance.initialize();
     return instance;
   }
@@ -227,10 +233,13 @@ export class HexGridFloodFill {
   }
 
   public async fill(seedCells: string[]): Promise<HexTileBuffer> {
-    const seedIndices = seedCells.map((cell) => HexGrid.getIndex(cell));
-    if (seedIndices.some((idx) => idx === undefined)) {
-      throw new Error("One or more invalid seed cells");
-    }
+    const seedIndices = seedCells.map((cell) => {
+      const index = HexGrid.getIndex(cell);
+      if (index === undefined) {
+        throw new Error(`One or more invalid seed cells, from ${cell}`);
+      }
+      return index;
+    });
 
     await this.initializeFill(seedIndices as number[]);
     return this.runComputePasses();
@@ -362,6 +371,9 @@ export class HexGridFloodFill {
 
     const resultMap = new Map<number, string[]>();
 
+    // I'm not sure where to store this
+    const plates = this.plates;
+
     // Iterate directly over this.h3Indices (assumed to be a Map)
     for (const [h3, idx] of HexGrid.indexMap.entries()) {
       const seedIndex = filled[idx];
@@ -370,6 +382,7 @@ export class HexGridFloodFill {
         if (!resultMap.has(adjustedIndex)) {
           resultMap.set(adjustedIndex, []);
         }
+        const plate = plates[adjustedIndex];
         resultMap.get(adjustedIndex)!.push(h3);
         this.hexTileBuffer.updateTileData(HexGrid.getIndex(h3), {
           hasHotSpot: false,
@@ -380,6 +393,7 @@ export class HexGridFloodFill {
           annualPrecipitation: 0,
           annualTemperature: 0,
           biome: "undefined",
+          elevation: plate.oceanElevation,
         });
       }
     }

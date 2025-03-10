@@ -1,100 +1,202 @@
-import { H3CubeMapGenerator } from "@/lib/coordinate-systems/hex/maps/H3CubeMapGenerator";
-import { HexNeighborMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexNeighborMapGenerator";
-import { HexPositionMapGenerator } from "@/lib/coordinate-systems/hex/maps/HexPositionMapGenerator";
-import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
-import { HexTileBuffer } from "@/lib/Hextree/HexTileBuffer";
-import * as THREE from "three";
+import { getState, MapLayer, subscribe } from "@/state/Context";
+import {
+  Camera,
+  Color,
+  DynamicDrawUsage,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  MeshPhysicalMaterial,
+  PlaneGeometry,
+  Vector3,
+} from "three";
+import { ShaderPatch, ShaderUtils } from "../../utils/shader.utils";
+import beginVertex from "../shaders/terrain/chunks/begin_vertex.glsl";
+import beginnormalVertex from "../shaders/terrain/chunks/beginnormal_vertex.glsl";
+import fragmentDeclarations from "../shaders/terrain/chunks/declarations.frag.glsl";
+import vertexDeclarations from "../shaders/terrain/chunks/declarations.vert.glsl";
+import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
+import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
+import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
 import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
-import fragmentShader from "./terrain.frag";
-import vertexShader from "./terrain.vert";
-
-const faceColors = [
-  new THREE.Color(0xff4444), // Front
-  new THREE.Color(0x4444ff), // Back
-  new THREE.Color(0x44ff44), // Right
-  new THREE.Color(0xffff44), // Left
-  new THREE.Color(0x44ffff), // Top
-  new THREE.Color(0xff44ff), // Bottom
-];
+// Extended interface for Physical Material with custom uniforms
+interface TerrainMaterial extends MeshPhysicalMaterial {
+  customUniforms?: {
+    uMapMode: { value: number };
+    uMapLayers: { value: number };
+    uSelectedTile: { value: number };
+    uRadius: { value: number };
+    uOffset: { value: Vector3 };
+    h3IndexMap: { value: any };
+    h3NeighborMap: { value: any };
+    h3PositionMap: { value: any };
+    uModelMatrix: { value: Matrix4 };
+    hexTileIntBuffer: { value: any };
+    hexTileFloatBuffer: { value: any };
+  };
+}
 
 export class TerrainInstancer {
   private static readonly INITIAL_CAPACITY = 1000; // Start with reasonable capacity
-  private instancedMesh?: THREE.InstancedMesh;
-  private nodeTransforms: Map<number, THREE.Matrix4> = new Map();
-  private color = new THREE.Color();
+  private instancedMesh?: InstancedMesh;
+  private nodeTransforms: Map<number, Matrix4> = new Map();
   private quadtree: CubeSphereQuadtree;
   private radius: number;
-  private offset: THREE.Vector3;
-  private material: THREE.Material;
-  private hexTileBuffer: HexTileBuffer = new HexTileBuffer(4);
-  constructor(
-    quadtree: CubeSphereQuadtree,
-    options: { radius?: number; position?: THREE.Vector3 } = {}
-  ) {
+  private offset: Vector3;
+  private material: TerrainMaterial;
+  constructor(quadtree: CubeSphereQuadtree) {
     this.quadtree = quadtree;
-    this.radius = options.radius ?? 1;
-    this.offset = options.position ?? new THREE.Vector3();
+    this.radius = getState().planetology.radius;
+    this.offset = getState().transform.offset;
+  }
+
+  packMapLayers() {
+    const { mapLayers } = getState();
+    // use bitpacking to pack the map layers into a single number
+    return mapLayers.reduce((acc, layer) => acc | (1 << layer), 0);
+  }
+
+  private isMapLayerEnabled(layer: MapLayer): boolean {
+    return getState().mapLayers.includes(layer);
   }
 
   public async initialize() {
-    const cubeFaceUrls = [
-      "textures/hex/index-cube-map/face-0.webp",
-      "textures/hex/index-cube-map/face-1.webp",
-      "textures/hex/index-cube-map/face-2.webp",
-      "textures/hex/index-cube-map/face-3.webp",
-      "textures/hex/index-cube-map/face-4.webp",
-      "textures/hex/index-cube-map/face-5.webp",
-    ];
-    const hexCubeMap = await H3CubeMapGenerator.loadFromWebPFiles(cubeFaceUrls);
-    const h3NeighborMap = await HexNeighborMapGenerator.loadFromWebP(
-      "textures/hex/neighbor-map.webp",
-      4
-    );
-    const h3PositionMap = await HexPositionMapGenerator.loadFromBinary(
-      "textures/hex/position-map.bin",
-      4
-    );
+    const { buffers, mapMode } = getState();
 
-    // Create shader material
-    this.material = new THREE.ShaderMaterial({
-      vertexShader,
-      fragmentShader,
-      uniforms: {
-        uSelectedTile: { value: -1 },
-        uRadius: { value: this.radius },
-        uOffset: { value: this.offset },
-        h3IndexMap: { value: hexCubeMap.cubeTexture },
-        h3NeighborMap: { value: h3NeighborMap.texture },
-        h3PositionMap: { value: h3PositionMap.texture },
-        uModelMatrix: { value: new THREE.Matrix4() },
-        map: { value: null },
-        hexTileIntBuffer: { value: this.hexTileBuffer.getIntegerTexture() },
-        hexTileFloatBuffer: { value: this.hexTileBuffer.getFloatTexture() },
+    // Create custom uniforms
+    const customUniforms = {
+      uMapMode: { value: mapMode },
+      uMapLayers: { value: this.packMapLayers() },
+      uSelectedTile: { value: -1 },
+      uRadius: { value: this.radius },
+      uOffset: { value: this.offset },
+      h3IndexMap: { value: buffers.hexCubeMap.cubeTexture },
+      h3NeighborMap: { value: buffers.hexNeighborMap.texture },
+      h3PositionMap: { value: buffers.hexPositionMap.texture },
+      uModelMatrix: { value: new Matrix4() },
+      hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
+      hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
+    };
+
+    // Create physical material
+    this.material = new MeshPhysicalMaterial({
+      roughness: 0.5,
+      metalness: 0.0,
+      color: new Color(1, 1, 1),
+    }) as TerrainMaterial;
+
+    // Store the custom uniforms directly on the material
+    this.material.customUniforms = customUniforms;
+
+    // Define shader patches
+    const vertexPatches: ShaderPatch[] = [
+      {
+        chunk: "", // Empty chunk means this is a global definition
+        glsl: vertexDeclarations,
+        mode: "replace",
+        isGlobalDefinition: true,
       },
-      vertexColors: true,
+      {
+        chunk: "#include <beginnormal_vertex>",
+        glsl: beginnormalVertex,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <begin_vertex>",
+        glsl: beginVertex,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <project_vertex>",
+        glsl: projectVertex,
+        mode: "replace",
+      },
+    ];
+
+    const fragmentPatches: ShaderPatch[] = [
+      {
+        chunk: "", // Empty chunk means this is a global definition
+        glsl: fragmentDeclarations,
+        mode: "replace",
+        isGlobalDefinition: true,
+      },
+      {
+        chunk: "#include <normal_fragment_begin>",
+        glsl: normalFragmentBegin,
+        mode: "replace",
+      },
+      {
+        chunk: "#include <color_fragment>",
+        glsl: outputFragment,
+        mode: "replace",
+      },
+      // these dont do anything yet...
+      // {
+      //   chunk: "#include <lights_fragment_maps>",
+      //   glsl: lightsFragmentMaps,
+      //   mode: "replace",
+      // },
+      // {
+      //   chunk: "#include <shadowmap_fragment>",
+      //   glsl: shadowmapFragment,
+      //   mode: "replace",
+      // },
+    ];
+
+    // Modify shader via onBeforeCompile using ShaderUtils
+    this.material.onBeforeCompile = (shader) => {
+      // Apply the shader patches
+      ShaderUtils.patchShader(
+        shader,
+        vertexPatches,
+        fragmentPatches,
+        customUniforms
+      );
+    };
+
+    // Set needsUpdate to trigger shader compilation
+    this.material.needsUpdate = true;
+
+    // Subscribe to state changes
+    subscribe((state) => {
+      if (this.material.customUniforms) {
+        this.material.customUniforms.uMapMode.value = state.mapMode;
+        this.material.customUniforms.uMapLayers.value = this.packMapLayers();
+      }
+      this.updateCubeMapFromContext();
+      this.updateNeighborMapFromContext();
+      this.updatePositionMapFromContext();
+      this.updateTileBufferFromContext();
     });
 
-    this.generateTectonicPlateData();
-
     // Initialize instanced mesh
-    this.instancedMesh = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(1, 1, 16, 16),
+    this.instancedMesh = new InstancedMesh(
+      new PlaneGeometry(1, 1, 16, 16),
       this.material,
       TerrainInstancer.INITIAL_CAPACITY
+    );
+
+    // Set initial shadow settings based on current map layers
+    const useShadows = this.isMapLayerEnabled(MapLayer.REALISTIC_LIGHTING);
+    this.instancedMesh.receiveShadow = useShadows;
+    this.instancedMesh.castShadow = true;
+
+    console.log(
+      `Initial shadow setting: ${useShadows ? "ENABLED" : "DISABLED"}`
     );
 
     // Add instance color attribute
     const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
     this.instancedMesh.geometry.setAttribute(
       "instanceColor",
-      new THREE.InstancedBufferAttribute(colors, 3, false, 1)
+      new InstancedBufferAttribute(colors, 3, false, 1)
     );
 
-    this.instancedMesh.count = 0; // Start with 0 visible instances
-    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.instancedMesh.count = 0;
+    this.instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
   }
 
-  public get mesh(): THREE.InstancedMesh {
+  public get mesh(): InstancedMesh {
     return this.instancedMesh;
   }
 
@@ -106,20 +208,20 @@ export class TerrainInstancer {
         this.instancedMesh.instanceMatrix.count * 2
       );
 
-      const newMesh = new THREE.InstancedMesh(
+      const newMesh = new InstancedMesh(
         this.instancedMesh.geometry,
         this.instancedMesh.material,
         newCapacity
       );
-      newMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      newMesh.instanceMatrix.setUsage(DynamicDrawUsage);
 
       // Copy existing instance data
       for (let i = 0; i < this.instancedMesh.count; i++) {
-        const matrix = new THREE.Matrix4();
+        const matrix = new Matrix4();
         this.instancedMesh.getMatrixAt(i, matrix);
         newMesh.setMatrixAt(i, matrix);
 
-        const color = new THREE.Color();
+        const color = new Color();
         this.instancedMesh.getColorAt(i, color);
         newMesh.setColorAt(i, color);
       }
@@ -141,7 +243,7 @@ export class TerrainInstancer {
     }
   }
 
-  public update(camera: THREE.Camera) {
+  public update(camera: Camera) {
     if (!this.instancedMesh) {
       return;
     }
@@ -181,7 +283,7 @@ export class TerrainInstancer {
   }
 
   private addInstance(nodeIndex: number) {
-    const matrix = new THREE.Matrix4();
+    const matrix = new Matrix4();
     this.nodeTransforms.set(nodeIndex, matrix);
   }
 
@@ -191,15 +293,15 @@ export class TerrainInstancer {
 
     // Calculate tile size based on level
     const tileSize = (this.radius * 2) / (1 << node.level);
-    const scale = new THREE.Vector3(tileSize, tileSize, 1);
+    const scale = new Vector3(tileSize, tileSize, 1);
 
     // Calculate normalized position within face (0 to 1)
     const u = (node.x + 0.5) / (1 << node.level);
     const v = (node.y + 0.5) / (1 << node.level);
 
     // Create face transformation matrix
-    const faceMatrix = new THREE.Matrix4();
-    const facePosition = new THREE.Vector3();
+    const faceMatrix = new Matrix4();
+    const facePosition = new Vector3();
 
     // Corrected face orientation and position mapping
     switch (node.face) {
@@ -215,37 +317,37 @@ export class TerrainInstancer {
         facePosition.set(0, 0, -this.radius);
         faceMatrix
           .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationY(Math.PI));
+          .multiply(new Matrix4().makeRotationY(Math.PI));
         break;
       case 2: // Right (+X)
         facePosition.set(this.radius, 0, 0);
         faceMatrix
           .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2));
+          .multiply(new Matrix4().makeRotationY(Math.PI / 2));
         break;
       case 3: // Left (-X)
         facePosition.set(-this.radius, 0, 0);
         faceMatrix
           .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2));
+          .multiply(new Matrix4().makeRotationY(-Math.PI / 2));
         break;
       case 4: // Top (+Y)
         facePosition.set(0, this.radius, 0);
         faceMatrix
           .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+          .multiply(new Matrix4().makeRotationX(-Math.PI / 2));
         break;
       case 5: // Bottom (-Y)
         facePosition.set(0, -this.radius, 0);
         faceMatrix
           .makeTranslation(facePosition.x, facePosition.y, facePosition.z)
-          .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+          .multiply(new Matrix4().makeRotationX(Math.PI / 2));
         break;
     }
 
     // Create matrix for local position within face
-    const localMatrix = new THREE.Matrix4();
-    const localOffset = new THREE.Vector3(
+    const localMatrix = new Matrix4();
+    const localOffset = new Vector3(
       (u - 0.5) * 2 * this.radius,
       (v - 0.5) * 2 * this.radius,
       0
@@ -263,62 +365,93 @@ export class TerrainInstancer {
     this.instancedMesh.setMatrixAt(instanceId, matrix);
   }
 
+  public getMaterial(): TerrainMaterial {
+    return this.material;
+  }
+
   public dispose() {
     // dispose of all textures
-    this.instancedMesh.material.uniforms.h3IndexMap.value.dispose();
-    this.instancedMesh.material.uniforms.h3NeighborMap.value.dispose();
-    this.instancedMesh.material.uniforms.h3PositionMap.value.dispose();
-    this.instancedMesh.material.uniforms.hexTileIntBuffer.value.dispose();
-    this.instancedMesh.material.uniforms.hexTileFloatBuffer.value.dispose();
-    this.instancedMesh.geometry.dispose();
-    (this.instancedMesh.material as THREE.Material).dispose();
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3IndexMap.value.dispose();
+      this.material.customUniforms.h3NeighborMap.value.dispose();
+      this.material.customUniforms.h3PositionMap.value.dispose();
+      this.material.customUniforms.hexTileIntBuffer.value.dispose();
+      this.material.customUniforms.hexTileFloatBuffer.value.dispose();
+    }
+    if (this.instancedMesh) {
+      this.instancedMesh.geometry.dispose();
+    }
+    this.material.dispose();
     this.nodeTransforms.clear();
   }
 
-  public setRadius(radius: number, camera: THREE.Camera) {
+  public setRadius(radius: number, camera: Camera) {
     this.radius = radius;
-    (
-      this.instancedMesh.material as THREE.ShaderMaterial
-    ).uniforms.uRadius.value = radius;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uRadius.value = radius;
+    }
+
     this.processNodeUpdates(
       this.quadtree.getVisibleNodes(camera, radius, this.offset)
     );
+
+    this.material.needsUpdate = true;
   }
 
   public setSelectedTile(hexIndex: number | null) {
-    (
-      this.instancedMesh.material as THREE.ShaderMaterial
-    ).uniforms.uSelectedTile.value = hexIndex || -1;
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uSelectedTile.value = hexIndex || -1;
+    }
   }
 
-  public setPosition(position: THREE.Vector3) {
+  public setPosition(position: Vector3) {
     this.offset.copy(position);
-    (
-      this.instancedMesh.material as THREE.ShaderMaterial
-    ).uniforms.uOffset.value = position;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.uOffset.value = position;
+    }
   }
 
-  public setTileData(hexTileBuffer: HexTileBuffer) {
-    this.hexTileBuffer.copy(hexTileBuffer);
-    (
-      this.instancedMesh.material as THREE.ShaderMaterial
-    ).uniforms.hexTileIntBuffer.value = this.hexTileBuffer.getIntegerTexture();
-    (
-      this.instancedMesh.material as THREE.ShaderMaterial
-    ).uniforms.hexTileFloatBuffer.value = this.hexTileBuffer.getFloatTexture();
-    this.instancedMesh.material.needsUpdate = true;
+  public updateCubeMapFromContext() {
+    const buffers = getState().buffers;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3IndexMap.value =
+        buffers.hexCubeMap.cubeTexture;
+      this.material.needsUpdate = true;
+    }
   }
 
-  public generateTectonicPlateData(numberOfSeeds = 256) {
-    HexGridFloodFill.doFloodfill(4, numberOfSeeds).then((hexGridFloodFill) => {
-      this.setTileData(hexGridFloodFill.hexTileBuffer);
-      // CrustAssignmentFloodFill.assignCrust(4, 12, {
-      //   landPercentage: 0.3,
-      //   continentalProbability: 0.5,
-      // }).then((hexTileBuffer) => {
-      //   console.log("assign crust done", hexTileBuffer);
-      //   // this.setTileData(hexTileBuffer);
-      // });
-    });
+  public updateNeighborMapFromContext() {
+    const buffers = getState().buffers;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3NeighborMap.value =
+        buffers.hexNeighborMap.texture;
+      this.material.needsUpdate = true;
+    }
+  }
+
+  public updatePositionMapFromContext() {
+    const buffers = getState().buffers;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.h3PositionMap.value =
+        buffers.hexPositionMap.texture;
+      this.material.needsUpdate = true;
+    }
+  }
+
+  public updateTileBufferFromContext() {
+    const buffers = getState().buffers;
+
+    if (this.material.customUniforms) {
+      this.material.customUniforms.hexTileIntBuffer.value =
+        buffers.hexTileBuffer.getIntegerTexture();
+      this.material.customUniforms.hexTileFloatBuffer.value =
+        buffers.hexTileBuffer.getFloatTexture();
+      this.material.needsUpdate = true;
+    }
   }
 }

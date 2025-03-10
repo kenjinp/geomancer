@@ -1,6 +1,9 @@
 import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
-import { integerToRGB } from "@/lib/images/Color";
+import { integerToRGB } from "@/lib/images/colorUtils";
+import { getState } from "@/state/Context";
+import { ShaderUtils } from "@/utils/three.utils";
+import { remap } from "@hello-worlds/planets";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -14,10 +17,14 @@ interface TerrainRendererProps {
 }
 
 const makeHumanReadableMeters = (meters: number) => {
-  if (meters > 1000) {
-    return `${(meters / 1000).toLocaleString()} km`;
+  if (Math.abs(meters) > 1000) {
+    return `${(meters / 1000).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    })}km`;
   }
-  return `${meters.toLocaleString()} m`;
+  return `${meters.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  })}m`;
 };
 
 export function TerrainRenderer({
@@ -30,6 +37,7 @@ export function TerrainRenderer({
   const axesHelperRef = useRef<THREE.AxesHelper>(null);
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
+  const renderer = useThree((state) => state.gl);
   const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const [hovering, setHovering] = useState(false);
   const hoveredHexTileIndex = useRef(-1);
@@ -37,6 +45,7 @@ export function TerrainRenderer({
   const positionKey = position.toArray().join(",");
 
   useEffect(() => {
+    if (!renderer) return;
     let stale = false;
     console.log("Initializing terrain with:", {
       radius,
@@ -46,14 +55,12 @@ export function TerrainRenderer({
         .map((n) => quadtreeRef.current.getNodeView(n).toObject()),
     });
 
-    instancerRef.current = new TerrainInstancer(quadtreeRef.current, {
-      radius,
-      position,
-    });
+    instancerRef.current = new TerrainInstancer(quadtreeRef.current);
 
     instancerRef.current.initialize().then(() => {
       if (!stale) {
         scene.add(instancerRef.current.mesh);
+        ShaderUtils.init(renderer, scene, camera, instancerRef.current.mesh);
       }
     });
 
@@ -63,7 +70,7 @@ export function TerrainRenderer({
       instancerRef.current?.dispose();
       scene.remove(instancerRef.current?.mesh);
     };
-  }, [radius, positionKey, camera]);
+  }, [radius, positionKey, camera, renderer]);
 
   useFrame(({ camera }) => {
     if (!instancerRef.current || !quadtreeRef.current) return;
@@ -71,6 +78,7 @@ export function TerrainRenderer({
     quadtreeRef.current.maxDepth = maxDepth;
     quadtreeRef.current.updateLOD(camera.position, radius, position);
     instancerRef.current.update(camera);
+    instancerRef.current.setSelectedTile(hoveredHexTileIndex.current);
 
     const latLong = LatLong.cartesianToLatLong(
       sphereWorldPosition.current.normalize()
@@ -78,13 +86,27 @@ export function TerrainRenderer({
 
     const mouseFollower = document.getElementById("mouse-follower");
     if (mouseFollower) {
+      if (hoveredHexTileIndex.current && hoveredHexTileIndex.current < 0) {
+        mouseFollower.innerHTML = null;
+        return;
+      }
+      const state = getState();
+      const hexTileBuffer = state.buffers.hexTileBuffer;
+      const hexTileData = hexTileBuffer.readTileData(
+        hoveredHexTileIndex.current
+      );
+
       const hashColor = integerToRGB(hoveredHexTileIndex.current);
       const hashColorString = hashColor.join(",");
       const hashColorRGB = `rgb(${hashColorString})`;
+      const elevation = makeHumanReadableMeters(
+        remap(hexTileData.elevation, -1, 1, -8_000, 8_000)
+      );
       mouseFollower.innerHTML = hovering
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
         <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
+        <span>${elevation}</span>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 
@@ -109,7 +131,7 @@ export function TerrainRenderer({
     sphereWorldPosition.current.copy(event.point);
     const index = HexGrid.getIndexFromPosition(event.point.normalize(), 4);
     hoveredHexTileIndex.current = index;
-    instancerRef.current.setSelectedTile(index);
+    // instancerRef.current.setSelectedTile(index);
   };
 
   const handlePointerLeave = () => {
@@ -130,7 +152,7 @@ export function TerrainRenderer({
         onPointerEnter={handlePointerEnter}
       >
         <sphereGeometry args={[radius, 64, 64]} />
-        <meshBasicMaterial color="red" />
+        <meshStandardMaterial color="blue" />
       </mesh>
     </>
   );

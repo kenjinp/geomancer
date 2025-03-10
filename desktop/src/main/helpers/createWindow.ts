@@ -3,8 +3,8 @@ import { BrowserWindow, screen } from "electron";
 import path from "path";
 
 // Local imports
-import { configStore } from "./configStore";
 import packageData from "../../../package.json";
+import { configStore } from "./configStore";
 
 /**
  * Creates a new window.
