@@ -46,6 +46,13 @@
     if (uMapMode == 3u) {
         baseColor = cellColor;
     }
+    if (uMapMode == 4u) {
+        baseColor = vec3(hashFloat(float(vInstanceId)));
+    }
+    if (getMapLayer(3u)) {
+        baseColor = mix(baseColor, vec3(hashFloat(float(vInstanceId))), 0.5);
+    }
+
 
     float showGrid = 0.0;
     if (getMapLayer(1u)) {
@@ -72,12 +79,10 @@
 
     // Calculate surface normal and apply lighting
     // apply lighting as if it's coming from 15 degrees north of the equator
-    vec3 lightDir = normalize(vec3(1.0, 0.4, 0.0)); 
     vec3 surfaceNormal = calculateSurfaceNormal(spherePos, closestId);
     
     if (getMapLayer(2u)) {
-        // Apply lighting to the base color before adding grid lines and edges
-        baseColor = applyLighting(baseColor, surfaceNormal, lightDir);
+       // I tihnk this might be where the lighting should go???
     }
 
     vec3 whiteGridColors = mix(baseColor, vec3(1.0), combinedGrid);
@@ -114,15 +119,6 @@
     vec3 finalColor = mix(combinedGridColors, edgeColor, edge);
     finalColor = mix(finalColor, hashFloat(vInstanceId), 0.0);
     
-    // Handle shadows
-    float shadow = 1.0;
-    #ifdef USE_SHADOWMAP
-        // Calculate the shadow
-        shadow = getShadow(shadowMap[0], shadowMapSize[0], shadowBias[0], shadowRadius[0], vShadowCoord[0]);
-        // Apply shadow to final color
-        finalColor *= shadow * 0.7 + 0.3; // Ensure shadows aren't completely black
-    #endif
+    diffuseColor.rgb = finalColor;
 
-    // Ensure proper depth handling and no color bleeding
-    gl_FragColor = vec4(finalColor, diffuseColor.a);
     

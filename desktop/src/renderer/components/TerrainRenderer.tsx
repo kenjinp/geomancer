@@ -3,6 +3,7 @@ import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
 import { integerToRGB } from "@/lib/images/colorUtils";
 import { getState } from "@/state/Context";
 import { ShaderUtils } from "@/utils/three.utils";
+import { remap } from "@hello-worlds/planets";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -16,10 +17,14 @@ interface TerrainRendererProps {
 }
 
 const makeHumanReadableMeters = (meters: number) => {
-  if (meters > 1000) {
-    return `${(meters / 1000).toLocaleString()} km`;
+  if (Math.abs(meters) > 1000) {
+    return `${(meters / 1000).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    })}km`;
   }
-  return `${meters.toLocaleString()} m`;
+  return `${meters.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  })}m`;
 };
 
 export function TerrainRenderer({
@@ -94,11 +99,14 @@ export function TerrainRenderer({
       const hashColor = integerToRGB(hoveredHexTileIndex.current);
       const hashColorString = hashColor.join(",");
       const hashColorRGB = `rgb(${hashColorString})`;
+      const elevation = makeHumanReadableMeters(
+        remap(hexTileData.elevation, -1, 1, -8_000, 8_000)
+      );
       mouseFollower.innerHTML = hovering
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
         <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
-        <span>${hexTileData.elevation.toFixed(2)}</span>
+        <span>${elevation}</span>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 

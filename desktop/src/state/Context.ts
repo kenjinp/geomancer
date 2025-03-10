@@ -13,12 +13,14 @@ export enum MapMode {
   ELEVATION,
   PLATES,
   HEXGRID,
+  CHUNKS,
 }
 
 export enum MapLayer {
   HEXGRID,
   LATLONG,
   REALISTIC_LIGHTING,
+  CHUNKS,
   ATMOSPHERE,
   PLATE_BOUNDARIES,
 }

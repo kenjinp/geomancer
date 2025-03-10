@@ -27,6 +27,10 @@ export const MapModeBar: React.FC = () => {
       label: "Hex Grid",
       mapMode: MapMode.HEXGRID,
     },
+    {
+      label: "Chunks",
+      mapMode: MapMode.CHUNKS,
+    },
   ];
 
   const mapLayerButtons = [
@@ -43,9 +47,13 @@ export const MapModeBar: React.FC = () => {
       mapLayer: MapLayer.REALISTIC_LIGHTING,
     },
     {
-      label: "Atmosphere",
-      mapLayer: MapLayer.ATMOSPHERE,
+      label: "Chunks",
+      mapLayer: MapLayer.CHUNKS,
     },
+    // {
+    //   label: "Atmosphere",
+    //   mapLayer: MapLayer.ATMOSPHERE,
+    // },
     // {
     //   label: "Plate Boundaries",
     //   mapLayer: MapLayer.PLATE_BOUNDARIES,
