@@ -50,6 +50,10 @@ export const MapModeBar: React.FC = () => {
       label: "Chunks",
       mapLayer: MapLayer.CHUNKS,
     },
+    {
+      label: "Sphere Projection",
+      mapLayer: MapLayer.SPHERE_PROJECTION,
+    },
     // {
     //   label: "Atmosphere",
     //   mapLayer: MapLayer.ATMOSPHERE,

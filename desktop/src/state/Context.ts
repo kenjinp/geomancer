@@ -21,6 +21,7 @@ export enum MapLayer {
   LATLONG,
   REALISTIC_LIGHTING,
   CHUNKS,
+  SPHERE_PROJECTION,
   ATMOSPHERE,
   PLATE_BOUNDARIES,
 }
@@ -58,7 +59,7 @@ export interface Context {
 
 export const initialContext: Context = {
   mapMode: MapMode.ELEVATION,
-  mapLayers: [],
+  mapLayers: [MapLayer.SPHERE_PROJECTION],
   random: {
     seed: 0,
     seededRandom: new Rand("0"),
