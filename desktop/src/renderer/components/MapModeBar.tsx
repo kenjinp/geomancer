@@ -55,6 +55,10 @@ export const MapModeBar: React.FC = () => {
       label: "Sphere Projection",
       mapLayer: MapLayer.SPHERE_PROJECTION,
     },
+    {
+      label: "Interpolation",
+      mapLayer: MapLayer.INTERPOLATION,
+    },
     // {
     //   label: "Atmosphere",
     //   mapLayer: MapLayer.ATMOSPHERE,

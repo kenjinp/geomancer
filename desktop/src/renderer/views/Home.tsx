@@ -2,9 +2,9 @@ import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { subscribe } from "@/state/Context";
 import { runTaskGraph } from "@/tasks/TaskGraph";
 import { Html } from "@react-three/drei";
+// import { Perf } from "r3f-perf";
 import { useEffect, useState } from "react";
 import { TerrainRenderer } from "../components/TerrainRenderer";
-
 export const Home: React.FC = () => {
   const radius = EARTH_AUTHALIC_RADIUS;
   const [checkingWebGPU, setCheckingWebGPU] = useState(true);
@@ -80,7 +80,7 @@ export const Home: React.FC = () => {
 
   return (
     <group>
-      {/* <Perf position="bottom-right" /> */}
+      {/* <Perf position="bottom-right"  /> */}
       <TerrainRenderer radius={radius} />
       {/* <CubeVisualizer scale={radius} /> */}
     </group>
