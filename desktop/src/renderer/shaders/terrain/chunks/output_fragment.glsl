@@ -35,127 +35,119 @@
 
     float elevation = floatData.elevation;
     if (getMapLayer(5u)) {
-
         // elevation interpolation begin
         // Get the normalized position on the sphere with high precision
         vec3 normalizedPos = normalize(spherePos);
         
-        // We need to use more precise methods since this is fragment-based rendering
-        // Get exact positions with high precision arithmetic
-        
-        // First, get the closest cell's info with high precision
+        // Get the closest and second closest cells' info with high precision
         vec3 closestCenter = normalize(getH3Position(float(closestId)));
         float closestDist = greatCircleDistance(normalizedPos, closestCenter);
         float closestElevation = floatData.elevation;
         
-        // Get the second closest cell's info with high precision
         vec3 secondClosestCenter = normalize(getH3Position(float(secondClosestId)));
         float secondClosestDist = greatCircleDistance(normalizedPos, secondClosestCenter);
         float secondClosestElevation = secondFloatData.elevation;
         
-        // Start building weights with a higher-precision approach
-        // Calculate the shared edge factor (0 deep inside a cell, 1 at the exact edge)
+        // Calculate edge factor (0 deep inside a cell, 1 at the exact edge)
         float edgeFactor = 0.0;
         if (closestDist > 0.0 && secondClosestDist > 0.0) {
-            // This factor rises to 1.0 at exactly the edge between cells
             edgeFactor = smoothstep(0.0, 1.0, 1.0 - abs(closestDist - secondClosestDist) / (closestDist + secondClosestDist));
         }
         
-        // First collect a larger number of neighboring cells for better gradient
-        const int MAX_CELLS = 19;  // Maximum cells: 1 (center) + 6 (neighbors) + 12 (ring 2 neighbors)
+        // Use a more efficient approach with fewer loops
+        // Pre-allocate arrays with fixed size for the important cells
+        const int MAX_CELLS = 8;  // Closest + second closest + up to 6 first-ring neighbors
         uint cellIds[MAX_CELLS];
         float distsToCells[MAX_CELLS];
         float elevations[MAX_CELLS];
         
-        // Start with the closest cell
+        // Start with the closest and second closest cells
         int numCells = 0;
-        cellIds[numCells] = closestId;
-        distsToCells[numCells] = closestDist;
-        elevations[numCells] = closestElevation;
-        numCells++;
+        float minDist = closestDist;
+        float maxDist = closestDist;
         
-        // Add second closest
+        // Add closest cell
+        cellIds[0] = closestId;
+        distsToCells[0] = closestDist;
+        elevations[0] = closestElevation;
+        numCells = 1;
+        
+        // Add second closest if valid
         if (secondClosestId != 0u && secondClosestId != closestId) {
-            cellIds[numCells] = secondClosestId;
-            distsToCells[numCells] = secondClosestDist;
-            elevations[numCells] = secondClosestElevation;
-            numCells++;
+            cellIds[1] = secondClosestId;
+            distsToCells[1] = secondClosestDist;
+            elevations[1] = secondClosestElevation;
+            numCells = 2;
+            
+            minDist = min(minDist, secondClosestDist);
+            maxDist = max(maxDist, secondClosestDist);
         }
         
-        // Add first-ring neighbors of closest cell
-        for (int i = 0; i < 6; i++) {
+        // Efficiently add important neighbors (unrolled loop for first few neighbors)
+        // This replaces the nested loops in the original code
+        for (int i = 0; i < 6 && numCells < MAX_CELLS; i++) {
             uint neighborId = getNeighborH3Id(float(closestId), float(i));
-            if (neighborId == 0u || neighborId == closestId || neighborId == secondClosestId) continue;
             
-            // Add this neighbor
-            bool alreadyExists = false;
-            for (int j = 0; j < numCells; j++) {
-                if (cellIds[j] == neighborId) {
-                    alreadyExists = true;
-                    break;
-                }
+            // Skip invalid or already added cells
+            bool skipNeighbor = (neighborId == 0u || neighborId == closestId || neighborId == secondClosestId);
+            
+            // Check if already exists (unrolled for small maximum size)
+            for (int j = 0; j < numCells && !skipNeighbor; j++) {
+                skipNeighbor = skipNeighbor || (cellIds[j] == neighborId);
             }
             
-            if (!alreadyExists && numCells < MAX_CELLS) {
+            if (!skipNeighbor) {
                 vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
                 float dist = greatCircleDistance(normalizedPos, neighborCenter);
-                HexTileFloatData neighborData = getHexTileFloatData(float(neighborId));
                 
                 cellIds[numCells] = neighborId;
                 distsToCells[numCells] = dist;
-                elevations[numCells] = neighborData.elevation;
+                elevations[numCells] = getHexTileFloatData(float(neighborId)).elevation;
+                
+                minDist = min(minDist, dist);
+                maxDist = max(maxDist, dist);
+                
                 numCells++;
             }
-        }
-        
-        // Calculate min and max distances for normalization
-        float minDist = 10.0;
-        float maxDist = 0.0;
-        for (int i = 0; i < numCells; i++) {
-            minDist = min(minDist, distsToCells[i]);
-            maxDist = max(maxDist, distsToCells[i]);
         }
         
         // Ensure we don't divide by zero
         maxDist = max(maxDist, 0.0001);
         minDist = max(minDist, 0.00001);
+        float distRange = maxDist - minDist;
         
-        // Multi-layer interpolation for ultra-smooth gradients
+        // Combined interpolation in a single pass
+        float sigma = distRange * 0.3; // Gaussian parameter
         
-        // First layer: basic inverse distance weighting
-        float totalWeight1 = 0.0;
-        float weightedElevation1 = 0.0;
+        float totalWeightIDW = 0.0;
+        float weightedElevationIDW = 0.0;
+        float totalWeightGaussian = 0.0;
+        float weightedElevationGaussian = 0.0;
+        
+        // Single loop for both interpolation methods
         for (int i = 0; i < numCells; i++) {
-            float normalizedDist = (distsToCells[i] - minDist) / (maxDist - minDist);
+            float normalizedDist = (distsToCells[i] - minDist) / distRange;
             
-            // Very smooth weight function for basic interpolation
-            float weight = pow(1.0 - normalizedDist, 4.0);
-            weightedElevation1 += elevations[i] * weight;
-            totalWeight1 += weight;
+            // Inverse distance weighting
+            float weightIDW = pow(1.0 - normalizedDist, 4.0);
+            weightedElevationIDW += elevations[i] * weightIDW;
+            totalWeightIDW += weightIDW;
+            
+            // Gaussian interpolation
+            float weightGaussian = exp(-0.5 * pow(distsToCells[i] / sigma, 2.0));
+            weightedElevationGaussian += elevations[i] * weightGaussian;
+            totalWeightGaussian += weightGaussian;
         }
-        float basicElevation = totalWeight1 > 0.0 ? weightedElevation1 / totalWeight1 : floatData.elevation;
         
-        // Second layer: Gaussian interpolation for perfect smoothness
-        float totalWeight2 = 0.0;
-        float weightedElevation2 = 0.0;
-        float sigma = (maxDist - minDist) * 0.3; // Adjust sigma based on cell spacing
+        // Calculate both interpolation results
+        float basicElevation = (totalWeightIDW > 0.0) ? weightedElevationIDW / totalWeightIDW : closestElevation;
+        float gaussianElevation = (totalWeightGaussian > 0.0) ? weightedElevationGaussian / totalWeightGaussian : closestElevation;
         
-        for (int i = 0; i < numCells; i++) {
-            // Gaussian kernel - C∞ continuity
-            float weight = exp(-0.5 * pow(distsToCells[i] / sigma, 2.0));
-            weightedElevation2 += elevations[i] * weight;
-            totalWeight2 += weight;
-        }
-        float gaussianElevation = totalWeight2 > 0.0 ? weightedElevation2 / totalWeight2 : floatData.elevation;
-        
-        // Final blend: combine multiple interpolation methods with edge-aware blending
-        // Stronger edge detection near borders where artifacts would be visible
+        // Edge-aware blending
         float edgeWeight = smoothstep(0.2, 0.8, edgeFactor);
-        
-        // Higher weight to Gaussian near edges
         float gaussianBlend = mix(0.5, 0.9, edgeWeight);
         
-        // Blend the two interpolation approaches
+        // Final blended elevation
         elevation = mix(basicElevation, gaussianElevation, gaussianBlend);
     }
 
