@@ -98,7 +98,7 @@ vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
     float secondMinDist = 1000.0;
     uint closestId = initialId;
     uint secondClosestId = initialId;
-    
+    float maxDist = 0.0;
     for (int i = 0; i < 6; i++) {
         uint neighborId = getNeighborH3Id(float(initialId), float(i));
         if (neighborId == 0u) continue;
@@ -115,6 +115,7 @@ vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
             secondMinDist = dist;
             secondClosestId = neighborId;
         }
+        maxDist = max(maxDist, dist);
     }
     
     return vec2(float(closestId), float(secondClosestId));

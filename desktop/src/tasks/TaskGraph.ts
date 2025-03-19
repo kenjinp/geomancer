@@ -1,5 +1,7 @@
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
+import { HydraulicErosionSimulator } from "@/lib/Hextree/HydraulicErosionSimulator";
 import { TerrainElevationGenerator } from "@/lib/Hextree/TerrainElevationGenerator";
+import { ThermalErosionSimulator } from "@/lib/Hextree/ThermalErosionSimulator";
 import { Plate } from "@/lib/model/tectonics/Plate";
 import { Context, getState, setState } from "@/state/Context";
 import { Dag } from "@ts-dag/builder";
@@ -121,7 +123,7 @@ const generateTerrainElevations = dag.task(
           scale: 0.07,
           warpStrength: 0.6,
           baseStrength: 0.4,
-          // seed: 1,
+          seed: getState().random.seed,
         }
       );
 
@@ -133,6 +135,98 @@ const generateTerrainElevations = dag.task(
     }
   },
   [generatePlateHexBuffers, generatePlates]
+);
+
+const generateThermalErosion = dag.task(
+  "generateThermalErosion",
+  async (ctx) => {
+    // skip
+    return ctx;
+    try {
+      console.log("applying thermal erosion");
+
+      // Get the necessary buffers for erosion
+      const { hexTileBuffer, hexNeighborMap } = ctx.buffers;
+
+      // Thermal erosion parameters
+      const erosionParams = {
+        iterations: 15, // Number of erosion passes
+        talus: 0.4, // Critical slope threshold (tangent)
+        erosionRate: 0.15, // Rate at which material moves downslope
+        smoothingFactor: 0.3, // Amount of smoothing to apply
+        seed: getState().random.seed,
+      };
+
+      // Create the erosion simulator with our parameters
+      const erosion = await ThermalErosionSimulator.create(
+        hexTileBuffer,
+        new Uint32Array(hexNeighborMap.texture.image.data.buffer),
+        erosionParams
+      );
+
+      // Apply the erosion
+      await erosion.applyErosion();
+
+      // Clean up
+      erosion.destroy();
+
+      console.log("thermal erosion applied with params:", erosionParams);
+
+      // Return the context (potentially with updated buffers)
+      return ctx;
+    } catch (error) {
+      console.error("Error during thermal erosion:", error);
+      return ctx;
+    }
+  },
+  [generateTerrainElevations]
+);
+
+const generateHydraulicErosion = dag.task(
+  "generateHydraulicErosion",
+  async (ctx) => {
+    // skip
+    return ctx;
+    try {
+      console.log("applying hydraulic erosion");
+
+      // Get the necessary buffers for erosion
+      const { hexTileBuffer, hexNeighborMap } = ctx.buffers;
+
+      // Hydraulic erosion parameters
+      const erosionParams = {
+        iterations: 1, // Number of erosion passes
+        rainAmount: 0.05, // Amount of rain per iteration
+        evaporationRate: 0.2, // Rate of water evaporation
+        sedimentCapacity: 0.3, // Max sediment water can carry (based on slope)
+        solubility: 0.3, // Rate of sediment dissolution
+        depositionRate: 0.8, // Rate at which sediment is deposited
+        seed: getState().random.seed,
+      };
+
+      // Create the erosion simulator with our parameters
+      const erosion = await HydraulicErosionSimulator.create(
+        hexTileBuffer,
+        new Uint32Array(hexNeighborMap.texture.image.data.buffer),
+        erosionParams
+      );
+
+      // Apply the erosion
+      await erosion.applyErosion();
+
+      // Clean up
+      erosion.destroy();
+
+      console.log("hydraulic erosion applied with params:", erosionParams);
+
+      // Return the context
+      return ctx;
+    } catch (error) {
+      console.error("Error during hydraulic erosion:", error);
+      return ctx;
+    }
+  },
+  [generateThermalErosion]
 );
 
 //  When any input changes, we run the dag

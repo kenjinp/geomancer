@@ -1,4 +1,5 @@
 import { EARTH_AUTHALIC_RADIUS } from "@/constants";
+import { subscribe } from "@/state/Context";
 import { runTaskGraph } from "@/tasks/TaskGraph";
 import { Html } from "@react-three/drei";
 import { useEffect, useState } from "react";
@@ -10,6 +11,12 @@ export const Home: React.FC = () => {
   const [hasWebGPU, setHasWebGPU] = useState(false);
 
   useEffect(() => {
+    subscribe((state, prevState) => {
+      if (state.random.seed !== prevState.random.seed) {
+        runTaskGraph();
+      }
+    });
+
     runTaskGraph();
     const checkWebGPU = async () => {
       setCheckingWebGPU(true);

@@ -2,6 +2,7 @@ import { cn } from "@/lib/ui/utilts";
 import store, { MapLayer, MapMode, setState } from "@/state/Context";
 import { Button, ButtonGroup } from "@nextui-org/react";
 import { useStore } from "zustand";
+import { SeedInput } from "./SeedInput";
 
 export const MapModeBar: React.FC = () => {
   const mapMode = useStore(store).mapMode;
@@ -88,6 +89,9 @@ export const MapModeBar: React.FC = () => {
               );
             })}
           </ButtonGroup>
+        </div>
+        <div className="mt-2">
+          <SeedInput />
         </div>
       </div>
       <div>

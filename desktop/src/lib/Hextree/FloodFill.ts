@@ -1,3 +1,4 @@
+import { getState } from "@/state/Context";
 import * as h3 from "h3-js";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
@@ -89,7 +90,9 @@ export class HexGridFloodFill {
     const seedCells: string[] = [];
     const pickedIndices = new Set<number>();
     while (seedCells.length < seedCount) {
-      const randomIndex = Math.floor(Math.random() * h3Cells.length);
+      const randomIndex = Math.floor(
+        getState().random.seededRandom.next() * h3Cells.length
+      );
       if (!pickedIndices.has(randomIndex)) {
         pickedIndices.add(randomIndex);
         seedCells.push(h3Cells[randomIndex]);

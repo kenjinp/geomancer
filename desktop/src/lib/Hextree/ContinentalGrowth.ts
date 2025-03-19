@@ -1,3 +1,4 @@
+import { getState } from "@/state/Context";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "../data-buffers/HexPositionMapGenerator";
@@ -265,7 +266,9 @@ export class ContinentalGrowth {
 
   private selectRandomSubset<T>(items: T[], percentage: number): T[] {
     const count = Math.ceil(items.length * percentage);
-    const shuffled = [...items].sort(() => Math.random() - 0.5);
+    const shuffled = [...items].sort(
+      () => getState().random.seededRandom.next() - 0.5
+    );
     return shuffled.slice(0, count);
   }
 
@@ -407,7 +410,9 @@ export class ContinentalGrowth {
       "large_igneous",
       "extended",
     ];
-    return subtypes[Math.floor(Math.random() * subtypes.length)];
+    return subtypes[
+      Math.floor(getState().random.seededRandom.next() * subtypes.length)
+    ];
   }
 
   public destroy() {

@@ -32,15 +32,15 @@ export function WelcomeModal({
     }
 
     // Save to localStorage so we don't show it again in this session
-    // localStorage.setItem("welcomeModalShown", "true");
+    localStorage.setItem("welcomeModalShown", "true");
   };
 
   // Check if the modal has been shown before
   useEffect(() => {
-    // const hasBeenShown = localStorage.getItem("welcomeModalShown");
-    // if (hasBeenShown === "true" && externalIsOpen === undefined) {
-    //   setInternalIsOpen(false);
-    // }
+    const hasBeenShown = localStorage.getItem("welcomeModalShown");
+    if (hasBeenShown === "true" && externalIsOpen === undefined) {
+      setInternalIsOpen(false);
+    }
   }, [externalIsOpen]);
 
   return (

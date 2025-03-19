@@ -3,7 +3,7 @@ import React from "react";
 
 export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (
-    <footer className="text-xs flex w-screen justify-between fixed bottom-0 z-[999] p-4">
+    <footer className="text-shadow text-xs flex w-screen justify-between fixed bottom-0 z-[999] p-4">
       <div>
         <a
           className="opacity-50 hover:opacity-100 transition-opacity duration-200 ease-in-out"
@@ -17,12 +17,12 @@ export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
         </a>
       </div>
       <div>
-        <a href="https://github.com/kenjinp/geomancer">
+        <a href="https://github.com/kenjinp/geomancer" target="_blank">
           <span>Support this project, star the repo on github!</span>
         </a>
       </div>
       {children}
-      <div>
+      <div className="mr-20">
         <a
           href="https://ko-fi.com/kennywtf"
           className="opacity-50 hover:opacity-100 transition-opacity duration-200 ease-in-out"

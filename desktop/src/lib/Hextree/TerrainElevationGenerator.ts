@@ -102,7 +102,7 @@ export class TerrainElevationGenerator {
 
     // Update initial uniform data
     const uniformData = new Float32Array([
-      this.config.seed || Math.random(), // Use provided seed or generate random one
+      this.config.seed,
       this.config.scale,
       this.config.warpStrength,
       this.config.baseStrength,

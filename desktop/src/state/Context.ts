@@ -61,7 +61,7 @@ export const initialContext: Context = {
   mapMode: MapMode.ELEVATION,
   mapLayers: [MapLayer.SPHERE_PROJECTION],
   random: {
-    seed: 0,
+    seed: 123,
     seededRandom: new Rand("0"),
   },
   buffers: {
