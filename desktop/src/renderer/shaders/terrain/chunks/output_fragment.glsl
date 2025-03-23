@@ -1,10 +1,17 @@
+     // Uniforms for jitter control - can be modified from JavaScript
+
+    
+    // Initialize with default values if uniforms aren't set
+    float hexJitterAmount = uHexJitterAmount > 0.0 ? uHexJitterAmount : 0.02;
+    bool applyHexJitter = uApplyHexJitter;
+   
     vec3 worldPos = vWorldPosition.xyz / vWorldPosition.w;
     vec3 sphereDirection = normalize(worldPos - uOffset);
     vec3 spherePos = uOffset + sphereDirection * uRadius;
     
     uint currentId = getH3IdentifierCube(sphereDirection);
 
-    vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId);
+    vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId, applyHexJitter, hexJitterAmount);
     uint closestId = uint(closestAndSecondClosest.x);
     uint secondClosestId = uint(closestAndSecondClosest.y);
 
@@ -21,6 +28,7 @@
         latlongUV.x * latRepititions,
         latlongUV.y * lonRepititions
     );
+
 
     // Get the base cell color
     vec3 currentCellColor = hashFloat(float(currentId));
@@ -40,11 +48,11 @@
         vec3 normalizedPos = normalize(spherePos);
         
         // Get the closest and second closest cells' info with high precision
-        vec3 closestCenter = normalize(getH3Position(float(closestId)));
+        vec3 closestCenter = normalize(getH3Position(float(closestId), applyHexJitter, hexJitterAmount));
         float closestDist = greatCircleDistance(normalizedPos, closestCenter);
         float closestElevation = floatData.elevation;
         
-        vec3 secondClosestCenter = normalize(getH3Position(float(secondClosestId)));
+        vec3 secondClosestCenter = normalize(getH3Position(float(secondClosestId), applyHexJitter, hexJitterAmount));
         float secondClosestDist = greatCircleDistance(normalizedPos, secondClosestCenter);
         float secondClosestElevation = secondFloatData.elevation;
         
@@ -97,7 +105,7 @@
             }
             
             if (!skipNeighbor) {
-                vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+                vec3 neighborCenter = normalize(getH3Position(float(neighborId), applyHexJitter, hexJitterAmount));
                 float dist = greatCircleDistance(normalizedPos, neighborCenter);
                 
                 cellIds[numCells] = neighborId;
@@ -146,9 +154,15 @@
         // Edge-aware blending
         float edgeWeight = smoothstep(0.2, 0.8, edgeFactor);
         float gaussianBlend = mix(0.5, 0.9, edgeWeight);
+
+        float n = fbm3(spherePos);
         
         // Final blended elevation
         elevation = mix(basicElevation, gaussianElevation, gaussianBlend);
+
+        // Calculate coastalNess - approaches 1 when elevation is close to 0
+        // float coastalNess = exp(-elevation * 20.0); // Exponential falloff from elevation 0
+        // elevation = elevation + (n * 0.001 * coastalNess);
     }
 
     vec3 baseColor = gl_FragColor.rgb;
@@ -168,6 +182,12 @@
     }
     if (getMapLayer(3u)) {
         baseColor = mix(baseColor, vec3(hashFloat(float(vInstanceId))), 0.5);
+    }
+    if (getMapLayer(6u)) {
+      // this says coastalness but it's really just a high pass filter for low elevations
+      // we really want a distance field to the oceans
+      float coastalNess = exp(-abs(elevation) * 200.0); 
+      baseColor = mix(baseColor, vec3(0.0, 1.0, 1.0), coastalNess);
     }
 
     float showGrid = 0.0;
@@ -220,7 +240,7 @@
     // Apply edge effect
     float edge = 0.0;
     if (getMapLayer(0u)) {
-        edge = getEdgeFactor(spherePos, closestId, edgeWidth);
+        edge = getEdgeFactor(spherePos, closestId, applyHexJitter, hexJitterAmount, edgeWidth);
     }
 
     vec3 finalColor = mix(combinedGridColors, edgeColor, edge);

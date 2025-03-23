@@ -6,16 +6,6 @@ vec2 random2(float n) {
                                      dot(s,vec2(269.5,183.3))))*43758.5453123);
 }
 
-vec3 jitterPosition(vec3 position, float seed, float amount) {
-    // Get a random offset direction
-    vec2 rand = random2(seed);
-    vec3 tangent = normalize(cross(position, vec3(0.0, 1.0, 0.0)));
-    vec3 bitangent = normalize(cross(position, tangent));
-    
-    // Apply jitter in tangent space
-    return normalize(position + (tangent * rand.x + bitangent * rand.y) * amount);
-}
-
 vec3 hash31(float p) {
     vec3 p3 = fract(vec3(p) * vec3(.1031, .1030, .0973));
     p3 += dot(p3, p3.yzx+33.33);
@@ -142,6 +132,38 @@ float fbm(vec3 p, int octaves, float lacunarity, float gain) {
 
 // Simplified version with default parameters
 float fbm3(vec3 p) {
-  return fbm(p * 200.0, 6, 2.0, 0.5);
+  return fbm(p * 0.00002, 4, 3.0, 0.6);
 }
 
+
+vec3 random3(vec3 p) {
+    // More robust hash function for better randomness quality
+    // Based on the permutation technique used in simplex noise
+    
+    // Initial hash using prime constants
+    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+    
+    // Multiple mixing stages for better distribution
+    p += dot(p, p.yxz + 33.33);
+    
+    // Create independent components with different mixing patterns
+    // to avoid correlation between xyz components
+    vec3 result;
+    result.x = fract((p.x + p.y) * p.z);
+    result.y = fract((p.y + p.z) * p.x);
+    result.z = fract((p.z + p.x) * p.y);
+    
+    return result;
+}
+
+vec3 jitterPosition(vec3 position, float seed, float amount) {
+    // Create a much more chaotic noise input based on position and seed
+    vec3 noiseInput = position + vec3(seed * 0.1234, seed * 0.5678, seed * 0.9012);
+    
+    // Generate random offset in all directions
+    vec3 random = random3(noiseInput) * 2.0 - 1.0;
+    
+    
+    // Apply the amount parameter to control jitter intensity
+    return position + random * amount;
+}

@@ -32,7 +32,7 @@ uint getNeighborH3Id(float baseId, float direction) {
     return (r << 16u) | (g << 8u) | b;
 }
 
-vec3 getH3Position(float h3Id) {
+vec3 getH3PositionPrivate(float h3Id) {
     ivec2 texSize = textureSize(h3PositionMap, 0);
     float texWidth = float(texSize.x);
     float texHeight = float(texSize.y);
@@ -55,6 +55,22 @@ vec3 getH3Position(float h3Id) {
     return position;
 }
 
+
+// Updated version - much more aggressive jitter
+vec3 getH3Position(float h3Id, bool applyJitter, float jitterAmount) {
+    vec3 position = getH3PositionPrivate(h3Id);
+
+    if (applyJitter) {
+        // Apply jitter to the position
+        vec3 jittered = jitterPosition(position, h3Id, jitterAmount);
+        
+        // Normalize to keep on sphere surface
+        position = normalize(jittered);
+    }
+    
+    return position;
+}
+
 uint getH3IdentifierCube(vec3 direction) {
     vec4 color = textureCube(h3IndexMap, direction);
     uint r = uint(floor(color.r * 255.0 + 0.5));
@@ -69,9 +85,9 @@ uint getH3IdentifierCube(vec3 direction) {
     return (r << 16) | (g << 8) | b;
 }
 
-uint findClosestCell(vec3 position, uint initialId) {
+uint findClosestCell(vec3 position, uint initialId, bool applyJitter, float jitterAmount) {
     vec3 normalizedPos = normalize(position);
-    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+    vec3 initialCenter = normalize(getH3Position(float(initialId), applyJitter, jitterAmount));
     float minDist = greatCircleDistance(normalizedPos, initialCenter);
     uint closestId = initialId;
     
@@ -79,7 +95,7 @@ uint findClosestCell(vec3 position, uint initialId) {
         uint neighborId = getNeighborH3Id(float(initialId), float(i));
         if (neighborId == 0u) continue;
         
-        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+        vec3 neighborCenter = normalize(getH3Position(float(neighborId), applyJitter, jitterAmount));
         float dist = greatCircleDistance(normalizedPos, neighborCenter);
         
         if (dist < minDist) {
@@ -91,9 +107,10 @@ uint findClosestCell(vec3 position, uint initialId) {
     return closestId;
 }
 
-vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
+// Then modify findClosestAndSecondClosestCell to use jittered positions
+vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId, bool applyJitter, float jitterAmount) {
     vec3 normalizedPos = normalize(position);
-    vec3 initialCenter = normalize(getH3Position(float(initialId)));
+    vec3 initialCenter = normalize(getH3Position(float(initialId), applyJitter, jitterAmount));
     float minDist = greatCircleDistance(normalizedPos, initialCenter);
     float secondMinDist = 1000.0;
     uint closestId = initialId;
@@ -103,7 +120,7 @@ vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
         uint neighborId = getNeighborH3Id(float(initialId), float(i));
         if (neighborId == 0u) continue;
         
-        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+        vec3 neighborCenter = normalize(getH3Position(float(neighborId), applyJitter, jitterAmount));
         float dist = greatCircleDistance(normalizedPos, neighborCenter);
         
         if (dist < minDist) {
@@ -121,9 +138,9 @@ vec2 findClosestAndSecondClosestCell(vec3 position, uint initialId) {
     return vec2(float(closestId), float(secondClosestId));
 }
 
-float getEdgeFactor(vec3 position, uint cellId, float edgeWidth) {
+float getEdgeFactor(vec3 position, uint cellId, bool applyJitter, float jitterAmount, float edgeWidth) {
     vec3 normalizedPos = normalize(position);
-    vec3 cellCenter = normalize(getH3Position(float(cellId)));
+    vec3 cellCenter = normalize(getH3Position(float(cellId), applyJitter, jitterAmount));
     float distToCenter = greatCircleDistance(normalizedPos, cellCenter);
     
     // Check distance to all neighbors
@@ -132,7 +149,7 @@ float getEdgeFactor(vec3 position, uint cellId, float edgeWidth) {
         uint neighborId = getNeighborH3Id(float(cellId), float(i));
         if (neighborId == 0u) continue;
         
-        vec3 neighborCenter = normalize(getH3Position(float(neighborId)));
+        vec3 neighborCenter = normalize(getH3Position(float(neighborId), applyJitter, jitterAmount));
         float dist = greatCircleDistance(normalizedPos, neighborCenter);
         minNeighborDist = min(minNeighborDist, dist);
     }

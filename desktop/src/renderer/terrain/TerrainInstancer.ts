@@ -33,6 +33,8 @@ interface TerrainMaterial extends MeshPhysicalMaterial {
     uModelMatrix: { value: Matrix4 };
     hexTileIntBuffer: { value: any };
     hexTileFloatBuffer: { value: any };
+    uHexJitterAmount: { value: number };
+    uApplyHexJitter: { value: boolean };
   };
 }
 
@@ -76,6 +78,8 @@ export class TerrainInstancer {
       uModelMatrix: { value: new Matrix4() },
       hexTileIntBuffer: { value: buffers.hexTileBuffer.getIntegerTexture() },
       hexTileFloatBuffer: { value: buffers.hexTileBuffer.getFloatTexture() },
+      uHexJitterAmount: { value: 0.0015 }, // Increased jitter amount for more noticeable effect
+      uApplyHexJitter: { value: true }, // Enable jitter by default
     };
 
     // Create physical material

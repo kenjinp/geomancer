@@ -4,9 +4,9 @@ float calculateDiffuseLighting(vec3 normal, vec3 lightDir) {
     return max(dot(normal, lightDir), 0.0);
 }
 
-vec3 calculateSurfaceNormal(vec3 position, uint cellId) {
+vec3 calculateSurfaceNormal(vec3 position, uint cellId, bool applyJitter, float jitterAmount) {
     // Get the center of the current cell
-    vec3 cellCenter = normalize(getH3Position(float(cellId)));
+    vec3 cellCenter = normalize(getH3Position(float(cellId), applyJitter, jitterAmount));
     
     // For a sphere, the normal at any point is just the normalized position
     return normalize(position);

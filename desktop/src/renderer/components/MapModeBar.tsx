@@ -59,6 +59,10 @@ export const MapModeBar: React.FC = () => {
       label: "Interpolation",
       mapLayer: MapLayer.INTERPOLATION,
     },
+    {
+      label: "Coastalness",
+      mapLayer: MapLayer.COASTALNESS,
+    },
     // {
     //   label: "Atmosphere",
     //   mapLayer: MapLayer.ATMOSPHERE,

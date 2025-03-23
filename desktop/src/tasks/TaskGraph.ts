@@ -113,6 +113,7 @@ const generatePlateHexBuffers = dag.task(
 const generateTerrainElevations = dag.task(
   "generateTerrainElevations",
   async (ctx) => {
+    return ctx;
     try {
       const elevationGen = await TerrainElevationGenerator.create(
         ctx.buffers.hexTileBuffer,

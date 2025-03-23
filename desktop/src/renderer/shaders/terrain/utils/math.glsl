@@ -18,5 +18,10 @@ float greatCircleDistance(vec3 a, vec3 b) {
     return acos(cosTheta);
 }
 
+// Easing function that starts slow and accelerates (cubic curve: t³)
+float easeInCubic(in float t) {
+    return t * t * t;
+}
+
 // Constants
 const float RAD2DEG = 180.0 / 3.1415926535897932384626433832795; 

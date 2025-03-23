@@ -9,6 +9,8 @@ uniform sampler2D h3NeighborMap;
 uniform sampler2D h3PositionMap;
 uniform usampler2D hexTileIntBuffer;
 uniform sampler2D hexTileFloatBuffer;
+uniform float uHexJitterAmount;
+uniform bool uApplyHexJitter;
 varying vec4 vWorldPosition;
 varying float vInstanceId;
 varying vec3 vSphereNormal;
