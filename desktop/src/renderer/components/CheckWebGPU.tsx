@@ -1,23 +1,14 @@
-import { EARTH_AUTHALIC_RADIUS } from "@/constants";
-import { subscribe } from "@/state/Context";
-import { runTaskGraph } from "@/tasks/TaskGraph";
 import { Html } from "@react-three/drei";
-// import { Perf } from "r3f-perf";
-import { useEffect, useState } from "react";
-import { TerrainRenderer } from "../components/TerrainRenderer";
-export const Home: React.FC = () => {
-  const radius = EARTH_AUTHALIC_RADIUS;
+import React, { useEffect, useState } from "react";
+
+/**
+ * Component to check WebGPU compatibility and show appropriate messages
+ */
+export const CheckWebGPU: React.FC = () => {
   const [checkingWebGPU, setCheckingWebGPU] = useState(true);
   const [hasWebGPU, setHasWebGPU] = useState(false);
 
   useEffect(() => {
-    subscribe((state, prevState) => {
-      if (state.random.seed !== prevState.random.seed) {
-        runTaskGraph();
-      }
-    });
-
-    runTaskGraph();
     const checkWebGPU = async () => {
       setCheckingWebGPU(true);
       if (!navigator.gpu) {
@@ -78,11 +69,6 @@ export const Home: React.FC = () => {
     );
   }
 
-  return (
-    <group>
-      {/* <Perf position="bottom-right"  /> */}
-      <TerrainRenderer radius={radius} />
-      {/* <CubeVisualizer scale={radius} /> */}
-    </group>
-  );
+  // If WebGPU is available, return null or children
+  return null;
 };

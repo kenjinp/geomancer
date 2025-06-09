@@ -172,10 +172,11 @@ export class CubeSphereQuadtree {
     const scale = 1 << level;
     const u = (x + 0.5) / scale;
     const v = (y + 0.5) / scale;
-    return CubicCoordinates.fromUV(face, u, v)
+    const tuple = CubicCoordinates.fromUV(face, u, v)
       .toVector3()
       .normalize()
       .toArray();
+    return new Float32Array(tuple);
   }
 
   private splitNode(nodeIndex: number) {

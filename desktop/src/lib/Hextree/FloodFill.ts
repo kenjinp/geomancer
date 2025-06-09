@@ -4,6 +4,7 @@ import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
 import { Plate } from "../model/tectonics/Plate";
+import { CollisionType } from "../model/tectonics/PlateCollision";
 import { GPUDevice } from "./WebGPU";
 import floodfillShader from "./shaders/Floodfill.wgsl";
 
@@ -53,6 +54,8 @@ export class HexGridFloodFill {
   private seedBuffer: GPUBuffer;
   private uniformBuffer: GPUBuffer;
   private plates: Plate[];
+  private frontierSizeReadbackBuffers: GPUBuffer[];
+  private filledReadbackBuffer: GPUBuffer;
   constructor(
     public readonly config: FloodFillConfig,
     public hexTileBuffer: HexTileBuffer
@@ -180,6 +183,24 @@ export class HexGridFloodFill {
       size: 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+
+    // Add persistent readback buffers for frontier sizes
+    this.frontierSizeReadbackBuffers = [
+      this.device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+      }),
+      this.device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+      }),
+    ];
+
+    // Add persistent readback buffer for final results
+    this.filledReadbackBuffer = this.device.createBuffer({
+      size: this.config.maxCells * 4,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
   }
 
   private createFrontierBuffer(): GPUBuffer {
@@ -285,124 +306,162 @@ export class HexGridFloodFill {
     let currentFrontier = 0;
     let frontierSize = 1;
     let passIndex = 0;
+    const MAX_PASSES_WITHOUT_SYNC = 3; // Batch several passes before syncing
 
     while (frontierSize > 0) {
-      // Update uniform with current pass index
-      this.device.queue.writeBuffer(
-        this.uniformBuffer,
-        0,
-        new Uint32Array([passIndex])
+      // Number of passes to run before synchronizing
+      const passesToRun = Math.min(
+        MAX_PASSES_WITHOUT_SYNC,
+        frontierSize > 0 ? 1 : 0
       );
+      let lastRunFrontier = currentFrontier;
 
-      // Reset the next frontier's atomic counter (first 4 bytes) to zero
-      this.device.queue.writeBuffer(
-        this.frontierBuffers[1 - currentFrontier],
-        0,
-        new Uint32Array([0])
+      for (let i = 0; i < passesToRun && frontierSize > 0; i++) {
+        // Update uniform with current pass index
+        this.device.queue.writeBuffer(
+          this.uniformBuffer,
+          0,
+          new Uint32Array([passIndex])
+        );
+
+        // Reset the next frontier's atomic counter to zero
+        this.device.queue.writeBuffer(
+          this.frontierBuffers[1 - currentFrontier],
+          0,
+          new Uint32Array([0])
+        );
+
+        const encoder = this.device.createCommandEncoder();
+        const pass = encoder.beginComputePass();
+        pass.setPipeline(this.pipeline);
+        pass.setBindGroup(0, this.bindGroups[currentFrontier]);
+
+        const workgroups = Math.ceil(frontierSize / 256);
+        pass.dispatchWorkgroups(workgroups);
+        pass.end();
+
+        // Copy frontier size to readback buffer for next iteration
+        encoder.copyBufferToBuffer(
+          this.frontierBuffers[1 - currentFrontier],
+          0,
+          this.frontierSizeReadbackBuffers[1 - currentFrontier],
+          0,
+          4
+        );
+
+        this.device.queue.submit([encoder.finish()]);
+
+        // Update for next iteration within batch
+        lastRunFrontier = 1 - currentFrontier;
+        currentFrontier = lastRunFrontier;
+        passIndex++;
+      }
+
+      // After batch, synchronize and check frontier size
+      await this.frontierSizeReadbackBuffers[lastRunFrontier].mapAsync(
+        GPUMapMode.READ
       );
-
-      const encoder = this.device.createCommandEncoder();
-      const pass = encoder.beginComputePass();
-      pass.setPipeline(this.pipeline);
-      pass.setBindGroup(0, this.bindGroups[currentFrontier]);
-
-      const workgroups = Math.ceil(frontierSize / 256);
-      pass.dispatchWorkgroups(workgroups);
-
-      pass.end();
-      this.device.queue.submit([encoder.finish()]);
-
-      // Read back frontier size from the next frontier buffer.
-      frontierSize = await this.readFrontierSize(1 - currentFrontier);
-      currentFrontier = 1 - currentFrontier;
-      passIndex++;
+      frontierSize = new Uint32Array(
+        this.frontierSizeReadbackBuffers[lastRunFrontier].getMappedRange()
+      )[0];
+      this.frontierSizeReadbackBuffers[lastRunFrontier].unmap();
     }
+
     const timeEnd = performance.now();
-    console.info(`runComputePasses ${timeEnd - timeStart}ms`);
-    // Once the fill is complete, simply retrieve the final filled state.
+    console.info(
+      `runComputePasses ${timeEnd - timeStart}ms with ${passIndex} passes`
+    );
+
     return this.getFilledCells();
   }
 
   private async readFrontierSize(bufferIndex: number): Promise<number> {
-    const readbackBuffer = this.device.createBuffer({
-      size: 4,
-      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    });
-
-    const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.frontierBuffers[bufferIndex],
-      0,
-      readbackBuffer,
-      0,
-      4
+    // Use the persistent buffer instead of creating new ones
+    await this.frontierSizeReadbackBuffers[bufferIndex].mapAsync(
+      GPUMapMode.READ
     );
-    this.device.queue.submit([encoder.finish()]);
-
-    await readbackBuffer.mapAsync(GPUMapMode.READ);
-    const size = new Uint32Array(readbackBuffer.getMappedRange())[0];
-    readbackBuffer.unmap();
-
+    const size = new Uint32Array(
+      this.frontierSizeReadbackBuffers[bufferIndex].getMappedRange()
+    )[0];
+    this.frontierSizeReadbackBuffers[bufferIndex].unmap();
     return size;
   }
 
   private async getFilledCells(): Promise<HexTileBuffer> {
     const timeStart = performance.now();
-    // Precompute the total byte size so we don't repeat the multiplication.
-    const totalBytes = this.config.maxCells * 4;
 
-    // Create a readback buffer with MAP_READ and COPY_DST usages.
-    const readbackBuffer = this.device.createBuffer({
-      size: totalBytes,
-      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    });
-
-    // Encode the command to copy the contents of filledBuffer into the readbackBuffer.
+    // Encode the command to copy the contents of filledBuffer into the persistent readbackBuffer
     const encoder = this.device.createCommandEncoder();
     encoder.copyBufferToBuffer(
       this.filledBuffer,
       0,
-      readbackBuffer,
+      this.filledReadbackBuffer,
       0,
-      totalBytes
+      this.config.maxCells * 4
     );
     this.device.queue.submit([encoder.finish()]);
 
-    // Wait for the GPU to finish and then map the readback buffer.
-    await readbackBuffer.mapAsync(GPUMapMode.READ);
-    const filled = new Uint32Array(readbackBuffer.getMappedRange());
+    // Wait for the GPU to finish and then map the readback buffer
+    await this.filledReadbackBuffer.mapAsync(GPUMapMode.READ);
+    const filled = new Uint32Array(this.filledReadbackBuffer.getMappedRange());
 
     const resultMap = new Map<number, string[]>();
-
-    // I'm not sure where to store this
     const plates = this.plates;
 
-    // Iterate directly over this.h3Indices (assumed to be a Map)
+    // Create a batch of updates for better performance
+    const tileUpdates: { index: number; data: any }[] = [];
+
+    // Process the results
     for (const [h3, idx] of HexGrid.indexMap.entries()) {
       const seedIndex = filled[idx];
       if (seedIndex > 0) {
-        const adjustedIndex = seedIndex - 1; // Account for the +1 added in the shader.
+        const adjustedIndex = seedIndex - 1; // Account for the +1 added in the shader
         if (!resultMap.has(adjustedIndex)) {
           resultMap.set(adjustedIndex, []);
         }
         const plate = plates[adjustedIndex];
         resultMap.get(adjustedIndex)!.push(h3);
-        this.hexTileBuffer.updateTileData(HexGrid.getIndex(h3), {
-          hasHotSpot: false,
-          tectonicPlate: adjustedIndex,
-          crustType: "oceanic",
-          crustSubtype: "undefined",
-          evapotranspiration: 0,
-          annualPrecipitation: 0,
-          annualTemperature: 0,
-          biome: "undefined",
-          elevation: plate.oceanElevation,
+
+        // Add to batch instead of immediate update
+        tileUpdates.push({
+          index: HexGrid.getIndex(h3),
+          data: {
+            hasHotSpot: false,
+            tectonicPlate: adjustedIndex,
+            crustType: "oceanic",
+            crustSubtype: "undefined",
+            evapotranspiration: 0,
+            annualPrecipitation: 0,
+            annualTemperature: 0,
+            biome: "undefined",
+            elevation: plate.oceanElevation,
+            isPlateBoundary: false,
+            collidingPlate: 0,
+            collisionType: CollisionType.NONE,
+            collisionIntensity: 0,
+          },
         });
       }
     }
 
-    // Unmap the buffer once done.
-    readbackBuffer.unmap();
+    // Apply batch updates
+    const BATCH_SIZE = 1000;
+    console.log(
+      `Applying ${tileUpdates.length} tile updates in batches of ${BATCH_SIZE}`
+    );
+    for (let i = 0; i < tileUpdates.length; i += BATCH_SIZE) {
+      const batch = tileUpdates.slice(i, i + BATCH_SIZE);
+      for (const update of batch) {
+        this.hexTileBuffer.updateTileData(update.index, update.data);
+      }
+      // Allow UI updates between batches if needed
+      if (i + BATCH_SIZE < tileUpdates.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    // Unmap the buffer once done
+    this.filledReadbackBuffer.unmap();
 
     const timeEnd = performance.now();
     console.info(`getFilledCells ${timeEnd - timeStart}ms`);
@@ -441,9 +500,13 @@ export class HexGridFloodFill {
   }
 
   public destroy() {
-    [this.neighborBuffer, this.filledBuffer, ...this.frontierBuffers].forEach(
-      (b) => b.destroy()
-    );
+    [
+      this.neighborBuffer,
+      this.filledBuffer,
+      ...this.frontierBuffers,
+      ...this.frontierSizeReadbackBuffers,
+      this.filledReadbackBuffer,
+    ].forEach((b) => b.destroy());
   }
 
   public static configFromResolution(

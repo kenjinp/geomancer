@@ -8,4 +8,7 @@ export class Plate {
   landElevation: number = MathUtils.randFloat(0.000006, 0.03);
   oceanElevation: number = MathUtils.randFloat(-0.5, -0.1);
   growthBias: number = MathUtils.randFloat(0.000006, 0.03);
+  constructor(id: number) {
+    this.id = id;
+  }
 }

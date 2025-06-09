@@ -43,123 +43,9 @@
 
     float elevation = floatData.elevation;
     if (getMapLayer(5u)) {
-        // elevation interpolation begin
-        // Get the normalized position on the sphere with high precision
-        vec3 normalizedPos = normalize(spherePos);
+        // Use the extracted elevation function
+        elevation = getElevationAtPosition(spherePos, applyHexJitter, hexJitterAmount);
         
-        // Get the closest and second closest cells' info with high precision
-        vec3 closestCenter = normalize(getH3Position(float(closestId), applyHexJitter, hexJitterAmount));
-        float closestDist = greatCircleDistance(normalizedPos, closestCenter);
-        float closestElevation = floatData.elevation;
-        
-        vec3 secondClosestCenter = normalize(getH3Position(float(secondClosestId), applyHexJitter, hexJitterAmount));
-        float secondClosestDist = greatCircleDistance(normalizedPos, secondClosestCenter);
-        float secondClosestElevation = secondFloatData.elevation;
-        
-        // Calculate edge factor (0 deep inside a cell, 1 at the exact edge)
-        float edgeFactor = 0.0;
-        if (closestDist > 0.0 && secondClosestDist > 0.0) {
-            edgeFactor = smoothstep(0.0, 1.0, 1.0 - abs(closestDist - secondClosestDist) / (closestDist + secondClosestDist));
-        }
-        
-        // Use a more efficient approach with fewer loops
-        // Pre-allocate arrays with fixed size for the important cells
-        const int MAX_CELLS = 8;  // Closest + second closest + up to 6 first-ring neighbors
-        uint cellIds[MAX_CELLS];
-        float distsToCells[MAX_CELLS];
-        float elevations[MAX_CELLS];
-        
-        // Start with the closest and second closest cells
-        int numCells = 0;
-        float minDist = closestDist;
-        float maxDist = closestDist;
-        
-        // Add closest cell
-        cellIds[0] = closestId;
-        distsToCells[0] = closestDist;
-        elevations[0] = closestElevation;
-        numCells = 1;
-        
-        // Add second closest if valid
-        if (secondClosestId != 0u && secondClosestId != closestId) {
-            cellIds[1] = secondClosestId;
-            distsToCells[1] = secondClosestDist;
-            elevations[1] = secondClosestElevation;
-            numCells = 2;
-            
-            minDist = min(minDist, secondClosestDist);
-            maxDist = max(maxDist, secondClosestDist);
-        }
-        
-        // Efficiently add important neighbors (unrolled loop for first few neighbors)
-        // This replaces the nested loops in the original code
-        for (int i = 0; i < 6 && numCells < MAX_CELLS; i++) {
-            uint neighborId = getNeighborH3Id(float(closestId), float(i));
-            
-            // Skip invalid or already added cells
-            bool skipNeighbor = (neighborId == 0u || neighborId == closestId || neighborId == secondClosestId);
-            
-            // Check if already exists (unrolled for small maximum size)
-            for (int j = 0; j < numCells && !skipNeighbor; j++) {
-                skipNeighbor = skipNeighbor || (cellIds[j] == neighborId);
-            }
-            
-            if (!skipNeighbor) {
-                vec3 neighborCenter = normalize(getH3Position(float(neighborId), applyHexJitter, hexJitterAmount));
-                float dist = greatCircleDistance(normalizedPos, neighborCenter);
-                
-                cellIds[numCells] = neighborId;
-                distsToCells[numCells] = dist;
-                elevations[numCells] = getHexTileFloatData(float(neighborId)).elevation;
-                
-                minDist = min(minDist, dist);
-                maxDist = max(maxDist, dist);
-                
-                numCells++;
-            }
-        }
-        
-        // Ensure we don't divide by zero
-        maxDist = max(maxDist, 0.0001);
-        minDist = max(minDist, 0.00001);
-        float distRange = maxDist - minDist;
-        
-        // Combined interpolation in a single pass
-        float sigma = distRange * 0.3; // Gaussian parameter
-        
-        float totalWeightIDW = 0.0;
-        float weightedElevationIDW = 0.0;
-        float totalWeightGaussian = 0.0;
-        float weightedElevationGaussian = 0.0;
-        
-        // Single loop for both interpolation methods
-        for (int i = 0; i < numCells; i++) {
-            float normalizedDist = (distsToCells[i] - minDist) / distRange;
-            
-            // Inverse distance weighting
-            float weightIDW = pow(1.0 - normalizedDist, 4.0);
-            weightedElevationIDW += elevations[i] * weightIDW;
-            totalWeightIDW += weightIDW;
-            
-            // Gaussian interpolation
-            float weightGaussian = exp(-0.5 * pow(distsToCells[i] / sigma, 2.0));
-            weightedElevationGaussian += elevations[i] * weightGaussian;
-            totalWeightGaussian += weightGaussian;
-        }
-        
-        // Calculate both interpolation results
-        float basicElevation = (totalWeightIDW > 0.0) ? weightedElevationIDW / totalWeightIDW : closestElevation;
-        float gaussianElevation = (totalWeightGaussian > 0.0) ? weightedElevationGaussian / totalWeightGaussian : closestElevation;
-        
-        // Edge-aware blending
-        float edgeWeight = smoothstep(0.2, 0.8, edgeFactor);
-        float gaussianBlend = mix(0.5, 0.9, edgeWeight);
-
-        float n = fbm3(spherePos);
-        
-        // Final blended elevation
-        elevation = mix(basicElevation, gaussianElevation, gaussianBlend);
-
         // Calculate coastalNess - approaches 1 when elevation is close to 0
         // float coastalNess = exp(-elevation * 20.0); // Exponential falloff from elevation 0
         // elevation = elevation + (n * 0.001 * coastalNess);
@@ -189,6 +75,12 @@
       float coastalNess = exp(-abs(elevation) * 200.0); 
       baseColor = mix(baseColor, vec3(0.0, 1.0, 1.0), coastalNess);
     }
+
+    // add a color based on the intensity of the collision
+    // float collisionIntensity = floatData.collisionIntensity;
+    // if (collisionIntensity > 0.0) {
+    //     baseColor = mix(baseColor, vec3(1.0, 0.0, 0.0), remap(collisionIntensity, -10.0, 10.0, 0.0, 1.0));
+    // }
 
     float showGrid = 0.0;
     if (getMapLayer(1u)) {

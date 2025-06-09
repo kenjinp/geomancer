@@ -6,6 +6,7 @@ import {
   UnsignedIntType,
 } from "three";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
+import { CollisionType } from "../model/tectonics/PlateCollision";
 
 export type CrustType = "oceanic" | "continental";
 export type CrustSubtype =
@@ -38,6 +39,12 @@ export interface HexTileData {
   elevation: number; // -1 to 1 normalized
   biome: BiomeType;
   hasHotSpot: boolean;
+
+  // New plate boundary and collision data
+  isPlateBoundary: boolean; // Whether this hex is on a plate boundary
+  collidingPlate: number; // ID of the other plate at boundary (0 if not a boundary)
+  collisionType: CollisionType; // Type of collision at boundary
+  collisionIntensity: number; // 0-1 normalized intensity of collision
 }
 
 export class HexTileBuffer {
@@ -104,6 +111,10 @@ export class HexTileBuffer {
       elevation,
       biome,
       hasHotSpot,
+      isPlateBoundary,
+      collidingPlate,
+      collisionType,
+      collisionIntensity,
     } = tileData;
 
     // validate values
@@ -130,6 +141,16 @@ export class HexTileBuffer {
     if (elevation < -1 || elevation > 1) {
       throw new Error(`Elevation must be between -1 and 1, got ${elevation}`);
     }
+    if (collidingPlate < 0 || collidingPlate > 255) {
+      throw new Error(
+        `Colliding plate must be between 0 and 255, got ${collidingPlate}`
+      );
+    }
+    if (collisionIntensity < 0 || collisionIntensity > 1) {
+      throw new Error(
+        `Collision intensity must be between 0 and 1, got ${collisionIntensity}`
+      );
+    }
 
     // Update integer texture data
     const intBaseIndex = tileIndex * 4;
@@ -142,7 +163,12 @@ export class HexTileBuffer {
       biome,
       hasHotSpot
     );
-    this.intBufferData[intBaseIndex + 3] = 0; // Reserved for future use
+
+    // Store plate boundary data in the previously reserved slot
+    // Bit layout: isPlateBoundary (1) | collisionType (2) | collidingPlate (8)
+    this.intBufferData[intBaseIndex + 3] = isPlateBoundary
+      ? (1 << 24) | (collisionType << 16) | collidingPlate
+      : 0;
 
     // Update float texture data
     const floatBaseIndex = tileIndex * 4;
@@ -157,7 +183,13 @@ export class HexTileBuffer {
       -50,
       50
     );
-    this.floatBufferData[floatBaseIndex + 3] = elevation; // Store elevation in the previously reserved slot
+
+    // Store collision intensity in float buffer if it's a boundary
+    if (isPlateBoundary) {
+      this.floatBufferData[floatBaseIndex + 3] = collisionIntensity;
+    } else {
+      this.floatBufferData[floatBaseIndex + 3] = elevation;
+    }
 
     this.intTexture.needsUpdate = true;
     this.floatTexture.needsUpdate = true;
@@ -178,6 +210,12 @@ export class HexTileBuffer {
     const intBaseIndex = tileIndex * 4;
     const floatBaseIndex = tileIndex * 4;
 
+    // Extract plate boundary data
+    const boundaryData = this.intBufferData[intBaseIndex + 3];
+    const isPlateBoundary = (boundaryData >> 24) & 1;
+    const collisionType = (boundaryData >> 16) & 0xff;
+    const collidingPlate = boundaryData & 0xffff;
+
     return {
       tectonicPlate: this.intBufferData[intBaseIndex],
       crustType: this.decodeCrustData(this.intBufferData[intBaseIndex + 1]),
@@ -187,9 +225,17 @@ export class HexTileBuffer {
       evapotranspiration: this.floatBufferData[floatBaseIndex],
       annualPrecipitation: this.floatBufferData[floatBaseIndex + 1],
       annualTemperature: this.floatBufferData[floatBaseIndex + 2],
-      elevation: this.floatBufferData[floatBaseIndex + 3],
+      elevation: isPlateBoundary ? 0 : this.floatBufferData[floatBaseIndex + 3], // Use 0 as default if it's a boundary
       biome: this.decodeBiomeData(this.intBufferData[intBaseIndex + 2]),
-      hasHotSpot: this.intBufferData[intBaseIndex + 3] === 1,
+      hasHotSpot: (this.intBufferData[intBaseIndex + 2] & 1) === 1,
+
+      // Boundary data
+      isPlateBoundary: isPlateBoundary === 1,
+      collidingPlate: isPlateBoundary ? collidingPlate : 0,
+      collisionType: isPlateBoundary ? collisionType : CollisionType.NONE,
+      collisionIntensity: isPlateBoundary
+        ? this.floatBufferData[floatBaseIndex + 3]
+        : 0,
     };
   }
 

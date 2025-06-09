@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { CubeSphereQuadtree } from "../terrain/CubeSphereQuadtree";
 import { TerrainInstancer } from "../terrain/TerrainInstancer";
+import { OrbitCamera } from "./OrbitCamera";
 
 interface TerrainRendererProps {
   radius?: number;
@@ -106,7 +107,11 @@ export function TerrainRenderer({
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">
         <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
+        <em style="color: ${integerToRGB(hexTileData.tectonicPlate)}">p:${
+            hexTileData.tectonicPlate
+          }</em>
         <span>${elevation}</span>
+        <span>i:${hexTileData.collisionIntensity}</span>
         <span>${latLong.lat.toFixed(2)}° lat</span>,
         <span>${latLong.lon.toFixed(2)}° lon</span> 
       </div> 
@@ -154,6 +159,15 @@ export function TerrainRenderer({
         <sphereGeometry args={[radius, 64, 64]} />
         <meshStandardMaterial color="blue" />
       </mesh>
+      <OrbitCamera planetRadius={radius} />
+      <ambientLight intensity={Math.PI / 90} />
+      <spotLight
+        position={[radius * 10, (radius * 10) / 2, radius * 10]}
+        angle={0.15}
+        penumbra={1}
+        decay={0}
+        intensity={Math.PI}
+      />
     </>
   );
 }

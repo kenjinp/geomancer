@@ -29,7 +29,7 @@ HexTileIntData getHexTileIntData(float tileIndex) {
     result.crustData = rawData.g;
     result.biomeData = rawData.b;
     result.reserved = rawData.a;
-    
+
     return result;
 }
 
@@ -58,6 +58,7 @@ struct HexTileFloatData {
     float annualPrecipitation;
     float annualTemperature;
     float elevation;
+    float collisionIntensity;
 };
 
 float validateHexTileFloatData(float tileIndex) {
@@ -77,6 +78,7 @@ HexTileFloatData getHexTileFloatData(float tileIndex) {
     result.annualPrecipitation = data.g * 5000.0; // Denormalize from 0-1 to 0-5000
     result.annualTemperature = data.b * 100.0 - 50.0; // Denormalize from 0-1 to -50 to +50
     result.elevation = data.a;
-    
+    result.collisionIntensity = data.b;
+
     return result;
 } 

@@ -9,6 +9,7 @@ export class TerrainElevationGenerator {
   private pipeline: GPUComputePipeline;
   private positionBuffer: GPUBuffer;
   private elevationBuffer: GPUBuffer;
+  private plateIdBuffer: GPUBuffer;
   private bindGroup: GPUBindGroup;
   private uniformBuffer: GPUBuffer;
 
@@ -22,6 +23,7 @@ export class TerrainElevationGenerator {
       warpStrength: number;
       baseStrength: number;
       seed?: number;
+      plateNoiseStrength?: number;
     }
   ) {
     if (tileBuffer.resolution !== positionMap.metadata.resolution) {
@@ -37,6 +39,7 @@ export class TerrainElevationGenerator {
       scale: this.config.scale,
       warpStrength: this.config.warpStrength,
       baseStrength: this.config.baseStrength,
+      plateNoiseStrength: this.config.plateNoiseStrength || 0.5,
     });
   }
 
@@ -50,6 +53,7 @@ export class TerrainElevationGenerator {
       warpStrength: number;
       baseStrength: number;
       seed?: number;
+      plateNoiseStrength?: number;
     }
   ): Promise<TerrainElevationGenerator> {
     const instance = new TerrainElevationGenerator(
@@ -87,6 +91,19 @@ export class TerrainElevationGenerator {
     });
     this.device.queue.writeBuffer(this.positionBuffer, 0, positions);
 
+    // Create plate ID buffer
+    const plateIds = new Uint32Array(totalCells);
+    for (let i = 0; i < totalCells; i++) {
+      const data = this.tileBuffer.readTileData(i);
+      plateIds[i] = data.tectonicPlate;
+    }
+
+    this.plateIdBuffer = this.device.createBuffer({
+      size: plateIds.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(this.plateIdBuffer, 0, plateIds);
+
     // Create elevation buffer with proper alignment
     const alignedBufferSize = Math.ceil((totalCells * 4) / 256) * 256;
     this.elevationBuffer = this.device.createBuffer({
@@ -96,18 +113,19 @@ export class TerrainElevationGenerator {
 
     // Uniform buffer
     this.uniformBuffer = this.device.createBuffer({
-      size: 24, // 6 * f32 (octaves, persistence, seed, scale, warpStrength, baseStrength)
+      size: 28,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     // Update initial uniform data
     const uniformData = new Float32Array([
-      this.config.seed,
+      this.config.seed || 0,
       this.config.scale,
       this.config.warpStrength,
       this.config.baseStrength,
       this.config.persistence,
       this.config.octaves,
+      this.config.plateNoiseStrength || 0.5,
     ]);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
   }
@@ -135,6 +153,11 @@ export class TerrainElevationGenerator {
           visibility: GPUShaderStage.COMPUTE,
           buffer: { type: "uniform" },
         },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
       ],
     });
 
@@ -154,6 +177,7 @@ export class TerrainElevationGenerator {
         { binding: 0, resource: { buffer: this.positionBuffer } },
         { binding: 1, resource: { buffer: this.elevationBuffer } },
         { binding: 2, resource: { buffer: this.uniformBuffer } },
+        { binding: 3, resource: { buffer: this.plateIdBuffer } },
       ],
     });
   }
@@ -217,6 +241,8 @@ export class TerrainElevationGenerator {
   }
 
   public destroy() {
-    [this.positionBuffer, this.elevationBuffer].forEach((b) => b.destroy());
+    [this.positionBuffer, this.elevationBuffer, this.plateIdBuffer].forEach(
+      (b) => b.destroy()
+    );
   }
 }

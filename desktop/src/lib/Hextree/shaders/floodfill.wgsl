@@ -44,7 +44,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             continue; 
         }
 
-        // Allow first 4 passes for unconditional expansion (changed from 1u)
         var isContiguous: bool = (uniforms.passIndex <= 3u);
         if (uniforms.passIndex > 3u) {
             var contiguousFound: bool = false;

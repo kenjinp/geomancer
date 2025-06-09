@@ -18,7 +18,7 @@ varying vec3 vOriginalPosition;
 uniform vec3 uOffset;
 uniform float uRadius;
 
-
+// Include utility functions first
 #include "../../../../lib/cartography/colors.glsl"
 #include "../utils/math.glsl"
 #include "../utils/latlong.glsl"
@@ -28,3 +28,6 @@ uniform float uRadius;
 #include "../utils/tiledata.glsl"
 #include "../utils/lighting.glsl"
 #include "../utils/layers.glsl"
+
+// Include elevation module last
+#include "elevation.glsl"

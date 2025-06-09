@@ -1,5 +1,7 @@
+import { ContinentalGrowth } from "@/lib/Hextree/ContinentalGrowth";
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import { HydraulicErosionSimulator } from "@/lib/Hextree/HydraulicErosionSimulator";
+import { PlateCollisionDetector as GPUPlateCollisionDetector } from "@/lib/Hextree/PlateCollisionDetector";
 import { TerrainElevationGenerator } from "@/lib/Hextree/TerrainElevationGenerator";
 import { ThermalErosionSimulator } from "@/lib/Hextree/ThermalErosionSimulator";
 import { Plate } from "@/lib/model/tectonics/Plate";
@@ -55,29 +57,40 @@ const generatePlates = dag.task("generatePlates", async (ctx, meta) => {
   const {
     tectonics: { numPlates },
   } = ctx;
+
+  // Create the plates
   const plates = new Array(numPlates).fill(0).map((_, i) => {
-    return new Plate();
+    return new Plate(i + 1);
   });
   console.log("generated plates", plates);
-  const newContext = { ...ctx, tectonics: { ...ctx.tectonics, plates } };
-  ctx = newContext;
-  // await meta.state.set("plates", plates);
+
+  // Create a new context with the plates included
+  const newContext = {
+    ...ctx,
+    tectonics: {
+      ...ctx.tectonics,
+      plates,
+    },
+  };
+
+  // Update the state
   setState(newContext);
-  return plates;
+
+  // Return the ENTIRE updated context (not just plates)
+  return newContext;
 });
 
 const generatePlateHexBuffers = dag.task(
   "generatePlateHexBuffers",
   async (ctx, meta) => {
-    console.log(JSON.stringify({ tectonics: ctx.tectonics, meta }, null, 2));
     try {
-      console.log("generating plate hex buffers", ctx.tectonics.plates);
+      console.log("generating plate hex buffers");
       const hexTileBuffer = (
         await HexGridFloodFill.doFloodfill(
           4,
           ctx.buffers.hexTileBuffer,
           ctx.buffers.hexNeighborMap,
-          generatePlates.output
+          generatePlates.output.tectonics.plates // Use plates from context, not from previous task output
         )
       ).hexTileBuffer;
       console.log("plate hex buffers generated");
@@ -92,23 +105,97 @@ const generatePlateHexBuffers = dag.task(
   [loadBuffers, generatePlates]
 );
 
-// const generateContinentalData = dag.task(
-//   "generateContinentalData",
-//   async (ctx) => {
-//     console.log("generating continental data");
-//     const growth = await ContinentalGrowth.create(
-//       generatePlates.output,
-//       ctx.buffers.hexTileBuffer,
-//       ctx.buffers.hexNeighborMap,
-//       ctx.buffers.hexPositionMap,
-//       ctx.tectonics.continentalSeedConfig
-//     );
-//     await growth.growContinents();
-//     growth.destroy();
-//     console.log("continental data generated");
-//   },
-//   [generatePlateHexBuffers, generatePlates]
-// );
+const generateContinentalData = dag.task(
+  "generateContinentalData",
+  async (ctx) => {
+    return ctx;
+    console.log("generating continental data");
+    const growth = await ContinentalGrowth.create(
+      generatePlates.output.tectonics.plates,
+      ctx.buffers.hexTileBuffer,
+      ctx.buffers.hexNeighborMap,
+      ctx.buffers.hexPositionMap,
+      ctx.tectonics.continentalSeedConfig
+    );
+    await growth.growContinents();
+    growth.destroy();
+    console.log("continental data generated");
+  },
+  [generatePlateHexBuffers, generatePlates]
+);
+
+const generatePlateCollisionBoundaries = dag.task(
+  "generatePlateCollisionBoundaries",
+  async (ctx) => {
+    console.log("Generating plate collision boundaries");
+    try {
+      const plates = generatePlates.output.tectonics.plates;
+      const { hexTileBuffer, hexNeighborMap, hexPositionMap } = ctx.buffers;
+
+      // Check if we have plates to process
+      if (!plates || plates.length === 0) {
+        console.warn("No tectonic plates found - skipping collision detection");
+        return ctx;
+      }
+
+      // Ensure we have the required buffers
+      if (!hexTileBuffer || !hexNeighborMap || !hexPositionMap) {
+        console.error("Missing required buffers for plate collision detection");
+        return ctx;
+      }
+
+      try {
+        const detector = await GPUPlateCollisionDetector.create(
+          hexTileBuffer,
+          hexNeighborMap,
+          hexPositionMap,
+          plates,
+          {
+            convergentThreshold: 0.03,
+            divergentThreshold: -0.03,
+            transformThreshold: 0.07,
+            seed: ctx.random.seed || Math.random(),
+          }
+        );
+
+        const { plateBoundaries } = await detector.detectCollisions();
+
+        console.log("plateBoundaries", plateBoundaries);
+
+        // Clean up resources
+        detector.destroy();
+
+        // Update context with collision boundaries
+        const newContext = {
+          ...ctx,
+          tectonics: {
+            ...ctx.tectonics,
+            plateBoundaries,
+          },
+        };
+
+        // Update the context in the state
+        setState(newContext);
+        return newContext;
+      } catch (gpuError) {
+        console.error(
+          "WebGPU error during plate collision detection:",
+          gpuError
+        );
+        console.warn(
+          "Falling back to CPU-based collision detection or skipping..."
+        );
+        // In a production app, you might implement a CPU fallback here
+        // For now, we'll just return the context unchanged
+        return ctx;
+      }
+    } catch (error) {
+      console.error("Error generating plate collision boundaries:", error);
+      return ctx;
+    }
+  },
+  [generatePlateHexBuffers, generatePlates]
+);
 
 const generateTerrainElevations = dag.task(
   "generateTerrainElevations",
