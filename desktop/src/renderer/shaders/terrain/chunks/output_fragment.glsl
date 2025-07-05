@@ -9,7 +9,18 @@
     vec3 sphereDirection = normalize(worldPos - uOffset);
     vec3 spherePos = uOffset + sphereDirection * uRadius;
     
-    uint currentId = getH3IdentifierCube(sphereDirection);
+    // Inline cube texture lookup for fragment shader
+    vec4 color = textureCube(h3IndexMap, sphereDirection);
+    uint r = uint(floor(color.r * 255.0 + 0.5));
+    uint g = uint(floor(color.g * 255.0 + 0.5));
+    uint b = uint(floor(color.b * 255.0 + 0.5));
+
+    uint currentId;
+    if (r == 255u && g == 255u && b == 255u) {
+        currentId = 0u;
+    } else {
+        currentId = (r << 16) | (g << 8) | b;
+    }
 
     vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId, applyHexJitter, hexJitterAmount);
     uint closestId = uint(closestAndSecondClosest.x);

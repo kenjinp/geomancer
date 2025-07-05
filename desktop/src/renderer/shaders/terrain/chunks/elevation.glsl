@@ -122,7 +122,20 @@ float calculateElevation(vec3 spherePos, uint closestId, uint secondClosestId, b
 float getElevationAtPosition(vec3 spherePos, bool applyHexJitter, float hexJitterAmount) {
     // Get the H3 identifier for the current position
     vec3 sphereDirection = normalize(spherePos - uOffset);
-    uint currentId = getH3IdentifierCube(sphereDirection);
+    uint currentId = getH3IdentifierForElevation(sphereDirection);
+    
+    // Find the closest and second closest cells
+    vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId, applyHexJitter, hexJitterAmount);
+    uint closestId = uint(closestAndSecondClosest.x);
+    uint secondClosestId = uint(closestAndSecondClosest.y);
+    
+    // Calculate elevation using the extracted function
+    return calculateElevation(spherePos, closestId, secondClosestId, applyHexJitter, hexJitterAmount);
+} 
+
+float getElevationAtPositionFromDirection(vec3 sphereDirection, vec3 spherePos, bool applyHexJitter, float hexJitterAmount) {
+    // Get the H3 identifier for the current position
+    uint currentId = getH3IdentifierForElevation(sphereDirection);
     
     // Find the closest and second closest cells
     vec2 closestAndSecondClosest = findClosestAndSecondClosestCell(spherePos, currentId, applyHexJitter, hexJitterAmount);

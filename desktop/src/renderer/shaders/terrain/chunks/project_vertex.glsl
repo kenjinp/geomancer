@@ -18,12 +18,12 @@ if (getMapLayer(5u)) {
     bool applyHexJitter = uApplyHexJitter;
     
     // Get elevation at this position
-    // elevation = getElevationAtPosition(spherePos, applyHexJitter, hexJitterAmount);
+    elevation = getElevationAtPositionFromDirection(sphereDir, spherePos, applyHexJitter, hexJitterAmount);
     // elevation = 1.0;
     
     // Apply elevation to the sphere position
     // Scale the elevation to a reasonable range for the sphere
-    float elevationScale = uRadius * 0.01; // Adjust this scale factor as needed
+    float elevationScale = uRadius * 0.25; // Adjust this scale factor as needed
     spherePos += vSphereNormal * elevation * elevationScale;
     
     // Update the world position with the new elevated position

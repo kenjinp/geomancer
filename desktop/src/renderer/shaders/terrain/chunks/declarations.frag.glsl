@@ -28,6 +28,7 @@ uniform float uRadius;
 #include "../utils/tiledata.glsl"
 #include "../utils/lighting.glsl"
 #include "../utils/layers.glsl"
+#include "../utils/h3_fragment.glsl"
 
 // Include elevation module last
 #include "elevation.glsl"

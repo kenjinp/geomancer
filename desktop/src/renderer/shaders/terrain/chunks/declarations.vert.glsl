@@ -17,6 +17,7 @@ uniform bool uApplyHexJitter;
 
 // Include vertex-specific functions first
 #include "../utils/vertex_functions.glsl"
+#include "../utils/h3_vertex.glsl"
 
 // Include utility functions next
 #include "../utils/math.glsl"

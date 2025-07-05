@@ -1,5 +1,24 @@
 // H3 utility functions
 
+// Fallback function that uses approximation (used when cube texture access fails)
+uint getH3IdentifierFallback(vec3 direction) {
+    // Convert 3D direction to spherical coordinates for approximation
+    vec3 normalized = normalize(direction);
+    float lat = asin(normalized.y);
+    float lon = atan(normalized.z, normalized.x);
+    
+    // Convert to degrees and normalize to 0-1 range
+    float latNorm = (lat + 1.5708) / 3.1416; // (-PI/2 to PI/2) -> (0 to 1)
+    float lonNorm = (lon + 3.1416) / 6.2832;  // (-PI to PI) -> (0 to 1)
+    
+    // Create a simple hash based on lat/lon
+    uint latInt = uint(latNorm * 255.0);
+    uint lonInt = uint(lonNorm * 255.0);
+    uint hash = (latInt << 8) | lonInt;
+    
+    return hash;
+}
+
 uint getNeighborH3Id(float baseId, float direction) {
     // Ensure precise calculations for large numbers
     float index = baseId * 6.0 + direction;
@@ -69,20 +88,6 @@ vec3 getH3Position(float h3Id, bool applyJitter, float jitterAmount) {
     }
     
     return position;
-}
-
-uint getH3IdentifierCube(vec3 direction) {
-    vec4 color = textureCube(h3IndexMap, direction);
-    uint r = uint(floor(color.r * 255.0 + 0.5));
-    uint g = uint(floor(color.g * 255.0 + 0.5));
-    uint b = uint(floor(color.b * 255.0 + 0.5));
-
-    // return 0u if invalid
-    if (r == 255u && g == 255u && b == 255u) {
-        return 0u;
-    }
-
-    return (r << 16) | (g << 8) | b;
 }
 
 uint findClosestCell(vec3 position, uint initialId, bool applyJitter, float jitterAmount) {
