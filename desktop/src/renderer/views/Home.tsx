@@ -71,8 +71,8 @@ export const Home: React.FC = () => {
           >
             <strong className="font-bold">WebGPU Not Available! </strong>
             <span className="block sm:inline">
-              This application requires WebGPU support. Please use a compatible
-              browser.
+              ERROR: This application requires WebGPU support. Please use a
+              compatible browser.
             </span>
           </div>
         </div>
