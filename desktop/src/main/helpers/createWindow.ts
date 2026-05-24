@@ -1,10 +1,21 @@
 // Module imports
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen, shell } from "electron";
 import path from "path";
 
 // Local imports
 import packageData from "../../../package.json";
 import { configStore } from "./configStore";
+
+const EXTERNAL_URL_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+function isExternalUrl(url: string) {
+  try {
+    const { protocol } = new URL(url);
+    return EXTERNAL_URL_PROTOCOLS.has(protocol);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Creates a new window.
@@ -39,6 +50,25 @@ export async function createWindow() {
     titleBarOverlay: true,
     frame: false,
     resizable: true,
+  });
+
+  // Route external links (e.g. http/https) to the user's default browser
+  // instead of trying to navigate inside the Electron window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url === mainWindow.webContents.getURL()) {
+      return;
+    }
+    if (isExternalUrl(url)) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

@@ -17,7 +17,11 @@ export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
         </a>
       </div>
       <div>
-        <a href="https://github.com/kenjinp/geomancer" target="_blank">
+        <a
+          href="https://github.com/kenjinp/geomancer"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <span>Support this project, star the repo on github!</span>
         </a>
       </div>
@@ -25,6 +29,8 @@ export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
       <div className="mr-20">
         <a
           href="https://ko-fi.com/kennywtf"
+          target="_blank"
+          rel="noopener noreferrer"
           className="opacity-50 hover:opacity-100 transition-opacity duration-200 ease-in-out"
         >
           Buy me a coffee
