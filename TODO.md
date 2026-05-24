@@ -44,5 +44,12 @@ Work Streams
 - Dioramas/Vignetts
 - Weather
 - Simulation
+- Regional Uplift / Erosion
 
-Crusader-Kings like map interface???
+Crusader-Kings like map interface??? I also like Age of Wonders 4, it's very vibey
+
+Make it better -
+
+- Dag task with percentage callback or generator -> Realtime update of world
+- Some abstraction to iterate over webpu compute
+- can we do real time webgpu compute + webgl?

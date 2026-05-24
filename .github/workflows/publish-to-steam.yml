@@ -17,6 +17,12 @@ on:
         required: true
       steamBuildConfigVDF:
         required: true
+      # Optional. If provided, a fresh TOTP is generated each run from this Steam
+      # Guard shared secret and used in place of the cached `configVdf` session,
+      # avoiding periodic "License expired" errors. Falls back to `configVdf`
+      # auth when not set.
+      steamSharedSecret:
+        required: false
       # steamDemoAppID:
       #   required: true
       steamAppID:
@@ -28,7 +34,6 @@ jobs:
   publish-to-steam:
     runs-on: ubuntu-latest
     environment: "Steam Prod"
-    continue-on-error: true
 
     steps:
       - name: Download Builds
@@ -62,13 +67,22 @@ jobs:
         run: |
           if [ -n "${{ secrets.steamBuildUsername }}" ]; then echo "steamBuildUsername is set"; else echo "steamBuildUsername is NOT set"; fi
           if [ -n "${{ secrets.steamBuildConfigVDF }}" ]; then echo "steamBuildConfigVDF is set"; else echo "steamBuildConfigVDF is NOT set"; fi
+          if [ -n "${{ secrets.steamSharedSecret }}" ]; then echo "steamSharedSecret is set (TOTP auth will be used)"; else echo "steamSharedSecret is NOT set (configVdf auth will be used)"; fi
           if [ -n "${{ secrets.steamAppID }}" ]; then echo "steamAppID is set"; else echo "steamAppID is NOT set"; fi
+
+      - name: Generate Steam TOTP
+        id: steam-totp
+        if: ${{ secrets.steamSharedSecret != '' }}
+        uses: CyberAndrii/steam-totp@v1
+        with:
+          shared_secret: ${{ secrets.steamSharedSecret }}
 
       - name: Publish Builds to Steam
         uses: game-ci/steam-deploy@v3
         with:
           username: ${{ secrets.steamBuildUsername }}
           configVdf: ${{ secrets.steamBuildConfigVDF }}
+          totp: ${{ steps.steam-totp.outputs.code }}
           appId: ${{ secrets.steamAppID }}
           buildDescription: ${{ inputs.version }}
           rootPath: builds
@@ -77,11 +91,26 @@ jobs:
           depot4Path: linux
           releaseBranch: ${{ inputs.branch }}
 
+      # steam-deploy is a Docker container action that writes its logs to
+      # `/github/home/Steam/logs` inside the container. The runner bind-mounts
+      # `/github/home` from `${{ runner.temp }}/_github_home`, so on failure
+      # we copy those files into the workspace and upload them as an artifact.
+      - name: Collect Steam Logs on Error
+        if: failure()
+        run: |
+          mkdir -p steam-logs
+          if [ -d "${{ runner.temp }}/_github_home/Steam/logs" ]; then
+            cp -r "${{ runner.temp }}/_github_home/Steam/logs/." steam-logs/ || true
+          else
+            echo "No Steam logs directory found at ${{ runner.temp }}/_github_home/Steam/logs"
+          fi
+          ls -la steam-logs || true
+
       - name: Save Steam Logs on Error
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           compression-level: 0
-          name: logs
-          path: BuildOutput
+          name: steam-logs
+          path: steam-logs
           retention-days: 30
