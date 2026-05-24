@@ -34,6 +34,11 @@ jobs:
   publish-to-steam:
     runs-on: ubuntu-latest
     environment: "Steam Prod"
+    # The `secrets` context can't be referenced from step-level `if:` conditions,
+    # so surface the presence of the optional shared secret as a job-level env
+    # var that downstream `if:` conditions can read.
+    env:
+      HAS_STEAM_SHARED_SECRET: ${{ secrets.steamSharedSecret != '' }}
 
     steps:
       - name: Download Builds
@@ -72,7 +77,7 @@ jobs:
 
       - name: Generate Steam TOTP
         id: steam-totp
-        if: ${{ secrets.steamSharedSecret != '' }}
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
         uses: CyberAndrii/steam-totp@v1
         with:
           shared_secret: ${{ secrets.steamSharedSecret }}
