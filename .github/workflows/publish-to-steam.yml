@@ -87,6 +87,29 @@ jobs:
             echo "steamSharedSecret is NOT set (configVdf auth will be used)"
           fi
 
+      # `CyberAndrii/steam-totp` rejects the secret with a vague
+      # "Invalid shared secret." if it isn't *exactly* 28 base64 chars ending
+      # in '='. The most common cause is an extra newline appended by
+      # `echo "..." | gh secret set ...`. Validate up front so the failure
+      # message tells us the actual length instead of being opaque.
+      - name: Validate Steam Shared Secret Format
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
+        env:
+          SHARED_SECRET: ${{ secrets.steamSharedSecret }}
+        run: |
+          LEN=${#SHARED_SECRET}
+          LAST_CHAR="${SHARED_SECRET: -1}"
+          echo "STEAM_SHARED_SECRET length: $LEN (expected 28)"
+          if [ "$LEN" -ne 28 ]; then
+            echo "::error::STEAM_SHARED_SECRET is $LEN chars, expected 28. Likely cause: trailing newline/whitespace from 'echo | gh secret set' (use 'printf %s' instead) or wrong .maFile field."
+            exit 1
+          fi
+          if [ "$LAST_CHAR" != "=" ]; then
+            echo "::error::STEAM_SHARED_SECRET does not end with '='. Padding was stripped or you pasted the wrong value."
+            exit 1
+          fi
+          echo "STEAM_SHARED_SECRET format looks valid."
+
       - name: Generate Steam TOTP
         id: steam-totp
         if: env.HAS_STEAM_SHARED_SECRET == 'true'
