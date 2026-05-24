@@ -96,7 +96,7 @@ export class HexPositionMapGenerator {
 
   public static async loadFromBinary(
     url: string,
-    resolution: number
+    resolution: number,
   ): Promise<HexPositionMapGenerator> {
     const response = await fetch(url);
     const buffer = await response.arrayBuffer();
@@ -167,13 +167,7 @@ export class HexPositionMapGenerator {
     if (!this.textureData) throw new Error("Generate texture data first");
 
     const { width, height } = this.metadata;
-    const texture = new DataTexture(
-      this.textureData,
-      width,
-      height,
-      RGBAFormat,
-      FloatType
-    );
+    const texture = new DataTexture(this.textureData, width, height, RGBAFormat, FloatType);
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;

@@ -64,7 +64,7 @@ export class HexNeighborMapGenerator {
     for (const h3Index of allIndices) {
       let neighborh3Indices = h3.gridDisk(h3Index, 1);
       neighborh3Indices = neighborh3Indices.filter(
-        (neighborH3Index) => neighborH3Index !== h3Index
+        (neighborH3Index) => neighborH3Index !== h3Index,
       );
 
       let paddedNeighbors = [];
@@ -97,15 +97,11 @@ export class HexNeighborMapGenerator {
     }
 
     if (neighborSet.size !== allIndices.length) {
-      throw new Error(
-        `Invalid neighbor set size: ${neighborSet.size} !== ${allIndices.length}`
-      );
+      throw new Error(`Invalid neighbor set size: ${neighborSet.size} !== ${allIndices.length}`);
     }
 
     this.texture = this.createTexture();
-    console.log(
-      `H3 neighbor map generated in ${performance.now() - startTime}ms`
-    );
+    console.log(`H3 neighbor map generated in ${performance.now() - startTime}ms`);
     return this;
   }
 
@@ -114,11 +110,7 @@ export class HexNeighborMapGenerator {
 
     try {
       const { data, width, height } = this.texture.image;
-      const imageData = new ImageData(
-        new Uint8ClampedArray(data.buffer),
-        width,
-        height
-      );
+      const imageData = new ImageData(new Uint8ClampedArray(data.buffer), width, height);
 
       const webpData = await encode(imageData, {
         quality: 100,
@@ -141,7 +133,7 @@ export class HexNeighborMapGenerator {
 
   public static async loadFromWebP(
     url: string,
-    resolution: number
+    resolution: number,
   ): Promise<HexNeighborMapGenerator> {
     const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
@@ -178,13 +170,7 @@ export class HexNeighborMapGenerator {
     if (!this.textureData) throw new Error("Generate texture data first");
 
     const { width, height } = this.metadata;
-    const texture = new DataTexture(
-      this.textureData,
-      width,
-      height,
-      RGBAFormat,
-      UnsignedByteType
-    );
+    const texture = new DataTexture(this.textureData, width, height, RGBAFormat, UnsignedByteType);
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;

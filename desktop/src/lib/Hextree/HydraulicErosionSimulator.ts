@@ -27,7 +27,7 @@ export class HydraulicErosionSimulator {
   constructor(
     private tileBuffer: HexTileBuffer,
     private neighborMap: Float32Array | Uint32Array,
-    private config: HydraulicErosionConfig
+    private config: HydraulicErosionConfig,
   ) {
     // Debug: Log erosion parameters
     console.log("Hydraulic erosion parameters:", {
@@ -44,13 +44,9 @@ export class HydraulicErosionSimulator {
   public static async create(
     tileBuffer: HexTileBuffer,
     neighborMap: Float32Array | Uint32Array,
-    config: HydraulicErosionConfig
+    config: HydraulicErosionConfig,
   ): Promise<HydraulicErosionSimulator> {
-    const instance = new HydraulicErosionSimulator(
-      tileBuffer,
-      neighborMap,
-      config
-    );
+    const instance = new HydraulicErosionSimulator(tileBuffer, neighborMap, config);
     await instance.initialize();
     return instance;
   }
@@ -86,19 +82,13 @@ export class HydraulicErosionSimulator {
 
     this.waterBuffer = this.device.createBuffer({
       size: waterLevels.byteLength,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
     this.device.queue.writeBuffer(this.waterBuffer, 0, waterLevels);
 
     this.sedimentBuffer = this.device.createBuffer({
       size: sedimentLevels.byteLength,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
     this.device.queue.writeBuffer(this.sedimentBuffer, 0, sedimentLevels);
 
@@ -231,7 +221,7 @@ export class HydraulicErosionSimulator {
           0,
           this.elevationBuffer,
           0,
-          totalCells * 4
+          totalCells * 4,
         );
 
         this.device.queue.submit([copyEncoder.finish()]);
@@ -266,27 +256,9 @@ export class HydraulicErosionSimulator {
 
       // Set up the copy operations
       const encoder = this.device.createCommandEncoder();
-      encoder.copyBufferToBuffer(
-        this.waterBuffer,
-        0,
-        waterReadbackBuffer,
-        0,
-        totalCells * 4
-      );
-      encoder.copyBufferToBuffer(
-        this.sedimentBuffer,
-        0,
-        sedimentReadbackBuffer,
-        0,
-        totalCells * 4
-      );
-      encoder.copyBufferToBuffer(
-        this.outputBuffer,
-        0,
-        elevationReadbackBuffer,
-        0,
-        totalCells * 4
-      );
+      encoder.copyBufferToBuffer(this.waterBuffer, 0, waterReadbackBuffer, 0, totalCells * 4);
+      encoder.copyBufferToBuffer(this.sedimentBuffer, 0, sedimentReadbackBuffer, 0, totalCells * 4);
+      encoder.copyBufferToBuffer(this.outputBuffer, 0, elevationReadbackBuffer, 0, totalCells * 4);
       this.device.queue.submit([encoder.finish()]);
 
       // Map buffers to read the data
@@ -294,15 +266,9 @@ export class HydraulicErosionSimulator {
       await sedimentReadbackBuffer.mapAsync(GPUMapMode.READ);
       await elevationReadbackBuffer.mapAsync(GPUMapMode.READ);
 
-      const currentWater = new Float32Array(
-        waterReadbackBuffer.getMappedRange()
-      );
-      const currentSediment = new Float32Array(
-        sedimentReadbackBuffer.getMappedRange()
-      );
-      const currentElevations = new Float32Array(
-        elevationReadbackBuffer.getMappedRange()
-      );
+      const currentWater = new Float32Array(waterReadbackBuffer.getMappedRange());
+      const currentSediment = new Float32Array(sedimentReadbackBuffer.getMappedRange());
+      const currentElevations = new Float32Array(elevationReadbackBuffer.getMappedRange());
 
       // Create arrays to store the updated values
       const newWater = new Float32Array(totalCells);
@@ -332,7 +298,7 @@ export class HydraulicErosionSimulator {
 
         // Track total outflow and valid neighbors
         let totalOutflow = 0;
-        const outflows = new Array(6).fill(0);
+        const outflows: number[] = Array.from({ length: 6 }, () => 0);
 
         // Check each neighbor for possible water flow
         const neighborBaseIdx = cellIdx * 6; // 6 neighbors per hex
@@ -379,8 +345,7 @@ export class HydraulicErosionSimulator {
 
               if (neighborIdx !== 0xffffffff && neighborIdx < totalCells) {
                 // Calculate sediment amount to move (proportional to water flow)
-                const sedimentAmount =
-                  cellSediment * (outflows[i] / totalOutflow);
+                const sedimentAmount = cellSediment * (outflows[i] / totalOutflow);
 
                 // Update water and sediment levels
                 newWater[neighborIdx] += outflows[i];
@@ -428,13 +393,7 @@ export class HydraulicErosionSimulator {
     });
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.outputBuffer,
-      0,
-      readbackBuffer,
-      0,
-      alignedBufferSize
-    );
+    encoder.copyBufferToBuffer(this.outputBuffer, 0, readbackBuffer, 0, alignedBufferSize);
     this.device.queue.submit([encoder.finish()]);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
@@ -443,7 +402,7 @@ export class HydraulicErosionSimulator {
     // Validate buffer size
     if (elevations.length < totalCells) {
       throw new Error(
-        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`
+        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`,
       );
     }
 

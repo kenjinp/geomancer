@@ -57,24 +57,21 @@ export class HexGridFloodFill {
   private plates: Plate[];
   constructor(
     public readonly config: FloodFillConfig,
-    public hexTileBuffer: HexTileBuffer
+    public hexTileBuffer: HexTileBuffer,
   ) {}
 
   public static async doFloodfill(
     resolution: number,
     hexTileBuffer: HexTileBuffer,
     neighborMap: HexNeighborMapGenerator,
-    plates: Plate[]
+    plates: Plate[],
   ) {
     const targetResolution = resolution;
     if (plates.length === 0) {
       throw new Error("No plates provided");
     }
     const seedCount = plates.length;
-    const config = HexGridFloodFill.configFromResolutionDynamic(
-      targetResolution,
-      seedCount + 1
-    );
+    const config = HexGridFloodFill.configFromResolutionDynamic(targetResolution, seedCount + 1);
     console.log("hex fill 1", config);
     const floodFill = await HexGridFloodFill.create(config, hexTileBuffer);
     floodFill.plates = plates;
@@ -92,9 +89,7 @@ export class HexGridFloodFill {
     const seedCells: string[] = [];
     const pickedIndices = new Set<number>();
     while (seedCells.length < seedCount) {
-      const randomIndex = Math.floor(
-        getState().random.seededRandom.next() * h3Cells.length
-      );
+      const randomIndex = Math.floor(getState().random.seededRandom.next() * h3Cells.length);
       if (!pickedIndices.has(randomIndex)) {
         pickedIndices.add(randomIndex);
         seedCells.push(h3Cells[randomIndex]);
@@ -115,7 +110,7 @@ export class HexGridFloodFill {
 
   public static async create(
     config: FloodFillConfig,
-    hexTileBuffer: HexTileBuffer
+    hexTileBuffer: HexTileBuffer,
   ): Promise<HexGridFloodFill> {
     const instance = new HexGridFloodFill(config, hexTileBuffer);
     await instance.initialize();
@@ -138,10 +133,7 @@ export class HexGridFloodFill {
     // Create filledBuffer without MAP_READ.
     this.filledBuffer = this.device.createBuffer({
       size: this.config.maxCells * 4,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
 
     // Initialize it to zero by copying from a temporary zero buffer.
@@ -155,21 +147,12 @@ export class HexGridFloodFill {
     tempBuffer.unmap();
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      tempBuffer,
-      0,
-      this.filledBuffer,
-      0,
-      zeros.byteLength
-    );
+    encoder.copyBufferToBuffer(tempBuffer, 0, this.filledBuffer, 0, zeros.byteLength);
     this.device.queue.submit([encoder.finish()]);
     // tempBuffer is only used for initialization.
 
     // Double-buffered frontier queues
-    this.frontierBuffers = [
-      this.createFrontierBuffer(),
-      this.createFrontierBuffer(),
-    ];
+    this.frontierBuffers = [this.createFrontierBuffer(), this.createFrontierBuffer()];
 
     // Add seed buffer
     this.seedBuffer = this.device.createBuffer({
@@ -187,10 +170,7 @@ export class HexGridFloodFill {
   private createFrontierBuffer(): GPUBuffer {
     return this.device.createBuffer({
       size: 4 + this.config.maxFrontierSize * 8,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
   }
 
@@ -254,7 +234,7 @@ export class HexGridFloodFill {
     // Validate we don't exceed frontier capacity
     if (seedIndices.length > this.config.maxFrontierSize) {
       throw new Error(
-        `Too many seeds (${seedIndices.length}) for frontier capacity ${this.config.maxFrontierSize}`
+        `Too many seeds (${seedIndices.length}) for frontier capacity ${this.config.maxFrontierSize}`,
       );
     }
 
@@ -290,17 +270,13 @@ export class HexGridFloodFill {
 
     while (frontierSize > 0) {
       // Update uniform with current pass index
-      this.device.queue.writeBuffer(
-        this.uniformBuffer,
-        0,
-        new Uint32Array([passIndex])
-      );
+      this.device.queue.writeBuffer(this.uniformBuffer, 0, new Uint32Array([passIndex]));
 
       // Reset the next frontier's atomic counter (first 4 bytes) to zero
       this.device.queue.writeBuffer(
         this.frontierBuffers[1 - currentFrontier],
         0,
-        new Uint32Array([0])
+        new Uint32Array([0]),
       );
 
       const encoder = this.device.createCommandEncoder();
@@ -332,13 +308,7 @@ export class HexGridFloodFill {
     });
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.frontierBuffers[bufferIndex],
-      0,
-      readbackBuffer,
-      0,
-      4
-    );
+    encoder.copyBufferToBuffer(this.frontierBuffers[bufferIndex], 0, readbackBuffer, 0, 4);
     this.device.queue.submit([encoder.finish()]);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
@@ -361,13 +331,7 @@ export class HexGridFloodFill {
 
     // Encode the command to copy the contents of filledBuffer into the readbackBuffer.
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.filledBuffer,
-      0,
-      readbackBuffer,
-      0,
-      totalBytes
-    );
+    encoder.copyBufferToBuffer(this.filledBuffer, 0, readbackBuffer, 0, totalBytes);
     this.device.queue.submit([encoder.finish()]);
 
     // Wait for the GPU to finish and then map the readback buffer.
@@ -412,10 +376,7 @@ export class HexGridFloodFill {
     return this.hexTileBuffer;
   }
 
-  public async initializeFromNeighborMap(
-    neighborMap: HexNeighborMapGenerator,
-    h3Cells: string[]
-  ) {
+  public async initializeFromNeighborMap(neighborMap: HexNeighborMapGenerator, h3Cells: string[]) {
     if (!neighborMap.texture) {
       throw new Error("Neighbor map texture not generated");
     }
@@ -433,8 +394,7 @@ export class HexGridFloodFill {
         const g = textureData[pixelOffset + 1] / 255;
         const b = textureData[pixelOffset + 2] / 255;
         const neighborIndex = HexGrid.decodeColorToNodeIndex([r, g, b, 1]);
-        neighborData[i * 6 + j] =
-          neighborIndex === 0xffffff ? 0xffffffff : neighborIndex;
+        neighborData[i * 6 + j] = neighborIndex === 0xffffff ? 0xffffffff : neighborIndex;
       }
     }
 
@@ -443,15 +403,10 @@ export class HexGridFloodFill {
   }
 
   public destroy() {
-    [this.neighborBuffer, this.filledBuffer, ...this.frontierBuffers].forEach(
-      (b) => b.destroy()
-    );
+    [this.neighborBuffer, this.filledBuffer, ...this.frontierBuffers].forEach((b) => b.destroy());
   }
 
-  public static configFromResolution(
-    resolution: number,
-    maxSeeds: number
-  ): FloodFillConfig {
+  public static configFromResolution(resolution: number, maxSeeds: number): FloodFillConfig {
     const baseCells = RESOLUTION_CELL_FACTORS[resolution];
     if (!baseCells) {
       throw new Error(`Unsupported H3 resolution: ${resolution}. Valid 0-10`);
@@ -465,10 +420,7 @@ export class HexGridFloodFill {
     };
   }
 
-  public static configFromResolutionDynamic(
-    resolution: number,
-    maxSeeds: number
-  ): FloodFillConfig {
+  public static configFromResolutionDynamic(resolution: number, maxSeeds: number): FloodFillConfig {
     const maxCells = h3.getNumCells(resolution);
     return {
       maxCells,

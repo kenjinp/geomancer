@@ -1,9 +1,7 @@
 // Module imports
 import { session } from "electron";
 
-import devtoolsInstaller, {
-  REACT_DEVELOPER_TOOLS,
-} from "electron-devtools-installer";
+import devtoolsInstaller, { REACT_DEVELOPER_TOOLS } from "electron-devtools-installer";
 
 // Local imports
 import { createWindow } from "./createWindow";

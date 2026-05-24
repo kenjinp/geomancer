@@ -154,12 +154,7 @@ export class TerrainInstancer {
     // Modify shader via onBeforeCompile using ShaderUtils
     this.material.onBeforeCompile = (shader) => {
       // Apply the shader patches
-      ShaderUtils.patchShader(
-        shader,
-        vertexPatches,
-        fragmentPatches,
-        customUniforms
-      );
+      ShaderUtils.patchShader(shader, vertexPatches, fragmentPatches, customUniforms);
     };
 
     // Set needsUpdate to trigger shader compilation
@@ -181,7 +176,7 @@ export class TerrainInstancer {
     this.instancedMesh = new InstancedMesh(
       new PlaneGeometry(1, 1, 16, 16),
       this.material,
-      TerrainInstancer.INITIAL_CAPACITY
+      TerrainInstancer.INITIAL_CAPACITY,
     );
 
     // Set initial shadow settings based on current map layers
@@ -189,15 +184,13 @@ export class TerrainInstancer {
     this.instancedMesh.receiveShadow = useShadows;
     this.instancedMesh.castShadow = true;
 
-    console.log(
-      `Initial shadow setting: ${useShadows ? "ENABLED" : "DISABLED"}`
-    );
+    console.log(`Initial shadow setting: ${useShadows ? "ENABLED" : "DISABLED"}`);
 
     // Add instance color attribute
     const colors = new Float32Array(TerrainInstancer.INITIAL_CAPACITY * 3);
     this.instancedMesh.geometry.setAttribute(
       "instanceColor",
-      new InstancedBufferAttribute(colors, 3, false, 1)
+      new InstancedBufferAttribute(colors, 3, false, 1),
     );
 
     this.instancedMesh.count = 0;
@@ -211,15 +204,12 @@ export class TerrainInstancer {
   private ensureCapacity(requiredSize: number) {
     if (requiredSize > this.instancedMesh.instanceMatrix.count) {
       // Create new mesh with doubled capacity
-      const newCapacity = Math.max(
-        requiredSize,
-        this.instancedMesh.instanceMatrix.count * 2
-      );
+      const newCapacity = Math.max(requiredSize, this.instancedMesh.instanceMatrix.count * 2);
 
       const newMesh = new InstancedMesh(
         this.instancedMesh.geometry,
         this.instancedMesh.material,
-        newCapacity
+        newCapacity,
       );
       newMesh.instanceMatrix.setUsage(DynamicDrawUsage);
 
@@ -255,11 +245,7 @@ export class TerrainInstancer {
     if (!this.instancedMesh) {
       return;
     }
-    const visibleNodes = this.quadtree.getVisibleNodes(
-      camera,
-      this.radius,
-      this.offset
-    );
+    const visibleNodes = this.quadtree.getVisibleNodes(camera, this.radius, this.offset);
     this.ensureCapacity(visibleNodes.length);
     this.processNodeUpdates(visibleNodes);
   }
@@ -315,11 +301,7 @@ export class TerrainInstancer {
     switch (node.face) {
       case 0: // Front (+Z)
         facePosition.set(0, 0, this.radius);
-        faceMatrix.makeTranslation(
-          facePosition.x,
-          facePosition.y,
-          facePosition.z
-        );
+        faceMatrix.makeTranslation(facePosition.x, facePosition.y, facePosition.z);
         break;
       case 1: // Back (-Z)
         facePosition.set(0, 0, -this.radius);
@@ -355,11 +337,7 @@ export class TerrainInstancer {
 
     // Create matrix for local position within face
     const localMatrix = new Matrix4();
-    const localOffset = new Vector3(
-      (u - 0.5) * 2 * this.radius,
-      (v - 0.5) * 2 * this.radius,
-      0
-    );
+    const localOffset = new Vector3((u - 0.5) * 2 * this.radius, (v - 0.5) * 2 * this.radius, 0);
     localMatrix.makeTranslation(localOffset.x, localOffset.y, localOffset.z);
 
     // Correct matrix composition order: (offset) × (face) × (local)
@@ -400,9 +378,7 @@ export class TerrainInstancer {
       this.material.customUniforms.uRadius.value = radius;
     }
 
-    this.processNodeUpdates(
-      this.quadtree.getVisibleNodes(camera, radius, this.offset)
-    );
+    this.processNodeUpdates(this.quadtree.getVisibleNodes(camera, radius, this.offset));
 
     this.material.needsUpdate = true;
   }
@@ -425,8 +401,7 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
 
     if (this.material.customUniforms) {
-      this.material.customUniforms.h3IndexMap.value =
-        buffers.hexCubeMap.cubeTexture;
+      this.material.customUniforms.h3IndexMap.value = buffers.hexCubeMap.cubeTexture;
       this.material.needsUpdate = true;
     }
   }
@@ -435,8 +410,7 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
 
     if (this.material.customUniforms) {
-      this.material.customUniforms.h3NeighborMap.value =
-        buffers.hexNeighborMap.texture;
+      this.material.customUniforms.h3NeighborMap.value = buffers.hexNeighborMap.texture;
       this.material.needsUpdate = true;
     }
   }
@@ -445,8 +419,7 @@ export class TerrainInstancer {
     const buffers = getState().buffers;
 
     if (this.material.customUniforms) {
-      this.material.customUniforms.h3PositionMap.value =
-        buffers.hexPositionMap.texture;
+      this.material.customUniforms.h3PositionMap.value = buffers.hexPositionMap.texture;
       this.material.needsUpdate = true;
     }
   }

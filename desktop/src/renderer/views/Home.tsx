@@ -52,9 +52,7 @@ export const Home: React.FC = () => {
             className="bg-gray-100 border border-gray-400 text-gray-700 px-4 py-3 rounded relative"
             role="alert"
           >
-            <strong className="font-bold">
-              Checking device compatibility...
-            </strong>
+            <strong className="font-bold">Checking device compatibility...</strong>
             <span className="block sm:inline"></span>
           </div>
         </div>
@@ -72,8 +70,7 @@ export const Home: React.FC = () => {
           >
             <strong className="font-bold">WebGPU Not Available! </strong>
             <span className="block sm:inline">
-              This application requires WebGPU support. Please use a compatible
-              browser.
+              This application requires WebGPU support. Please use a compatible browser.
             </span>
           </div>
         </div>

@@ -4,7 +4,9 @@ import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
 import glsl from "vite-plugin-glsl";
 import tsconfigPaths from "vite-tsconfig-paths";
+
 import { getLastCommit } from "./commit-info";
+
 const commitInfo = getLastCommit({});
 
 // https://vitejs.dev/config

@@ -18,11 +18,7 @@ export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
         </a>
       </div>
       <div>
-        <a
-          href="https://github.com/kenjinp/geomancer"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href="https://github.com/kenjinp/geomancer" target="_blank" rel="noopener noreferrer">
           <span>Support this project, star the repo on github!</span>
         </a>
       </div>

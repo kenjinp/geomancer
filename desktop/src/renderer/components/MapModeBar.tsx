@@ -121,9 +121,7 @@ export const MapModeBar: React.FC = () => {
                     });
                   } else {
                     setState({
-                      mapLayers: Array.from(
-                        new Set([...mapLayers, button.mapLayer])
-                      ),
+                      mapLayers: Array.from(new Set([...mapLayers, button.mapLayer])),
                     });
                   }
                 }}

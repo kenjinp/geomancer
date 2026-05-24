@@ -69,9 +69,7 @@ export function generateFaceData() {
     const v1 = ICOSA_VERTICES[icosaFaces[i][0]];
     const v2 = ICOSA_VERTICES[icosaFaces[i][1]];
     const v3 = ICOSA_VERTICES[icosaFaces[i][2]];
-    face.normal
-      .crossVectors(v2.clone().sub(v1), v3.clone().sub(v1))
-      .normalize();
+    face.normal.crossVectors(v2.clone().sub(v1), v3.clone().sub(v1)).normalize();
 
     // Create local coordinate system
     const axisX = v2.clone().sub(v1).normalize();
@@ -86,7 +84,7 @@ export function generateFaceData() {
         face.normal.y,
         axisX.z,
         axisY.z,
-        face.normal.z
+        face.normal.z,
       )
       .invert();
 

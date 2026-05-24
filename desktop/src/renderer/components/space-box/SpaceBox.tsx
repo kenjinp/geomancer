@@ -2,9 +2,10 @@ import { useThree } from "@react-three/fiber";
 import * as React from "react";
 import { Color, CubeTextureLoader } from "three";
 
-export const SpaceBox: React.FC<
-  React.PropsWithChildren<{ hideBackground?: boolean }>
-> = ({ hideBackground, children }) => {
+export const SpaceBox: React.FC<React.PropsWithChildren<{ hideBackground?: boolean }>> = ({
+  hideBackground,
+  children,
+}) => {
   const { scene } = useThree();
   React.useEffect(() => {
     const back = `/textures/skybox/back.png`;

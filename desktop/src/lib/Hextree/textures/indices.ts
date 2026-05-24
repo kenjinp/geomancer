@@ -1,11 +1,5 @@
 import * as h3 from "h3-js";
-import {
-  DataArrayTexture,
-  FloatType,
-  NearestFilter,
-  RedFormat,
-  Vector3,
-} from "three";
+import { DataArrayTexture, FloatType, NearestFilter, RedFormat, Vector3 } from "three";
 
 import { generateFaceData } from "./faces";
 

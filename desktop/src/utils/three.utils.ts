@@ -1,31 +1,16 @@
 import { Camera, Material, Mesh, Object3D, Scene, WebGLRenderer } from "three";
 
 export class ShaderUtils {
-  static init(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    object: Object3D
-  ): void {
+  static init(renderer: WebGLRenderer, scene: Scene, camera: Camera, object: Object3D): void {
     // renderer.compile(scene, camera); // Might be unnecessary, the shaders could already be compiled
 
     window.addEventListener("keydown", (event: KeyboardEvent) => {
       console.log("keydown", event.key);
       if (event.key === "f") {
-        ShaderUtils.findAndOutputShader(
-          renderer,
-          object,
-          "fragmentShader",
-          "Fragment Shader"
-        );
+        ShaderUtils.findAndOutputShader(renderer, object, "fragmentShader", "Fragment Shader");
       }
       if (event.key === "v") {
-        ShaderUtils.findAndOutputShader(
-          renderer,
-          object,
-          "vertexShader",
-          "Vertex Shader"
-        );
+        ShaderUtils.findAndOutputShader(renderer, object, "vertexShader", "Vertex Shader");
       }
     });
   }
@@ -34,7 +19,7 @@ export class ShaderUtils {
     renderer: WebGLRenderer,
     object: Object3D,
     shaderIdentifier: string,
-    shaderName: string
+    shaderName: string,
   ): void {
     if (!(object instanceof Mesh)) {
       throw new Error("Object is not a mesh");
@@ -52,9 +37,7 @@ export class ShaderUtils {
     const programs = internals.properties.get(material).programs;
 
     for (const program of programs) {
-      const shaderSource = internals
-        .getContext()
-        .getShaderSource(program[1][shaderIdentifier]);
+      const shaderSource = internals.getContext().getShaderSource(program[1][shaderIdentifier]);
 
       ShaderUtils.outputShader(`// ----${shaderName} Code----`, shaderSource);
     }

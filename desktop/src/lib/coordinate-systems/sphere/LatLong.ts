@@ -16,7 +16,7 @@ const tempVector3 = new Vector3();
 function randomSpherePointVector3(
   origin: Vector3,
   radius: number,
-  target: Vector3 = new Vector3()
+  target: Vector3 = new Vector3(),
 ): Vector3 {
   const { x: x0, y: y0, z: z0 } = origin;
   const u = Math.random();
@@ -49,7 +49,10 @@ export class LatLong {
    * @param lat Latitude in degrees (-90 to 90)
    * @param lon Longitude in degrees (-180 to 180)
    */
-  constructor(public lat: number = 0, public lon: number = 0) {}
+  constructor(
+    public lat: number = 0,
+    public lon: number = 0,
+  ) {}
 
   /**
    * Creates a string hash from latitude/longitude pair
@@ -146,7 +149,7 @@ export class LatLong {
     return vec3.set(
       radius * Math.sin(phi) * Math.cos(theta), // x
       radius * Math.cos(phi), // y
-      radius * Math.sin(phi) * Math.sin(theta) // z
+      radius * Math.sin(phi) * Math.sin(theta), // z
     );
   }
 
@@ -157,9 +160,7 @@ export class LatLong {
    */
   cartesianToLatLong(coordinates: Vector3): LatLong {
     const longitude = Math.atan2(coordinates.x, coordinates.z) * RAD2DEG;
-    const length = Math.sqrt(
-      coordinates.x * coordinates.x + coordinates.z * coordinates.z
-    );
+    const length = Math.sqrt(coordinates.x * coordinates.x + coordinates.z * coordinates.z);
     const latitude = Math.atan2(coordinates.y, length) * RAD2DEG;
 
     this.lat = latitude;
@@ -173,14 +174,9 @@ export class LatLong {
    * @param latLong Optional LatLong to store result
    * @returns New or modified LatLong instance
    */
-  static cartesianToLatLong(
-    coordinates: Vector3,
-    latLong: LatLong = new LatLong()
-  ): LatLong {
+  static cartesianToLatLong(coordinates: Vector3, latLong: LatLong = new LatLong()): LatLong {
     const longitude = Math.atan2(coordinates.x, coordinates.z) * RAD2DEG;
-    const length = Math.sqrt(
-      coordinates.x * coordinates.x + coordinates.z * coordinates.z
-    );
+    const length = Math.sqrt(coordinates.x * coordinates.x + coordinates.z * coordinates.z);
     const latitude = Math.atan2(coordinates.y, length) * RAD2DEG;
 
     latLong.lat = latitude;

@@ -1,13 +1,7 @@
 import { SUN_RADIUS } from "@hello-worlds/planets";
 import { useTexture } from "@react-three/drei";
 import * as React from "react";
-import {
-  Mesh,
-  NearestFilter,
-  NearestMipmapLinearFilter,
-  PointLight,
-  RepeatWrapping,
-} from "three";
+import { Mesh, NearestFilter, NearestMipmapLinearFilter, PointLight, RepeatWrapping } from "three";
 
 export interface StarProps {
   position: [number, number, number];
@@ -19,14 +13,7 @@ export interface StarProps {
 }
 
 export const Star = React.forwardRef<Mesh, StarProps>((props, ref) => {
-  const {
-    position,
-    radius = SUN_RADIUS,
-    color,
-    emissive,
-    lightIntensity,
-    name,
-  } = props;
+  const { position, radius = SUN_RADIUS, color, emissive, lightIntensity, name } = props;
   const blueNoiseTexture = useTexture("blue-noise.png");
   blueNoiseTexture.wrapS = RepeatWrapping;
   blueNoiseTexture.wrapT = RepeatWrapping;
@@ -58,11 +45,7 @@ export const Star = React.forwardRef<Mesh, StarProps>((props, ref) => {
         name={`point-${name}-light`}
       />
       <sphereGeometry args={[radius, 32, 16]}></sphereGeometry>
-      <meshStandardMaterial
-        color={color}
-        emissive={emissive}
-        emissiveIntensity={40.0}
-      />
+      <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={40.0} />
     </mesh>
   );
 });

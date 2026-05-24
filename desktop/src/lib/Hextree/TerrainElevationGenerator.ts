@@ -22,11 +22,11 @@ export class TerrainElevationGenerator {
       warpStrength: number;
       baseStrength: number;
       seed?: number;
-    }
+    },
   ) {
     if (tileBuffer.resolution !== positionMap.metadata.resolution) {
       throw new Error(
-        `Resolution mismatch between tile buffer (${tileBuffer.resolution}) and position map (${positionMap.metadata.resolution})`
+        `Resolution mismatch between tile buffer (${tileBuffer.resolution}) and position map (${positionMap.metadata.resolution})`,
       );
     }
 
@@ -50,13 +50,9 @@ export class TerrainElevationGenerator {
       warpStrength: number;
       baseStrength: number;
       seed?: number;
-    }
+    },
   ): Promise<TerrainElevationGenerator> {
-    const instance = new TerrainElevationGenerator(
-      tileBuffer,
-      positionMap,
-      config
-    );
+    const instance = new TerrainElevationGenerator(tileBuffer, positionMap, config);
     await instance.initialize();
     return instance;
   }
@@ -80,10 +76,7 @@ export class TerrainElevationGenerator {
 
     this.positionBuffer = this.device.createBuffer({
       size: positions.byteLength,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
     this.device.queue.writeBuffer(this.positionBuffer, 0, positions);
 
@@ -185,13 +178,7 @@ export class TerrainElevationGenerator {
     });
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.elevationBuffer,
-      0,
-      readbackBuffer,
-      0,
-      alignedBufferSize
-    );
+    encoder.copyBufferToBuffer(this.elevationBuffer, 0, readbackBuffer, 0, alignedBufferSize);
     this.device.queue.submit([encoder.finish()]);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
@@ -200,7 +187,7 @@ export class TerrainElevationGenerator {
     // Add validation
     if (elevations.length < totalCells) {
       throw new Error(
-        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`
+        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`,
       );
     }
 

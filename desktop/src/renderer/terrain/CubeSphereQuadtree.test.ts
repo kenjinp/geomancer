@@ -12,7 +12,7 @@ interface TestCubeSphereQuadtree extends CubeSphereQuadtree {
     radius: number,
     offset: THREE.Vector3,
     maxDepth: number,
-    threshold: number
+    threshold: number,
   ) => void;
 }
 
@@ -44,8 +44,7 @@ describe.skip("CubeSphereQuadtree", () => {
   });
 
   test("neighbor resolution within same face", () => {
-    const quadtree =
-      new CubeSphereQuadtree() as unknown as TestCubeSphereQuadtree;
+    const quadtree = new CubeSphereQuadtree() as unknown as TestCubeSphereQuadtree;
     const rootIndex = quadtree["indexMap"].get("0:0:0:0")!;
     const node = quadtree["getNodeView"](rootIndex);
 
@@ -117,7 +116,7 @@ describe.skip("CubeSphereQuadtree", () => {
       radius: number,
       offset: THREE.Vector3,
       maxDepth: number,
-      threshold: number
+      threshold: number,
     ) {
       if (index === face0Root) {
         originalUpdate(index, cameraPos, radius, offset, maxDepth, threshold);
@@ -148,7 +147,7 @@ describe.skip("CubeSphereQuadtree", () => {
 
     // Should fail
     expect(() => badTree["createNode"](0, 0, 0, 0)).toThrowError(
-      "CubeSphereQuadtree node buffer overflow"
+      "CubeSphereQuadtree node buffer overflow",
     );
   });
 
@@ -157,13 +156,13 @@ describe.skip("CubeSphereQuadtree", () => {
       face: FaceIndex,
       rotation: number,
       input: [number, number],
-      expected: [number, number]
+      expected: [number, number],
     ) => {
       const [rx, ry] = quadtree["rotateCoordinates"](
         input[0],
         input[1],
         1, // level=1 (maxCoord=1)
-        rotation
+        rotation,
       );
       expect(rx).toBe(expected[0]);
       expect(ry).toBe(expected[1]);
@@ -179,7 +178,7 @@ describe.skip("CubeSphereQuadtree", () => {
   test("face adjacency configuration", () => {
     const validateFaceEdges = (
       face: FaceIndex,
-      expected: Record<string, { face: number; rotation: number }>
+      expected: Record<string, { face: number; rotation: number }>,
     ) => {
       const edges = quadtree["faceAdjacency"].get(face)!;
       expect(Object.fromEntries(edges)).toMatchObject(expected);
@@ -279,9 +278,7 @@ describe.skip("CubeSphereQuadtree", () => {
         // Verify neighbor face matches adjacency configuration
         const directions = ["left", "right", "top", "bottom"];
         const direction = directions[rootNode.neighbors.indexOf(neighborIndex)];
-        const expectedFace = quadtree["faceAdjacency"]
-          .get(face as FaceIndex)
-          ?.get(direction)?.face;
+        const expectedFace = quadtree["faceAdjacency"].get(face as FaceIndex)?.get(direction)?.face;
 
         expect(neighbor.face).toBe(expectedFace);
       });
@@ -388,11 +385,7 @@ describe("CubeSphereQuadtree > Face Coordinate Mapping", () => {
 
   test.each(testCases)("$name center detection", ({ position, expected }) => {
     const quadtree = new CubeSphereQuadtree();
-    const nodeIndex = quadtree.findNodeAtPosition(
-      position,
-      1,
-      new THREE.Vector3()
-    );
+    const nodeIndex = quadtree.findNodeAtPosition(position, 1, new THREE.Vector3());
     expect(nodeIndex).not.toBeNull();
 
     const node = quadtree["getNodeView"](nodeIndex!);
@@ -415,12 +408,7 @@ describe("CubeSphereQuadtree > Face Coordinate Mapping", () => {
     ];
 
     for (const { pos, expected } of testPositions) {
-      const nodeIndex = quadtree.findNodeAtPosition(
-        pos,
-        1,
-        new THREE.Vector3(),
-        true
-      );
+      const nodeIndex = quadtree.findNodeAtPosition(pos, 1, new THREE.Vector3(), true);
       expect(nodeIndex).not.toBeNull();
 
       const node = quadtree["getNodeView"](nodeIndex!);
@@ -445,12 +433,7 @@ describe("CubeSphereQuadtree > Face Coordinate Mapping", () => {
     ];
 
     for (const pos of testPositions) {
-      const nodeIndex = quadtree.findNodeAtPosition(
-        pos,
-        1,
-        new THREE.Vector3(),
-        true
-      );
+      const nodeIndex = quadtree.findNodeAtPosition(pos, 1, new THREE.Vector3(), true);
       expect(nodeIndex).not.toBeNull();
 
       const node = quadtree["getNodeView"](nodeIndex!);
@@ -471,11 +454,7 @@ describe("CubeSphereQuadtree > Face Coordinate Mapping", () => {
     ];
 
     for (const { pos, expectedFace } of testPositions) {
-      const nodeIndex = quadtree.findNodeAtPosition(
-        pos,
-        1,
-        new THREE.Vector3()
-      );
+      const nodeIndex = quadtree.findNodeAtPosition(pos, 1, new THREE.Vector3());
       expect(nodeIndex).not.toBeNull();
 
       const node = quadtree["getNodeView"](nodeIndex!);
@@ -496,13 +475,13 @@ describe("CubeSphereQuadtree > Neighbor Connections", () => {
       right: number | { face: FaceIndex; x: number; y: number };
       top: number | { face: FaceIndex; x: number; y: number };
       bottom: number | { face: FaceIndex; x: number; y: number };
-    }
+    },
   ) {
     const node = quadtree["getNodeView"](nodeIndex);
     const neighbors = node.neighbors;
 
     const resolveExpected = (
-      expected: number | { face: FaceIndex; x: number; y: number }
+      expected: number | { face: FaceIndex; x: number; y: number },
     ): number => {
       if (typeof expected === "number") return expected;
       const key = `${expected.face}:${node.level}:${expected.x}:${expected.y}`;
@@ -533,8 +512,7 @@ describe("CubeSphereQuadtree > Neighbor Connections", () => {
       const expected = {
         left: x > 0 ? children[quadrant - 1] : { face: 3, x: 1, y }, // Left face
         right: x < 1 ? children[quadrant + 1] : { face: 2, x: 0, y }, // Right face
-        top:
-          y < 1 ? children[quadrant + 2] : { face: 4, x: x, y: 0, rotation: 1 }, // Top face
+        top: y < 1 ? children[quadrant + 2] : { face: 4, x: x, y: 0, rotation: 1 }, // Top face
         bottom: y > 0 ? children[quadrant - 2] : { face: 5, x, y: 1 }, // Bottom face
       };
 
@@ -562,22 +540,16 @@ describe("CubeSphereQuadtree > Neighbor Connections", () => {
           x > 0
             ? level2Children[quadrant - 1]
             : y < 2
-            ? quadtree["indexMap"].get(`${testFace}:1:1:${y + 1}`)!
-            : { face: 4, x: 3 - y, y: 0, rotation: 0 },
-        right:
-          x < 3
-            ? level2Children[quadrant + 1]
-            : { face: 2, x: 0, y: 3 - y, rotation: 0 },
-        top:
-          y < 3
-            ? level2Children[quadrant + 2]
-            : { face: 4, x: 3 - x, y: 0, rotation: 1 },
+              ? quadtree["indexMap"].get(`${testFace}:1:1:${y + 1}`)!
+              : { face: 4, x: 3 - y, y: 0, rotation: 0 },
+        right: x < 3 ? level2Children[quadrant + 1] : { face: 2, x: 0, y: 3 - y, rotation: 0 },
+        top: y < 3 ? level2Children[quadrant + 2] : { face: 4, x: 3 - x, y: 0, rotation: 1 },
         bottom:
           y > 0
             ? level2Children[quadrant - 2]
             : x < 2
-            ? quadtree["indexMap"].get(`${testFace}:1:${x + 1}:0`)!
-            : { face: 5, x: 3 - x, y: 1, rotation: 0 },
+              ? quadtree["indexMap"].get(`${testFace}:1:${x + 1}:0`)!
+              : { face: 5, x: 3 - x, y: 1, rotation: 0 },
       };
 
       validateNeighbors(childIndex, expected);
@@ -635,7 +607,7 @@ describe("CubeSphereQuadtree > Neighbor Connections", () => {
         child.x,
         child.y,
         child.level,
-        expected.right.rotation
+        expected.right.rotation,
       );
       expect(neighbor.x).toBe(rotatedX);
       expect(neighbor.y).toBe(rotatedY);

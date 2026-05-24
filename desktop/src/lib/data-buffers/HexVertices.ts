@@ -24,11 +24,5 @@ export function generateH3VertexTexture(resolution = 4) {
     });
   });
 
-  return new DataTexture(
-    vertexData,
-    texWidth,
-    texHeight,
-    RGBAFormat,
-    FloatType
-  );
+  return new DataTexture(vertexData, texWidth, texHeight, RGBAFormat, FloatType);
 }

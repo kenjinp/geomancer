@@ -29,7 +29,7 @@ export class ShaderUtils {
     shader: Shader,
     vertexPatches: ShaderPatch[] = [],
     fragmentPatches: ShaderPatch[] = [],
-    uniforms: { [uniform: string]: IUniform } = {}
+    uniforms: { [uniform: string]: IUniform } = {},
   ): void {
     // Add custom uniforms
     Object.keys(uniforms).forEach((key) => {
@@ -56,17 +56,11 @@ export class ShaderUtils {
 
     // Insert global definitions at the beginning of shaders
     if (vertexDefinitions) {
-      shader.vertexShader = this.insertAfterVersion(
-        shader.vertexShader,
-        vertexDefinitions
-      );
+      shader.vertexShader = this.insertAfterVersion(shader.vertexShader, vertexDefinitions);
     }
 
     if (fragmentDefinitions) {
-      shader.fragmentShader = this.insertAfterVersion(
-        shader.fragmentShader,
-        fragmentDefinitions
-      );
+      shader.fragmentShader = this.insertAfterVersion(shader.fragmentShader, fragmentDefinitions);
     }
 
     // Apply remaining vertex patches
@@ -76,7 +70,7 @@ export class ShaderUtils {
           shader.vertexShader,
           patch.chunk,
           patch.glsl,
-          patch.mode
+          patch.mode,
         );
       }
     }
@@ -88,7 +82,7 @@ export class ShaderUtils {
           shader.fragmentShader,
           patch.chunk,
           patch.glsl,
-          patch.mode
+          patch.mode,
         );
       }
     }
@@ -116,7 +110,7 @@ export class ShaderUtils {
     shader: string,
     chunk: string,
     glsl: string,
-    mode: "replace" | "before" | "after"
+    mode: "replace" | "before" | "after",
   ): string {
     // Handle special cases for simpler chunks
     if (chunk === "void main() {") {
@@ -125,8 +119,8 @@ export class ShaderUtils {
         mode === "replace"
           ? glsl
           : mode === "before"
-          ? glsl + "\nvoid main() {"
-          : "void main() {\n" + glsl
+            ? glsl + "\nvoid main() {"
+            : "void main() {\n" + glsl,
       );
     }
 
@@ -138,8 +132,8 @@ export class ShaderUtils {
         mode === "replace"
           ? glsl
           : mode === "before"
-          ? glsl + "\n" + includePattern
-          : includePattern + "\n" + glsl
+            ? glsl + "\n" + includePattern
+            : includePattern + "\n" + glsl,
       );
     }
 
@@ -147,11 +141,7 @@ export class ShaderUtils {
     if (shader.includes(chunk)) {
       return shader.replace(
         chunk,
-        mode === "replace"
-          ? glsl
-          : mode === "before"
-          ? glsl + "\n" + chunk
-          : chunk + "\n" + glsl
+        mode === "replace" ? glsl : mode === "before" ? glsl + "\n" + chunk : chunk + "\n" + glsl,
       );
     }
 

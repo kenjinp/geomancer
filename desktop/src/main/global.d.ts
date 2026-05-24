@@ -5,8 +5,8 @@
  */
 
 declare global {
-	const MAIN_WINDOW_VITE_DEV_SERVER_URL
-	const MAIN_WINDOW_VITE_NAME
+  const MAIN_WINDOW_VITE_DEV_SERVER_URL;
+  const MAIN_WINDOW_VITE_NAME;
 }
 
-export {}
+export {};

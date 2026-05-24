@@ -14,10 +14,7 @@ interface WelcomeModalProps {
   onClose?: () => void;
 }
 
-export function WelcomeModal({
-  isOpen: externalIsOpen,
-  onClose,
-}: WelcomeModalProps) {
+export function WelcomeModal({ isOpen: externalIsOpen, onClose }: WelcomeModalProps) {
   // Internal state to handle the modal if no external control is provided
   const [internalIsOpen, setInternalIsOpen] = useState(true);
 
@@ -61,36 +58,33 @@ export function WelcomeModal({
       <ModalContent className="bg-background text-foreground">
         {(onClose) => (
           <>
-            <ModalHeader className="flex flex-col gap-1">
-              Welcome to Geomancer
-            </ModalHeader>
+            <ModalHeader className="flex flex-col gap-1">Welcome to Geomancer</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
               <h1 className="text-xl font-bold">
-                Hello! This is Geomancer, a project that aims to be a Google
-                Earth for your fantasy worlds.
+                Hello! This is Geomancer, a project that aims to be a Google Earth for your fantasy
+                worlds.
               </h1>
               <div className="flex flex-col gap-4">
                 <h2 className="text-lg font-bold">Features</h2>
                 <p>
-                  You will be able to generate verisimilitudinous terrains,
-                  fantastic worlds in many shapes (donuts, halos, diskworlds),
-                  edit them, and place searchable points of interest.
+                  You will be able to generate verisimilitudinous terrains, fantastic worlds in many
+                  shapes (donuts, halos, diskworlds), edit them, and place searchable points of
+                  interest.
                 </p>
                 <p>
-                  Dungeonmasters will be able to download regional and local
-                  maps, and share multiplayer links with their players.
+                  Dungeonmasters will be able to download regional and local maps, and share
+                  multiplayer links with their players.
                 </p>
                 <p>
-                  It will be distributed via Steam and the web, but for now you
-                  can find it on this subdomain.
+                  It will be distributed via Steam and the web, but for now you can find it on this
+                  subdomain.
                 </p>
               </div>
 
               <div className="flex flex-col gap-4">
                 <h2 className="text-lg font-bold">News</h2>
                 <p>
-                  Recently I've added some map modes that you can play with, as
-                  well as shadows.
+                  Recently I've added some map modes that you can play with, as well as shadows.
                 </p>
                 <p>Next up, I'll be working on tectonic plate collisions</p>
               </div>
@@ -100,12 +94,7 @@ export function WelcomeModal({
               </Link>
             </ModalBody>
             <ModalFooter>
-              <Button
-                color="primary"
-                variant="solid"
-                onPress={onClose}
-                className="text-foreground"
-              >
+              <Button color="primary" variant="solid" onPress={onClose} className="text-foreground">
                 Explore
               </Button>
             </ModalFooter>

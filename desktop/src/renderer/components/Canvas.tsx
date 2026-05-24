@@ -44,9 +44,7 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
       <Suspense fallback={null}>
         <Post>
           <SpaceBox />
-          <group
-            scale={new Vector3(1, 1, 1).multiplyScalar(AU).multiplyScalar(10)}
-          >
+          <group scale={new Vector3(1, 1, 1).multiplyScalar(AU).multiplyScalar(10)}>
             <Stars saturation={1} count={10_000} />
           </group>
 

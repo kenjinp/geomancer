@@ -30,7 +30,7 @@ export class CubicCoordinates {
   constructor(
     public face: number = 0,
     public u: number = 0,
-    public v: number = 0
+    public v: number = 0,
   ) {}
 
   /**
@@ -111,7 +111,7 @@ export class CubicCoordinates {
   static latLongToCubeUV(
     latLong: LatLong,
     radius: number = 1,
-    target: CubicCoordinates = new CubicCoordinates()
+    target: CubicCoordinates = new CubicCoordinates(),
   ): CubicCoordinates {
     // Convert lat/long to 3D direction vector
     const vec = tempVector;
@@ -181,13 +181,9 @@ export class CubicCoordinates {
    */
   static fromDirection(
     direction: Vector3,
-    target: CubicCoordinates = new CubicCoordinates()
+    target: CubicCoordinates = new CubicCoordinates(),
   ): CubicCoordinates {
-    return this.latLongToCubeUV(
-      LatLong.cartesianToLatLong(direction),
-      1,
-      target
-    );
+    return this.latLongToCubeUV(LatLong.cartesianToLatLong(direction), 1, target);
   }
 
   /**
@@ -198,7 +194,7 @@ export class CubicCoordinates {
    */
   static fromLatLong(
     latLong: LatLong,
-    target: CubicCoordinates = new CubicCoordinates()
+    target: CubicCoordinates = new CubicCoordinates(),
   ): CubicCoordinates {
     return this.latLongToCubeUV(latLong, 1, target);
   }

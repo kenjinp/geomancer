@@ -1,24 +1,24 @@
 // from https://github.com/seymen/git-last-commit
-import { execSync } from "child_process"
+import { execSync } from "child_process";
 
-const splitCharacter = "<##>"
+const splitCharacter = "<##>";
 
-type CommitInfoOptions = { dst?: string }
+type CommitInfoOptions = { dst?: string };
 
 const executeCommand = (command: string, options?: CommitInfoOptions) => {
-  let dst = __dirname
+  let dst = __dirname;
 
   if (!!options && options.dst) {
-    dst = options.dst
+    dst = options.dst;
   }
 
-  const stdout = execSync(command, { cwd: dst }).toString()
+  const stdout = execSync(command, { cwd: dst }).toString();
   if (stdout === "") {
-    return
+    return;
   }
 
-  return stdout
-}
+  return stdout;
+};
 
 const prettyFormat = [
   "%h",
@@ -34,26 +34,26 @@ const prettyFormat = [
   "%ce",
   "%N",
   "",
-]
+];
 
 const getCommandString = (splitCharacter: string) =>
   'git log -1 --pretty=format:"' +
   prettyFormat.join(splitCharacter) +
   '"' +
   " && git rev-parse --abbrev-ref HEAD" +
-  " && git tag --contains HEAD"
+  " && git tag --contains HEAD";
 
 export const getLastCommit = (options: CommitInfoOptions) => {
-  const command = getCommandString(splitCharacter)
+  const command = getCommandString(splitCharacter);
 
-  const res = executeCommand(command, options) as string
+  const res = executeCommand(command, options) as string;
 
-  const a = res.split(splitCharacter)
+  const a = res.split(splitCharacter);
 
   // e.g. master\n or master\nv1.1\n or master\nv1.1\nv1.2\n
-  const branchAndTags = a[a.length - 1].split("\n").filter(n => n)
-  const branch = branchAndTags[0]
-  const tags = branchAndTags.slice(1)
+  const branchAndTags = a[a.length - 1].split("\n").filter((n) => n);
+  const branch = branchAndTags[0];
+  const tags = branchAndTags.slice(1);
 
   return {
     shortHash: a[0],
@@ -74,5 +74,5 @@ export const getLastCommit = (options: CommitInfoOptions) => {
     notes: a[11],
     branch,
     tags,
-  }
-}
+  };
+};

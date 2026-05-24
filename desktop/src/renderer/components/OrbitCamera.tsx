@@ -27,9 +27,7 @@ interface AnimationState {
   duration: number;
 }
 
-export const OrbitCamera: React.FC<
-  React.PropsWithChildren<OrbitCameraProps>
-> = ({
+export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = ({
   planetRadius,
   planetPosition = new Vector3(),
   maxAltitudeOffset = 100,
@@ -54,8 +52,7 @@ export const OrbitCamera: React.FC<
 
   React.useEffect(() => {
     camera.position.copy(
-      defaultCameraPosition ||
-        new Vector3(planetRadius * 1.5, 0, planetRadius * 1.5)
+      defaultCameraPosition || new Vector3(planetRadius * 1.5, 0, planetRadius * 1.5),
     );
   }, [planetRadius]);
 
@@ -67,24 +64,20 @@ export const OrbitCamera: React.FC<
       orbitControls.current.enabled = false;
 
       // Calculate current distance from planet surface
-      const currentDistance =
-        camera.position.distanceTo(planetPosition) - planetRadius;
+      const currentDistance = camera.position.distanceTo(planetPosition) - planetRadius;
 
       // Calculate target camera position
-      const directionToTarget = targetPoint
-        .clone()
-        .sub(planetPosition)
-        .normalize();
+      const directionToTarget = targetPoint.clone().sub(planetPosition).normalize();
       const targetPosition = directionToTarget
         .multiplyScalar(planetRadius + currentDistance)
         .add(planetPosition);
 
       // Calculate spherical coordinates
       const startSpherical = new Spherical().setFromVector3(
-        camera.position.clone().sub(planetPosition)
+        camera.position.clone().sub(planetPosition),
       );
       const targetSpherical = new Spherical().setFromVector3(
-        targetPosition.clone().sub(planetPosition)
+        targetPosition.clone().sub(planetPosition),
       );
 
       // Set up animation state
@@ -98,7 +91,7 @@ export const OrbitCamera: React.FC<
         duration,
       };
     },
-    [planetPosition, planetRadius]
+    [planetPosition, planetRadius],
   );
 
   window.moveToTarget = moveToTarget;
@@ -154,7 +147,7 @@ export const OrbitCamera: React.FC<
       camera.position.lerpVectors(
         animation.current.startPosition,
         animation.current.targetPosition,
-        t
+        t,
       );
 
       // Interpolate rotation
@@ -162,18 +155,18 @@ export const OrbitCamera: React.FC<
         MathUtils.lerp(
           animation.current.startRotation.radius,
           animation.current.targetRotation.radius,
-          t
+          t,
         ),
         MathUtils.lerp(
           animation.current.startRotation.phi,
           animation.current.targetRotation.phi,
-          t
+          t,
         ),
         MathUtils.lerp(
           animation.current.startRotation.theta,
           animation.current.targetRotation.theta,
-          t
-        )
+          t,
+        ),
       );
 
       // Update camera rotation
@@ -182,13 +175,12 @@ export const OrbitCamera: React.FC<
       camera.lookAt(planetPosition);
     } else {
       // Normal orbit controls behavior
-      altitude.current =
-        camera.position.distanceTo(planetPosition) - planetRadius || 0;
+      altitude.current = camera.position.distanceTo(planetPosition) - planetRadius || 0;
       orbitControls.current.zoomSpeed = easeOutExpo(
-        altitude.current / orbitControls.current.maxDistance
+        altitude.current / orbitControls.current.maxDistance,
       );
       orbitControls.current.rotateSpeed = quadtratic(
-        altitude.current / orbitControls.current.maxDistance
+        altitude.current / orbitControls.current.maxDistance,
       );
     }
   });

@@ -31,7 +31,7 @@ export class ContinentalGrowth {
       seedPercentage: number;
       landPercentage: number;
       growthProbability: number;
-    }
+    },
   ) {
     this.totalCells = HexGrid.getNumCells(this.tileBuffer.resolution);
     this.targetLandCells = Math.floor(this.totalCells * config.landPercentage);
@@ -47,15 +47,9 @@ export class ContinentalGrowth {
       seedPercentage: number;
       landPercentage: number;
       growthProbability: number;
-    }
+    },
   ): Promise<ContinentalGrowth> {
-    const instance = new ContinentalGrowth(
-      plates,
-      tileBuffer,
-      neighborMap,
-      positionMap,
-      config
-    );
+    const instance = new ContinentalGrowth(plates, tileBuffer, neighborMap, positionMap, config);
     await instance.initialize();
     return instance;
   }
@@ -107,10 +101,7 @@ export class ContinentalGrowth {
     // Crust type buffer (maps to tile buffer's integer texture)
     this.crustTypeBuffer = this.device.createBuffer({
       size: this.totalCells * 4,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
 
     // Frontier buffers
@@ -123,20 +114,14 @@ export class ContinentalGrowth {
     // Uniform buffer
     this.uniformBuffer = this.device.createBuffer({
       size: 12, // u32 (4) + u32 (4) + f32 (4) = 12 bytes
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
   }
 
   private createFrontierBuffer(size: number): GPUBuffer {
     return this.device.createBuffer({
       size: 4 + size * 8,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
   }
 
@@ -210,19 +195,13 @@ export class ContinentalGrowth {
   private async initializeSeeds() {
     // Select plates
     const allPlates = this.getUniquePlates();
-    const selectedPlates = this.selectRandomSubset(
-      allPlates,
-      this.config.platePercentage
-    );
+    const selectedPlates = this.selectRandomSubset(allPlates, this.config.platePercentage);
 
     // Select seeds within plates
     const seedIndices: number[] = [];
     for (const plate of selectedPlates) {
       const plateCells = this.getCellsForPlate(plate);
-      const seeds = this.selectRandomSubset(
-        plateCells,
-        this.config.seedPercentage
-      );
+      const seeds = this.selectRandomSubset(plateCells, this.config.seedPercentage);
       seedIndices.push(...seeds);
     }
 
@@ -238,11 +217,7 @@ export class ContinentalGrowth {
     // Initialize crust types for seeds
     const crustTypeData = new Uint32Array(this.totalCells).fill(0);
     seedIndices.forEach((idx) => (crustTypeData[idx] = 1));
-    this.device.queue.writeBuffer(
-      this.crustTypeBuffer,
-      0,
-      crustTypeData.buffer
-    );
+    this.device.queue.writeBuffer(this.crustTypeBuffer, 0, crustTypeData.buffer);
 
     // Initialize uniform buffer
     const uniformData = new ArrayBuffer(12);
@@ -267,9 +242,7 @@ export class ContinentalGrowth {
 
   private selectRandomSubset<T>(items: T[], percentage: number): T[] {
     const count = Math.ceil(items.length * percentage);
-    const shuffled = [...items].sort(
-      () => getState().random.seededRandom.next() - 0.5
-    );
+    const shuffled = [...items].sort(() => getState().random.seededRandom.next() - 0.5);
     return shuffled.slice(0, count);
   }
 
@@ -278,10 +251,7 @@ export class ContinentalGrowth {
     const h3Cells = HexGrid.allNodes(this.tileBuffer.resolution);
     h3Cells.forEach((cell) => {
       const idx = HexGrid.getIndex(cell);
-      if (
-        idx !== undefined &&
-        this.tileBuffer.readTileData(idx).tectonicPlate === plateId
-      ) {
+      if (idx !== undefined && this.tileBuffer.readTileData(idx).tectonicPlate === plateId) {
         cells.push(idx);
       }
     });
@@ -299,7 +269,7 @@ export class ContinentalGrowth {
       this.device.queue.writeBuffer(
         this.frontierBuffers[1 - currentFrontier],
         0,
-        new Uint32Array([0])
+        new Uint32Array([0]),
       );
 
       const encoder = this.device.createCommandEncoder();
@@ -336,13 +306,7 @@ export class ContinentalGrowth {
     });
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.frontierBuffers[bufferIndex],
-      0,
-      readbackBuffer,
-      0,
-      4
-    );
+    encoder.copyBufferToBuffer(this.frontierBuffers[bufferIndex], 0, readbackBuffer, 0, 4);
     this.device.queue.submit([encoder.finish()]);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
@@ -379,7 +343,7 @@ export class ContinentalGrowth {
       0,
       readbackBuffer,
       0,
-      this.crustTypeBuffer.size
+      this.crustTypeBuffer.size,
     );
     this.device.queue.submit([encoder.finish()]);
 
@@ -411,9 +375,7 @@ export class ContinentalGrowth {
       "large_igneous",
       "extended",
     ];
-    return subtypes[
-      Math.floor(getState().random.seededRandom.next() * subtypes.length)
-    ];
+    return subtypes[Math.floor(getState().random.seededRandom.next() * subtypes.length)];
   }
 
   public destroy() {

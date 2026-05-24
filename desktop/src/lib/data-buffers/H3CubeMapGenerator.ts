@@ -1,12 +1,6 @@
 import { decode, encode } from "@jsquash/webp";
 import * as h3 from "h3-js";
-import {
-  CubeTexture,
-  DataTexture,
-  NearestFilter,
-  RGBAFormat,
-  UnsignedByteType,
-} from "three";
+import { CubeTexture, DataTexture, NearestFilter, RGBAFormat, UnsignedByteType } from "three";
 
 import { CubicCoordinates } from "../coordinate-systems/cube-projection/CubicCoordinates";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
@@ -46,7 +40,7 @@ export class H3CubeMapGenerator {
     const allIndices = HexGrid.allNodes(resolution);
     if (allIndices.length > 16777215) {
       throw new Error(
-        `H3 resolution ${resolution} produces too many indices (${allIndices.length}) for 24-bit color encoding`
+        `H3 resolution ${resolution} produces too many indices (${allIndices.length}) for 24-bit color encoding`,
       );
     }
 
@@ -58,7 +52,7 @@ export class H3CubeMapGenerator {
           const cubicCoords = new CubicCoordinates(
             face,
             (x + 0.5) / faceSize,
-            (y + 0.5) / faceSize
+            (y + 0.5) / faceSize,
           );
           const latLong = cubicCoords.toLatLong();
           const h3Index = h3.latLngToCell(latLong.lat, latLong.lon, resolution);
@@ -128,11 +122,7 @@ export class H3CubeMapGenerator {
           const { data, width, height } = image;
 
           try {
-            const imageData = new ImageData(
-              new Uint8ClampedArray(data),
-              width,
-              height
-            );
+            const imageData = new ImageData(new Uint8ClampedArray(data), width, height);
 
             const webpData = await encode(imageData, {
               quality: 100,
@@ -151,7 +141,7 @@ export class H3CubeMapGenerator {
           } catch (error) {
             console.error(`Error saving face ${index} as WebP:`, error);
           }
-        })
+        }),
       );
     } catch (error) {
       console.error("Failed to initialize WebP encoder:", error);
@@ -201,9 +191,7 @@ export class H3CubeMapGenerator {
     });
   }
 
-  public static async loadFromWebPFiles(
-    urls: string[]
-  ): Promise<H3CubeMapGenerator> {
+  public static async loadFromWebPFiles(urls: string[]): Promise<H3CubeMapGenerator> {
     const faceBuffers = await Promise.all(
       urls.map(async (url) => {
         const response = await fetch(url);
@@ -214,7 +202,7 @@ export class H3CubeMapGenerator {
           width: decoded.width,
           height: decoded.height,
         };
-      })
+      }),
     );
 
     const faceSize = faceBuffers[0].width;
@@ -242,7 +230,7 @@ export class H3CubeMapGenerator {
           width: decoded.width,
           height: decoded.height,
         };
-      })
+      }),
     );
 
     const faceSize = faceBuffers[0].width;
@@ -264,16 +252,13 @@ export class H3CubeMapGenerator {
 
     for (let face = 0; face < 6; face++) {
       const offset = face * faceSize * faceSize * 4;
-      const faceData = this.cubeRgba.subarray(
-        offset,
-        offset + faceSize * faceSize * 4
-      );
+      const faceData = this.cubeRgba.subarray(offset, offset + faceSize * faceSize * 4);
       const dataTexture = new DataTexture(
         faceData,
         faceSize,
         faceSize,
         RGBAFormat,
-        UnsignedByteType
+        UnsignedByteType,
       );
       dataTexture.minFilter = NearestFilter;
       dataTexture.magFilter = NearestFilter;

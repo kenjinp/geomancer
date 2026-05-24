@@ -23,7 +23,7 @@ export class ThermalErosionSimulator {
   constructor(
     private tileBuffer: HexTileBuffer,
     private neighborMap: Float32Array | Uint32Array,
-    private config: ThermalErosionConfig
+    private config: ThermalErosionConfig,
   ) {
     // Debug: Log erosion parameters
     console.log("Thermal erosion parameters:", {
@@ -38,13 +38,9 @@ export class ThermalErosionSimulator {
   public static async create(
     tileBuffer: HexTileBuffer,
     neighborMap: Float32Array | Uint32Array,
-    config: ThermalErosionConfig
+    config: ThermalErosionConfig,
   ): Promise<ThermalErosionSimulator> {
-    const instance = new ThermalErosionSimulator(
-      tileBuffer,
-      neighborMap,
-      config
-    );
+    const instance = new ThermalErosionSimulator(tileBuffer, neighborMap, config);
     await instance.initialize();
     return instance;
   }
@@ -182,7 +178,7 @@ export class ThermalErosionSimulator {
           0,
           this.elevationBuffer,
           0,
-          totalCells * 4
+          totalCells * 4,
         );
         this.device.queue.submit([copyEncoder.finish()]);
       }
@@ -201,13 +197,7 @@ export class ThermalErosionSimulator {
     });
 
     const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(
-      this.outputBuffer,
-      0,
-      readbackBuffer,
-      0,
-      alignedBufferSize
-    );
+    encoder.copyBufferToBuffer(this.outputBuffer, 0, readbackBuffer, 0, alignedBufferSize);
     this.device.queue.submit([encoder.finish()]);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
@@ -216,7 +206,7 @@ export class ThermalErosionSimulator {
     // Validate buffer size
     if (elevations.length < totalCells) {
       throw new Error(
-        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`
+        `Elevation buffer size mismatch. Expected at least ${totalCells} elements, got ${elevations.length}`,
       );
     }
 
@@ -234,11 +224,8 @@ export class ThermalErosionSimulator {
   }
 
   public destroy() {
-    [
-      this.elevationBuffer,
-      this.neighborBuffer,
-      this.outputBuffer,
-      this.uniformBuffer,
-    ].forEach((b) => b.destroy());
+    [this.elevationBuffer, this.neighborBuffer, this.outputBuffer, this.uniformBuffer].forEach(
+      (b) => b.destroy(),
+    );
   }
 }

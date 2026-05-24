@@ -5,7 +5,9 @@ import glsl from "vite-plugin-glsl";
 // import topLevelAwait from "vite-plugin-top-level-await";
 import react from "@vitejs/plugin-react-swc";
 import tsconfigPaths from "vite-tsconfig-paths";
+
 import { getLastCommit } from "./commit-info";
+
 const commitInfo = getLastCommit({});
 
 // https://vitejs.dev/config

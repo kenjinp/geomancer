@@ -82,9 +82,7 @@ export function TerrainRenderer({
     instancerRef.current.update(camera);
     instancerRef.current.setSelectedTile(hoveredHexTileIndex.current);
 
-    const latLong = LatLong.cartesianToLatLong(
-      sphereWorldPosition.current.normalize()
-    );
+    const latLong = LatLong.cartesianToLatLong(sphereWorldPosition.current.normalize());
 
     const mouseFollower = document.getElementById("mouse-follower");
     if (mouseFollower) {
@@ -94,16 +92,12 @@ export function TerrainRenderer({
       }
       const state = getState();
       const hexTileBuffer = state.buffers.hexTileBuffer;
-      const hexTileData = hexTileBuffer.readTileData(
-        hoveredHexTileIndex.current
-      );
+      const hexTileData = hexTileBuffer.readTileData(hoveredHexTileIndex.current);
 
       const hashColor = integerToRGB(hoveredHexTileIndex.current);
       const hashColorString = hashColor.join(",");
       const hashColorRGB = `rgb(${hashColorString})`;
-      const elevation = makeHumanReadableMeters(
-        remap(hexTileData.elevation, -1, 1, -8_000, 8_000)
-      );
+      const elevation = makeHumanReadableMeters(remap(hexTileData.elevation, -1, 1, -8_000, 8_000));
       mouseFollower.innerHTML = hovering
         ? `
       <div class="latlong text-small bg-background/20 p-2 rounded-md">

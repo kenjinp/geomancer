@@ -24,9 +24,7 @@ export async function createWindow() {
   // Get the resolution of the current screen.
   const display = screen.getPrimaryDisplay();
 
-  const backgroundColor = await configStore.get(
-    "settings::color::mainBackground"
-  );
+  const backgroundColor = await configStore.get("settings::color::mainBackground");
 
   const mainWindow = new BrowserWindow({
     autoHideMenuBar: true,
@@ -75,13 +73,7 @@ export async function createWindow() {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(
-      path.join(
-        __dirname,
-        "..",
-        "renderer",
-        MAIN_WINDOW_VITE_NAME,
-        "index.html"
-      )
+      path.join(__dirname, "..", "renderer", MAIN_WINDOW_VITE_NAME, "index.html"),
     );
   }
 

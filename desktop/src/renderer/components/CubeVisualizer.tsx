@@ -53,10 +53,7 @@ const CubeFaceMesh: React.FC<CubeFaceMeshProps> = ({ face }) => {
     const indices = [0, 1, 2, 0, 2, 3];
 
     const geom = new THREE.BufferGeometry();
-    geom.setAttribute(
-      "position",
-      new THREE.BufferAttribute(new Float32Array(vertices), 3)
-    );
+    geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(vertices), 3));
     geom.setIndex(indices);
     geom.computeVertexNormals();
     return geom;
@@ -76,17 +73,12 @@ const CubeFaceMesh: React.FC<CubeFaceMeshProps> = ({ face }) => {
     const normal = center.clone().normalize();
     // Adjust this value to offset the text further from the face if desired.
     const offsetDistance = 0.15;
-    const textPosition = center
-      .clone()
-      .add(normal.clone().multiplyScalar(offsetDistance));
+    const textPosition = center.clone().add(normal.clone().multiplyScalar(offsetDistance));
 
     // The default Text front is assumed to be along +Z.
     // Compute a quaternion to rotate from +Z to the computed face normal.
     const defaultFront = new THREE.Vector3(0, 0, 1);
-    const textQuaternion = new THREE.Quaternion().setFromUnitVectors(
-      defaultFront,
-      normal
-    );
+    const textQuaternion = new THREE.Quaternion().setFromUnitVectors(defaultFront, normal);
 
     return { textPosition, textQuaternion };
   }, [center]);

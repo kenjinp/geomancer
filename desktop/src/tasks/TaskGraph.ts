@@ -32,9 +32,7 @@ const loadBuffers = dag.task("loadBuffers", async (ctx) => {
     console.log("loading neighbor map");
     await buffers.hexNeighborMap.loadFromWebP("textures/hex/neighbor-map.webp");
     console.log("loading position map");
-    await buffers.hexPositionMap.loadFromBinary(
-      "textures/hex/position-map.bin"
-    );
+    await buffers.hexPositionMap.loadFromBinary("textures/hex/position-map.bin");
     console.log("buffers loaded ");
     setState({
       buffers: {
@@ -76,7 +74,7 @@ const generatePlateHexBuffers = dag.task(
           4,
           ctx.buffers.hexTileBuffer,
           ctx.buffers.hexNeighborMap,
-          generatePlates.output
+          generatePlates.output,
         )
       ).hexTileBuffer;
       console.log("plate hex buffers generated");
@@ -88,7 +86,7 @@ const generatePlateHexBuffers = dag.task(
     }
     return ctx;
   },
-  [loadBuffers, generatePlates]
+  [loadBuffers, generatePlates],
 );
 
 // const generateContinentalData = dag.task(
@@ -113,6 +111,7 @@ const generateTerrainElevations = dag.task(
   "generateTerrainElevations",
   async (ctx) => {
     return ctx;
+    // oxlint-disable-next-line no-unreachable -- WIP: implementation kept for reactivation
     try {
       const elevationGen = await TerrainElevationGenerator.create(
         ctx.buffers.hexTileBuffer,
@@ -124,7 +123,7 @@ const generateTerrainElevations = dag.task(
           warpStrength: 0.6,
           baseStrength: 0.4,
           seed: getState().random.seed,
-        }
+        },
       );
 
       await elevationGen.generateElevations();
@@ -134,7 +133,7 @@ const generateTerrainElevations = dag.task(
       console.error(error);
     }
   },
-  [generatePlateHexBuffers, generatePlates]
+  [generatePlateHexBuffers, generatePlates],
 );
 
 const generateThermalErosion = dag.task(
@@ -142,6 +141,7 @@ const generateThermalErosion = dag.task(
   async (ctx) => {
     // skip
     return ctx;
+    // oxlint-disable-next-line no-unreachable -- WIP: implementation kept for reactivation
     try {
       console.log("applying thermal erosion");
 
@@ -161,7 +161,7 @@ const generateThermalErosion = dag.task(
       const erosion = await ThermalErosionSimulator.create(
         hexTileBuffer,
         new Uint32Array(hexNeighborMap.texture.image.data.buffer),
-        erosionParams
+        erosionParams,
       );
 
       // Apply the erosion
@@ -179,7 +179,7 @@ const generateThermalErosion = dag.task(
       return ctx;
     }
   },
-  [generateTerrainElevations]
+  [generateTerrainElevations],
 );
 
 // Registered with the DAG via side effect of `dag.task`. The local binding is
@@ -189,6 +189,7 @@ const _generateHydraulicErosion = dag.task(
   async (ctx) => {
     // skip
     return ctx;
+    // oxlint-disable-next-line no-unreachable -- WIP: implementation kept for reactivation
     try {
       console.log("applying hydraulic erosion");
 
@@ -210,7 +211,7 @@ const _generateHydraulicErosion = dag.task(
       const erosion = await HydraulicErosionSimulator.create(
         hexTileBuffer,
         new Uint32Array(hexNeighborMap.texture.image.data.buffer),
-        erosionParams
+        erosionParams,
       );
 
       // Apply the erosion
@@ -228,7 +229,7 @@ const _generateHydraulicErosion = dag.task(
       return ctx;
     }
   },
-  [generateThermalErosion]
+  [generateThermalErosion],
 );
 
 //  When any input changes, we run the dag

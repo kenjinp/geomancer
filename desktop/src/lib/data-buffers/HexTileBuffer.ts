@@ -1,10 +1,4 @@
-import {
-  DataTexture,
-  FloatType,
-  RGBAFormat,
-  RGBAIntegerFormat,
-  UnsignedIntType,
-} from "three";
+import { DataTexture, FloatType, RGBAFormat, RGBAIntegerFormat, UnsignedIntType } from "three";
 
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
@@ -66,7 +60,7 @@ export class HexTileBuffer {
       this.textureSize.width,
       this.textureSize.height,
       RGBAIntegerFormat,
-      UnsignedIntType
+      UnsignedIntType,
     );
 
     // Create float buffer and texture
@@ -77,7 +71,7 @@ export class HexTileBuffer {
       this.textureSize.width,
       this.textureSize.height,
       RGBAFormat,
-      FloatType
+      FloatType,
     );
   }
 
@@ -109,24 +103,18 @@ export class HexTileBuffer {
 
     // validate values
     if (tectonicPlate < 0 || tectonicPlate > 255) {
-      throw new Error(
-        `Tectonic plate must be between 0 and 255, got ${tectonicPlate}`
-      );
+      throw new Error(`Tectonic plate must be between 0 and 255, got ${tectonicPlate}`);
     }
     if (annualPrecipitation < 0 || annualPrecipitation > 5000) {
       throw new Error(
-        `Annual precipitation must be between 0 and 5000, got ${annualPrecipitation}`
+        `Annual precipitation must be between 0 and 5000, got ${annualPrecipitation}`,
       );
     }
     if (annualTemperature < -50 || annualTemperature > 50) {
-      throw new Error(
-        `Annual temperature must be between -50 and 50, got ${annualTemperature}`
-      );
+      throw new Error(`Annual temperature must be between -50 and 50, got ${annualTemperature}`);
     }
     if (evapotranspiration < 0 || evapotranspiration > 1) {
-      throw new Error(
-        `Evapotranspiration must be between 0 and 1, got ${evapotranspiration}`
-      );
+      throw new Error(`Evapotranspiration must be between 0 and 1, got ${evapotranspiration}`);
     }
     if (elevation < -1 || elevation > 1) {
       throw new Error(`Elevation must be between -1 and 1, got ${elevation}`);
@@ -135,29 +123,15 @@ export class HexTileBuffer {
     // Update integer texture data
     const intBaseIndex = tileIndex * 4;
     this.intBufferData[intBaseIndex] = tectonicPlate;
-    this.intBufferData[intBaseIndex + 1] = this.encodeCrustData(
-      crustType,
-      crustSubtype
-    );
-    this.intBufferData[intBaseIndex + 2] = this.encodeBiomeData(
-      biome,
-      hasHotSpot
-    );
+    this.intBufferData[intBaseIndex + 1] = this.encodeCrustData(crustType, crustSubtype);
+    this.intBufferData[intBaseIndex + 2] = this.encodeBiomeData(biome, hasHotSpot);
     this.intBufferData[intBaseIndex + 3] = 0; // Reserved for future use
 
     // Update float texture data
     const floatBaseIndex = tileIndex * 4;
     this.floatBufferData[floatBaseIndex] = evapotranspiration;
-    this.floatBufferData[floatBaseIndex + 1] = this.normalizeValue(
-      annualPrecipitation,
-      0,
-      5000
-    );
-    this.floatBufferData[floatBaseIndex + 2] = this.normalizeValue(
-      annualTemperature,
-      -50,
-      50
-    );
+    this.floatBufferData[floatBaseIndex + 1] = this.normalizeValue(annualPrecipitation, 0, 5000);
+    this.floatBufferData[floatBaseIndex + 2] = this.normalizeValue(annualTemperature, -50, 50);
     this.floatBufferData[floatBaseIndex + 3] = elevation; // Store elevation in the previously reserved slot
 
     this.intTexture.needsUpdate = true;
@@ -182,9 +156,7 @@ export class HexTileBuffer {
     return {
       tectonicPlate: this.intBufferData[intBaseIndex],
       crustType: this.decodeCrustData(this.intBufferData[intBaseIndex + 1]),
-      crustSubtype: this.decodeCrustSubtype(
-        this.intBufferData[intBaseIndex + 1]
-      ),
+      crustSubtype: this.decodeCrustSubtype(this.intBufferData[intBaseIndex + 1]),
       evapotranspiration: this.floatBufferData[floatBaseIndex],
       annualPrecipitation: this.floatBufferData[floatBaseIndex + 1],
       annualTemperature: this.floatBufferData[floatBaseIndex + 2],
