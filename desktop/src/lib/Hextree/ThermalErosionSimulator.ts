@@ -1,7 +1,7 @@
+import thermalErosionShader from "./shaders/ThermalErosion.wgsl";
+import { GPUDevice } from "./WebGPU";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { GPUDevice } from "./WebGPU";
-import thermalErosionShader from "./shaders/ThermalErosion.wgsl";
 
 export interface ThermalErosionConfig {
   iterations: number; // Number of erosion passes

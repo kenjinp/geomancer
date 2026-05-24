@@ -1,4 +1,5 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from "three";
+
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
 type PositionMapMetadata = {
@@ -97,38 +98,32 @@ export class HexPositionMapGenerator {
     url: string,
     resolution: number
   ): Promise<HexPositionMapGenerator> {
-    try {
-      const response = await fetch(url);
-      const buffer = await response.arrayBuffer();
-      const view = new DataView(buffer);
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
+    const view = new DataView(buffer);
 
-      // Validate magic number
-      if (view.getUint32(0) !== this.FILE_MAGIC) {
-        throw new Error("Invalid position map file format");
-      }
-
-      // Read header
-      const version = view.getUint32(4);
-      const width = view.getUint32(8);
-      const height = view.getUint32(12);
-
-      if (version !== this.VERSION) {
-        throw new Error(`Unsupported version: ${version}`);
-      }
-
-      const generator = new HexPositionMapGenerator(resolution);
-      generator.metadata.width = width;
-      generator.metadata.height = height;
-
-      // Read float data
-      const headerSize = 16;
-      generator.textureData = new Float32Array(buffer.slice(headerSize));
-      generator.texture = generator.createTexture();
-
-      return generator;
-    } catch (error) {
-      throw error;
+    if (view.getUint32(0) !== this.FILE_MAGIC) {
+      throw new Error("Invalid position map file format");
     }
+
+    const version = view.getUint32(4);
+    const width = view.getUint32(8);
+    const height = view.getUint32(12);
+
+    if (version !== this.VERSION) {
+      throw new Error(`Unsupported version: ${version}`);
+    }
+
+    const generator = new HexPositionMapGenerator(resolution);
+    generator.metadata.width = width;
+    generator.metadata.height = height;
+
+    // Read float data
+    const headerSize = 16;
+    generator.textureData = new Float32Array(buffer.slice(headerSize));
+    generator.texture = generator.createTexture();
+
+    return generator;
   }
 
   public async loadFromBinary(url: string): Promise<HexPositionMapGenerator> {

@@ -1,5 +1,6 @@
-import { cn } from "@/lib/ui/utilts";
 import { useEffect, useRef, useState } from "react";
+
+import { cn } from "@/lib/ui/utilts";
 
 export const MouseFollower: React.FC<React.PropsWithChildren> = ({
   children,

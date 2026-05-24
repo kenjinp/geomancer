@@ -3,8 +3,8 @@ import { BrowserWindow, screen, shell } from "electron";
 import path from "path";
 
 // Local imports
-import packageData from "../../../package.json";
 import { configStore } from "./configStore";
+import packageData from "../../../package.json";
 
 const EXTERNAL_URL_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 

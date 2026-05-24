@@ -1,12 +1,13 @@
+import Rand from "rand-seed";
+import { Vector3 } from "three";
+import { createStore } from "zustand/vanilla";
+
 import { EARTH_AUTHALIC_RADIUS, H3_RESOLUTION } from "@/constants";
 import { H3CubeMapGenerator } from "@/lib/data-buffers/H3CubeMapGenerator";
 import { HexNeighborMapGenerator } from "@/lib/data-buffers/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "@/lib/data-buffers/HexPositionMapGenerator";
 import { HexTileBuffer } from "@/lib/data-buffers/HexTileBuffer";
 import { Plate } from "@/lib/model/tectonics/Plate";
-import Rand from "rand-seed";
-import { Vector3 } from "three";
-import { createStore } from "zustand/vanilla";
 
 export enum MapMode {
   REALISTIC,
@@ -90,7 +91,7 @@ export const initialContext: Context = {
   },
 };
 
-const store = createStore<Context>((set) => {
+const store = createStore<Context>(() => {
   return initialContext;
 });
 

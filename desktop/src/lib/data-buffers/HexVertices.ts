@@ -1,5 +1,6 @@
 import * as h3 from "h3-js";
 import { DataTexture, FloatType, RGBAFormat, Vector3 } from "three";
+
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { LatLong } from "../coordinate-systems/sphere/LatLong";
 

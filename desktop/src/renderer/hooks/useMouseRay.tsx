@@ -8,7 +8,7 @@ export const useMouseRay = (onMouseMove: (ray: Raycaster) => void) => {
   const mouse = useRef(new Vector2());
 
   useEffect(() => {
-    const handleMouseMove = (event) => {
+    const handleMouseMove = (event: MouseEvent) => {
       // Calculate normalized device coordinates
       mouse.current.x = (event.clientX / size.width) * 2 - 1;
       mouse.current.y = -(event.clientY / size.height) * 2 + 1;

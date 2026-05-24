@@ -41,10 +41,18 @@ export class ShaderUtils {
     }
     const material = object.material as Material;
     console.log("renderer", renderer);
-    const programs = (renderer as any).properties.get(material).programs;
+    // Three.js doesn't expose its internal renderer properties / shader sources
+    // publicly, so we reach into private structures here.
+    type ProgramEntry = [unknown, Record<string, WebGLShader>];
+    type RendererInternals = {
+      properties: { get: (m: Material) => { programs: Iterable<ProgramEntry> } };
+      getContext: () => WebGLRenderingContext;
+    };
+    const internals = renderer as unknown as RendererInternals;
+    const programs = internals.properties.get(material).programs;
 
     for (const program of programs) {
-      const shaderSource = (renderer as any)
+      const shaderSource = internals
         .getContext()
         .getShaderSource(program[1][shaderIdentifier]);
 
@@ -54,16 +62,6 @@ export class ShaderUtils {
 
   private static outputShader(prefix: string, code: string): void {
     const formattedCode = code.replaceAll("\t", "  ");
-    const lines = formattedCode.split("\n");
-
-    const linedCode = lines
-      .map((line, i) => {
-        const lineNum = i + 1;
-        // const padding = lineNum < 10 ? " " : "";
-        return line;
-      })
-      .join("\n");
-
-    console.log(`${prefix}\n${linedCode}`);
+    console.log(`${prefix}\n${formattedCode}`);
   }
 }

@@ -1,9 +1,11 @@
+import { IUniform } from "three";
+
 // Using WebGLProgram instead of Shader since Three.js doesn't export a Shader type
 // The shader parameter in onBeforeCompile is actually an internal type in Three.js
 interface Shader {
   vertexShader: string;
   fragmentShader: string;
-  uniforms: Record<string, any>;
+  uniforms: { [uniform: string]: IUniform };
 }
 
 export interface ShaderPatch {
@@ -27,7 +29,7 @@ export class ShaderUtils {
     shader: Shader,
     vertexPatches: ShaderPatch[] = [],
     fragmentPatches: ShaderPatch[] = [],
-    uniforms: Record<string, any> = {}
+    uniforms: { [uniform: string]: IUniform } = {}
   ): void {
     // Add custom uniforms
     Object.keys(uniforms).forEach((key) => {

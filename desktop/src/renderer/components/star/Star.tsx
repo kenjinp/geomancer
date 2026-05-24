@@ -1,6 +1,5 @@
 import { SUN_RADIUS } from "@hello-worlds/planets";
 import { useTexture } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
 import * as React from "react";
 import {
   Mesh,
@@ -28,8 +27,6 @@ export const Star = React.forwardRef<Mesh, StarProps>((props, ref) => {
     lightIntensity,
     name,
   } = props;
-  const camera = useThree((state) => state.camera);
-
   const blueNoiseTexture = useTexture("blue-noise.png");
   blueNoiseTexture.wrapS = RepeatWrapping;
   blueNoiseTexture.wrapT = RepeatWrapping;
@@ -38,7 +35,6 @@ export const Star = React.forwardRef<Mesh, StarProps>((props, ref) => {
   blueNoiseTexture.magFilter = NearestFilter;
 
   const [light, setLight] = React.useState<PointLight | null>(null);
-  const set = useThree((state) => state.set);
 
   React.useEffect(() => {
     if (light) {

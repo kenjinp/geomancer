@@ -1,15 +1,20 @@
-import { getState, MapLayer, subscribe } from "@/state/Context";
 import {
   Camera,
   Color,
+  CubeTexture,
   DynamicDrawUsage,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshPhysicalMaterial,
   PlaneGeometry,
+  Texture,
   Vector3,
 } from "three";
+
+import { getState, MapLayer, subscribe } from "@/state/Context";
+
+import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 import { ShaderPatch, ShaderUtils } from "../../utils/shader.utils";
 import beginVertex from "../shaders/terrain/chunks/begin_vertex.glsl";
 import beginnormalVertex from "../shaders/terrain/chunks/beginnormal_vertex.glsl";
@@ -18,7 +23,6 @@ import vertexDeclarations from "../shaders/terrain/chunks/declarations.vert.glsl
 import normalFragmentBegin from "../shaders/terrain/chunks/normal_fragment_begin.glsl";
 import outputFragment from "../shaders/terrain/chunks/output_fragment.glsl";
 import projectVertex from "../shaders/terrain/chunks/project_vertex.glsl";
-import { CubeSphereQuadtree } from "./CubeSphereQuadtree";
 // Extended interface for Physical Material with custom uniforms
 interface TerrainMaterial extends MeshPhysicalMaterial {
   customUniforms?: {
@@ -27,12 +31,12 @@ interface TerrainMaterial extends MeshPhysicalMaterial {
     uSelectedTile: { value: number };
     uRadius: { value: number };
     uOffset: { value: Vector3 };
-    h3IndexMap: { value: any };
-    h3NeighborMap: { value: any };
-    h3PositionMap: { value: any };
+    h3IndexMap: { value: CubeTexture };
+    h3NeighborMap: { value: Texture };
+    h3PositionMap: { value: Texture };
     uModelMatrix: { value: Matrix4 };
-    hexTileIntBuffer: { value: any };
-    hexTileFloatBuffer: { value: any };
+    hexTileIntBuffer: { value: Texture };
+    hexTileFloatBuffer: { value: Texture };
     uHexJitterAmount: { value: number };
     uApplyHexJitter: { value: boolean };
   };

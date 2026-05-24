@@ -1,5 +1,6 @@
-import { BUILD_INFO, COMMIT_INFO } from "@constants";
 import React from "react";
+
+import { BUILD_INFO, COMMIT_INFO } from "@constants";
 
 export const Footer: React.FC<React.PropsWithChildren> = ({ children }) => {
   return (

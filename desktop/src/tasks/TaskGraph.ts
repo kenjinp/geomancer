@@ -1,10 +1,11 @@
+import { Dag } from "@ts-dag/builder";
+
 import { HexGridFloodFill } from "@/lib/Hextree/FloodFill";
 import { HydraulicErosionSimulator } from "@/lib/Hextree/HydraulicErosionSimulator";
 import { TerrainElevationGenerator } from "@/lib/Hextree/TerrainElevationGenerator";
 import { ThermalErosionSimulator } from "@/lib/Hextree/ThermalErosionSimulator";
 import { Plate } from "@/lib/model/tectonics/Plate";
 import { Context, getState, setState } from "@/state/Context";
-import { Dag } from "@ts-dag/builder";
 
 export const dag = new Dag<Context>();
 
@@ -50,14 +51,12 @@ const loadBuffers = dag.task("loadBuffers", async (ctx) => {
   return ctx;
 });
 
-const generatePlates = dag.task("generatePlates", async (ctx, meta) => {
+const generatePlates = dag.task("generatePlates", async (ctx) => {
   console.log("generating plates", ctx.tectonics.numPlates);
   const {
     tectonics: { numPlates },
   } = ctx;
-  const plates = new Array(numPlates).fill(0).map((_, i) => {
-    return new Plate();
-  });
+  const plates = Array.from({ length: numPlates }, () => new Plate());
   console.log("generated plates", plates);
   const newContext = { ...ctx, tectonics: { ...ctx.tectonics, plates } };
   ctx = newContext;
@@ -183,7 +182,9 @@ const generateThermalErosion = dag.task(
   [generateTerrainElevations]
 );
 
-const generateHydraulicErosion = dag.task(
+// Registered with the DAG via side effect of `dag.task`. The local binding is
+// kept underscore-prefixed so future code can add dependents without renaming.
+const _generateHydraulicErosion = dag.task(
   "generateHydraulicErosion",
   async (ctx) => {
     // skip

@@ -14,8 +14,55 @@
   ],
   "parser": "@typescript-eslint/parser",
   "plugins": ["import"],
+  "settings": {
+    // Make the resolver aware of shader file extensions so `import/no-unresolved`
+    // actually checks `.wgsl`/`.glsl`/`.vert`/`.frag` imports against disk.
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "project": "./tsconfig.json"
+      },
+      "node": {
+        "extensions": [
+          ".js",
+          ".jsx",
+          ".ts",
+          ".tsx",
+          ".json",
+          ".wgsl",
+          ".glsl",
+          ".vert",
+          ".frag",
+          ".vs",
+          ".fs"
+        ]
+      }
+    }
+  },
   "rules": {
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // Base no-unused-vars is disabled in favor of the TS-aware version below.
+    // The base rule falsely flags TS enum members, constructor parameter
+    // properties, and parameter names in function type signatures.
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ],
+    // Catches imports whose path/case does not match what's on disk.
+    // `caseSensitiveStrict: true` is essential on macOS/Windows where the
+    // filesystem is case-insensitive (CI on Linux otherwise blows up at build time).
+    "import/no-unresolved": [
+      "error",
+      {
+        "caseSensitive": true,
+        "caseSensitiveStrict": true
+      }
+    ],
     // Ensures imports are organized and grouped properly
     "import/order": [
       "error",

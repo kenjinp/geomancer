@@ -1,8 +1,9 @@
-import store, { setState } from "@/state/Context";
 import { Button, Input } from "@nextui-org/react";
 import Rand from "rand-seed";
 import { useState } from "react";
 import { useStore } from "zustand";
+
+import store, { setState } from "@/state/Context";
 
 export const SeedInput: React.FC = () => {
   const state = useStore(store);

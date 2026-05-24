@@ -7,6 +7,7 @@ import {
   RGBAFormat,
   UnsignedByteType,
 } from "three";
+
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
 export const INVALID_H3_INDEX_SENTINEL = "FFFFFFFFFFFFFFFF";
@@ -142,21 +143,17 @@ export class HexNeighborMapGenerator {
     url: string,
     resolution: number
   ): Promise<HexNeighborMapGenerator> {
-    try {
-      const response = await fetch(url);
-      const arrayBuffer = await response.arrayBuffer();
-      const decoded = await decode(arrayBuffer);
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const decoded = await decode(arrayBuffer);
 
-      const generator = new HexNeighborMapGenerator(resolution);
-      generator.metadata.width = decoded.width;
-      generator.metadata.height = decoded.height;
-      generator.textureData = new Uint8Array(decoded.data.buffer);
-      generator.texture = generator.createTexture();
+    const generator = new HexNeighborMapGenerator(resolution);
+    generator.metadata.width = decoded.width;
+    generator.metadata.height = decoded.height;
+    generator.textureData = new Uint8Array(decoded.data.buffer);
+    generator.texture = generator.createTexture();
 
-      return generator;
-    } catch (error) {
-      throw error;
-    }
+    return generator;
   }
 
   public async loadFromWebP(url: string): Promise<HexNeighborMapGenerator> {

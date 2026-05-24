@@ -1,7 +1,7 @@
+import { GPUDevice } from "./WebGPU";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexPositionMapGenerator } from "../data-buffers/HexPositionMapGenerator";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { GPUDevice } from "./WebGPU";
 import elevationShader from "./shaders/TerrainElevation.wgsl";
 
 export class TerrainElevationGenerator {

@@ -1,8 +1,11 @@
 // from https://github.com/seymen/git-last-commit
 import { execSync } from "child_process"
+
 const splitCharacter = "<##>"
 
-const executeCommand = (command: any, options: any) => {
+type CommitInfoOptions = { dst?: string }
+
+const executeCommand = (command: string, options?: CommitInfoOptions) => {
   let dst = __dirname
 
   if (!!options && options.dst) {
@@ -40,7 +43,7 @@ const getCommandString = (splitCharacter: string) =>
   " && git rev-parse --abbrev-ref HEAD" +
   " && git tag --contains HEAD"
 
-export const getLastCommit = (options: any) => {
+export const getLastCommit = (options: CommitInfoOptions) => {
   const command = getCommandString(splitCharacter)
 
   const res = executeCommand(command, options) as string

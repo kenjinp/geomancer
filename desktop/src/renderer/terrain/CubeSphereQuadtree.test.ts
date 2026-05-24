@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { beforeEach, describe, expect, test } from "vitest";
+
 import { CubeSphereQuadtree, FaceIndex } from "./CubeSphereQuadtree";
 
 // Add this interface declaration at the top of the test file to access private methods

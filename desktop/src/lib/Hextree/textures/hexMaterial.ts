@@ -1,5 +1,6 @@
 // setup-material.ts
 import { Color, GLSL3, ShaderMaterial, Uniform, Vector3 } from "three";
+
 import { generateFaceData } from "./faces";
 import fragmentShader from "./h3.frag";
 import vertexShader from "./h3.vert";

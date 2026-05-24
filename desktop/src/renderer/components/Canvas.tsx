@@ -1,14 +1,16 @@
-import { AU, EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { Stars } from "@react-three/drei";
 import { Canvas as ThreeCanvas, useThree } from "@react-three/fiber";
 import { PropsWithChildren, Suspense } from "react";
 import { Vector3 } from "three";
+
+import { AU, EARTH_AUTHALIC_RADIUS } from "@/constants";
+
 import { OrbitCamera } from "./OrbitCamera";
 import { Post } from "./post/Post";
 import { SpaceBox } from "./space-box/SpaceBox";
 
 const Background: React.FC = () => {
-  useThree((state) => {
+  useThree(() => {
     // state.scene.background = new Color("#3D4058");
   });
   return null;

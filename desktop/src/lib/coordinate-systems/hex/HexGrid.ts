@@ -1,9 +1,10 @@
 import * as h3 from "h3-js";
 import { MathUtils, Vector3 } from "three";
+
 import { LatLong } from "../sphere/LatLong";
 
 let cachedAllNodes: string[] = [];
-let cachedIndexMap: Map<string, number> = new Map();
+const cachedIndexMap: Map<string, number> = new Map();
 
 export class HexGrid {
   public static readonly indexMap: Map<string, number> = cachedIndexMap;

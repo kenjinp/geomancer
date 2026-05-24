@@ -7,6 +7,7 @@ import {
   RGBAFormat,
   UnsignedByteType,
 } from "three";
+
 import { CubicCoordinates } from "../coordinate-systems/cube-projection/CubicCoordinates";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
@@ -203,64 +204,56 @@ export class H3CubeMapGenerator {
   public static async loadFromWebPFiles(
     urls: string[]
   ): Promise<H3CubeMapGenerator> {
-    try {
-      const faceBuffers = await Promise.all(
-        urls.map(async (url) => {
-          const response = await fetch(url);
-          const arrayBuffer = await response.arrayBuffer();
-          const decoded = await decode(arrayBuffer);
-          return {
-            data: new Uint8Array(decoded.data.buffer),
-            width: decoded.width,
-            height: decoded.height,
-          };
-        })
-      );
+    const faceBuffers = await Promise.all(
+      urls.map(async (url) => {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const decoded = await decode(arrayBuffer);
+        return {
+          data: new Uint8Array(decoded.data.buffer),
+          width: decoded.width,
+          height: decoded.height,
+        };
+      })
+    );
 
-      const faceSize = faceBuffers[0].width;
-      const cubeRgba = new Uint8Array(6 * faceSize * faceSize * 4);
+    const faceSize = faceBuffers[0].width;
+    const cubeRgba = new Uint8Array(6 * faceSize * faceSize * 4);
 
-      faceBuffers.forEach(({ data }, face) => {
-        const offset = face * faceSize * faceSize * 4;
-        cubeRgba.set(data, offset);
-      });
+    faceBuffers.forEach(({ data }, face) => {
+      const offset = face * faceSize * faceSize * 4;
+      cubeRgba.set(data, offset);
+    });
 
-      const generator = new H3CubeMapGenerator(/* resolution */ 0, faceSize);
-      generator.cubeRgba = cubeRgba;
-      generator.cubeTexture = generator.createCubeTexture(false);
-      return generator;
-    } catch (error) {
-      throw error;
-    }
+    const generator = new H3CubeMapGenerator(/* resolution */ 0, faceSize);
+    generator.cubeRgba = cubeRgba;
+    generator.cubeTexture = generator.createCubeTexture(false);
+    return generator;
   }
 
   public async loadFromWebPFiles(urls: string[]): Promise<H3CubeMapGenerator> {
-    try {
-      const faceBuffers = await Promise.all(
-        urls.map(async (url) => {
-          const response = await fetch(url);
-          const arrayBuffer = await response.arrayBuffer();
-          const decoded = await decode(arrayBuffer);
-          return {
-            data: new Uint8Array(decoded.data.buffer),
-            width: decoded.width,
-            height: decoded.height,
-          };
-        })
-      );
+    const faceBuffers = await Promise.all(
+      urls.map(async (url) => {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const decoded = await decode(arrayBuffer);
+        return {
+          data: new Uint8Array(decoded.data.buffer),
+          width: decoded.width,
+          height: decoded.height,
+        };
+      })
+    );
 
-      const faceSize = faceBuffers[0].width;
+    const faceSize = faceBuffers[0].width;
 
-      faceBuffers.forEach(({ data }, face) => {
-        const offset = face * faceSize * faceSize * 4;
-        this.cubeRgba.set(data, offset);
-      });
+    faceBuffers.forEach(({ data }, face) => {
+      const offset = face * faceSize * faceSize * 4;
+      this.cubeRgba.set(data, offset);
+    });
 
-      this.cubeTexture = this.createCubeTexture(false);
-      return this;
-    } catch (error) {
-      throw error;
-    }
+    this.cubeTexture = this.createCubeTexture(false);
+    return this;
   }
 
   private createCubeTexture(reorder = true): CubeTexture {

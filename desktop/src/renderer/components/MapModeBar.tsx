@@ -1,7 +1,9 @@
-import { cn } from "@/lib/ui/utilts";
-import store, { MapLayer, MapMode, setState } from "@/state/Context";
 import { Button, ButtonGroup } from "@nextui-org/react";
 import { useStore } from "zustand";
+
+import { cn } from "@/lib/ui/utilts";
+import store, { MapLayer, MapMode, setState } from "@/state/Context";
+
 import { SeedInput } from "./SeedInput";
 
 export const MapModeBar: React.FC = () => {

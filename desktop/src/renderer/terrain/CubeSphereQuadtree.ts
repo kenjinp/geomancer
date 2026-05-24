@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import {
   CubeFace,
   CubicCoordinates,
@@ -122,13 +123,13 @@ export class CubeSphereQuadtree {
       rootIndices.set(face as CubeFace, index);
     }
 
-    // Now set up neighbor relationships
     for (const [face, index] of rootIndices) {
+      const adjacency = this.faceAdjacency.get(face)!;
       const neighbors: NeighborIndices = [
-        rootIndices.get(this.faceAdjacency.get(face)?.get("left")?.face!)!,
-        rootIndices.get(this.faceAdjacency.get(face)?.get("right")?.face!)!,
-        rootIndices.get(this.faceAdjacency.get(face)?.get("top")?.face!)!,
-        rootIndices.get(this.faceAdjacency.get(face)?.get("bottom")?.face!)!,
+        rootIndices.get(adjacency.get("left")!.face)!,
+        rootIndices.get(adjacency.get("right")!.face)!,
+        rootIndices.get(adjacency.get("top")!.face)!,
+        rootIndices.get(adjacency.get("bottom")!.face)!,
       ];
 
       const offset = index * (NODE_STRIDE / 4) + 11; // Neighbors start at index 11
@@ -200,12 +201,8 @@ export class CubeSphereQuadtree {
     this.updateChildNeighbors(nodeIndex, children);
   }
 
-  private updateChildNeighbors(parentIndex: number, children: number[]) {
-    // Complex neighbor resolution including cross-face neighbors
-    const parent = this.getNodeView(parentIndex);
-    const childLevel = parent.level + 1;
-
-    children.forEach((childIndex, i) => {
+  private updateChildNeighbors(_parentIndex: number, children: number[]) {
+    children.forEach((childIndex) => {
       const child = this.getNodeView(childIndex);
       const neighbors = this.calculateNeighbors(child);
       const childOffset = childIndex * (NODE_STRIDE / 4);
@@ -514,8 +511,7 @@ export class CubeSphereQuadtree {
     );
     frustum.setFromProjectionMatrix(projScreenMatrix);
 
-    // Iterate through all active nodes
-    for (const [_, index] of this.indexMap) {
+    for (const index of this.indexMap.values()) {
       const node = this.getNodeView(index);
 
       // Only consider leaf nodes (nodes without children)

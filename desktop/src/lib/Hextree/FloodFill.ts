@@ -1,11 +1,13 @@
-import { getState } from "@/state/Context";
 import * as h3 from "h3-js";
+
+import { getState } from "@/state/Context";
+
+import { GPUDevice } from "./WebGPU";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { Plate } from "../model/tectonics/Plate";
-import { GPUDevice } from "./WebGPU";
 import floodfillShader from "./shaders/Floodfill.wgsl";
+import { Plate } from "../model/tectonics/Plate";
 
 const RESOLUTION_CELL_FACTORS: Record<number, number> = {
   0: 122, // Base icosahedron cells

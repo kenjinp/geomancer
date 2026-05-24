@@ -1,11 +1,12 @@
 import { getState } from "@/state/Context";
+
+import { GPUDevice } from "./WebGPU";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexNeighborMapGenerator } from "../data-buffers/HexNeighborMapGenerator";
 import { HexPositionMapGenerator } from "../data-buffers/HexPositionMapGenerator";
 import { CrustSubtype, HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { Plate } from "../model/tectonics/Plate";
-import { GPUDevice } from "./WebGPU";
 import continentalGrowthShader from "./shaders/ContinentalGrowth.wgsl";
+import { Plate } from "../model/tectonics/Plate";
 
 export class ContinentalGrowth {
   private device: globalThis.GPUDevice;

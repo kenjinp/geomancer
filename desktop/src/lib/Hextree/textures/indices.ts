@@ -6,7 +6,8 @@ import {
   RedFormat,
   Vector3,
 } from "three";
-import { generateFaceData } from "./Faces";
+
+import { generateFaceData } from "./faces";
 
 const RESOLUTION = 1;
 const FACE_SIZE = 512; // Texture size per face

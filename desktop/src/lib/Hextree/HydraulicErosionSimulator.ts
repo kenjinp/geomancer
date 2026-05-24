@@ -1,7 +1,7 @@
+import hydraulicErosionShader from "./shaders/HydraulicErosion.wgsl";
+import { GPUDevice } from "./WebGPU";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 import { HexTileBuffer } from "../data-buffers/HexTileBuffer";
-import { GPUDevice } from "./WebGPU";
-import hydraulicErosionShader from "./shaders/HydraulicErosion.wgsl";
 
 export interface HydraulicErosionConfig {
   iterations: number; // Number of erosion passes
