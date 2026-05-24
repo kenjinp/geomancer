@@ -68,12 +68,24 @@ jobs:
       - name: Decompress Linux Archive
         run: 7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds/linux
 
+      # Note: never expand a secret directly into a shell `[ -n "..." ]` test —
+      # if the secret value contains a newline, the test breaks. Use job-level
+      # env booleans (which are evaluated by the Actions parser, not the shell)
+      # instead.
       - name: Debug Secret Availability
+        env:
+          HAS_USERNAME: ${{ secrets.steamBuildUsername != '' }}
+          HAS_CONFIG_VDF: ${{ secrets.steamBuildConfigVDF != '' }}
+          HAS_APP_ID: ${{ secrets.steamAppID != '' }}
         run: |
-          if [ -n "${{ secrets.steamBuildUsername }}" ]; then echo "steamBuildUsername is set"; else echo "steamBuildUsername is NOT set"; fi
-          if [ -n "${{ secrets.steamBuildConfigVDF }}" ]; then echo "steamBuildConfigVDF is set"; else echo "steamBuildConfigVDF is NOT set"; fi
-          if [ -n "${{ secrets.steamSharedSecret }}" ]; then echo "steamSharedSecret is set (TOTP auth will be used)"; else echo "steamSharedSecret is NOT set (configVdf auth will be used)"; fi
-          if [ -n "${{ secrets.steamAppID }}" ]; then echo "steamAppID is set"; else echo "steamAppID is NOT set"; fi
+          [ "$HAS_USERNAME" = "true" ]   && echo "steamBuildUsername is set"   || echo "steamBuildUsername is NOT set"
+          [ "$HAS_CONFIG_VDF" = "true" ] && echo "steamBuildConfigVDF is set" || echo "steamBuildConfigVDF is NOT set"
+          [ "$HAS_APP_ID" = "true" ]     && echo "steamAppID is set"          || echo "steamAppID is NOT set"
+          if [ "$HAS_STEAM_SHARED_SECRET" = "true" ]; then
+            echo "steamSharedSecret is set (TOTP auth will be used)"
+          else
+            echo "steamSharedSecret is NOT set (configVdf auth will be used)"
+          fi
 
       - name: Generate Steam TOTP
         id: steam-totp
