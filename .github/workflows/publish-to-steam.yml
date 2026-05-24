@@ -23,6 +23,13 @@ on:
       # auth when not set.
       steamSharedSecret:
         required: false
+      # Required ONLY when `steamSharedSecret` is set: the TOTP login path in
+      # `game-ci/steam-deploy@v3` ignores `configVdf` entirely and runs
+      # `steamcmd +login <user> <password>`, so the builder account password
+      # must be provided alongside the shared secret. Ignored on the configVdf
+      # path.
+      steamBuildPassword:
+        required: false
       # steamDemoAppID:
       #   required: true
       steamAppID:
@@ -110,6 +117,23 @@ jobs:
           fi
           echo "STEAM_SHARED_SECRET format looks valid."
 
+      # The TOTP path in steam-deploy v3 does NOT use cached configVdf creds;
+      # `steamcmd` is invoked as `+login <user> <password>` so the builder
+      # account password is required alongside the shared secret. Fail fast
+      # with a clear message instead of letting steamcmd silently exit on an
+      # empty-password login attempt (visible only in the `connection_log.txt`
+      # artifact as "LogOn() called, but we don't have a valid username/password
+      # or token set yet").
+      - name: Validate TOTP Auth Inputs
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
+        env:
+          HAS_PASSWORD: ${{ secrets.steamBuildPassword != '' }}
+        run: |
+          if [ "$HAS_PASSWORD" != "true" ]; then
+            echo "::error::steamSharedSecret is set, but steamBuildPassword is not. game-ci/steam-deploy@v3 ignores configVdf when totp is set, so the builder account password must also be provided. Add the GitHub secret STEAM_BUILD_PASSWORD."
+            exit 1
+          fi
+
       - name: Generate Steam TOTP
         id: steam-totp
         if: env.HAS_STEAM_SHARED_SECRET == 'true'
@@ -121,6 +145,7 @@ jobs:
         uses: game-ci/steam-deploy@v3
         with:
           username: ${{ secrets.steamBuildUsername }}
+          password: ${{ secrets.steamBuildPassword }}
           configVdf: ${{ secrets.steamBuildConfigVDF }}
           totp: ${{ steps.steam-totp.outputs.code }}
           appId: ${{ secrets.steamAppID }}
