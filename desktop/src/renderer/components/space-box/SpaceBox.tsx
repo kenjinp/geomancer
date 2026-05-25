@@ -8,12 +8,15 @@ export const SpaceBox: React.FC<React.PropsWithChildren<{ hideBackground?: boole
 }) => {
   const { scene } = useThree();
   React.useEffect(() => {
-    const back = `/textures/skybox/back.png`;
-    const bottom = `/textures/skybox/bottom.png`;
-    const front = `/textures/skybox/front.png`;
-    const left = `/textures/skybox/left.png`;
-    const right = `/textures/skybox/right.png`;
-    const top = `/textures/skybox/top.png`;
+    // Use relative paths so they resolve against the loaded index.html.
+    // Absolute paths (e.g. "/textures/...") resolve against the file:// origin
+    // root, which on Windows becomes "<drive>:/textures/..." and breaks loading.
+    const back = `textures/skybox/back.png`;
+    const bottom = `textures/skybox/bottom.png`;
+    const front = `textures/skybox/front.png`;
+    const left = `textures/skybox/left.png`;
+    const right = `textures/skybox/right.png`;
+    const top = `textures/skybox/top.png`;
 
     const urls = [right, left, top, bottom, front, back];
 

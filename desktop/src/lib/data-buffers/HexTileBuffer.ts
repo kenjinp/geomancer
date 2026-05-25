@@ -1,4 +1,11 @@
-import { DataTexture, FloatType, RGBAFormat, RGBAIntegerFormat, UnsignedIntType } from "three";
+import {
+  DataTexture,
+  FloatType,
+  NearestFilter,
+  RGBAFormat,
+  RGBAIntegerFormat,
+  UnsignedIntType,
+} from "three";
 
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
 
@@ -52,7 +59,16 @@ export class HexTileBuffer {
 
     const totalPixels = this.textureSize.width * this.textureSize.height;
 
-    // Create integer buffer and texture
+    // Create integer buffer and texture.
+    // The shader samples this with `usampler2D`, so the texture must be
+    // uploaded with a sized integer internal format (RGBA32UI). Three.js
+    // can normally deduce this from `RGBAIntegerFormat + UnsignedIntType`,
+    // but on some drivers (notably packaged Electron on Windows) the
+    // auto-deduced format can mismatch the sampler type and trigger
+    // `GL_INVALID_OPERATION: Mismatch between texture format and sampler
+    // type`. Setting `internalFormat` and the filtering/mipmap settings
+    // explicitly avoids that. Linear filtering and mipmaps are not allowed
+    // for integer textures, so they must be NearestFilter / disabled.
     this.intBufferData = new Uint32Array(totalPixels * 4);
     this.intBufferData.fill(0);
     this.intTexture = new DataTexture(
@@ -62,6 +78,11 @@ export class HexTileBuffer {
       RGBAIntegerFormat,
       UnsignedIntType,
     );
+    this.intTexture.internalFormat = "RGBA32UI";
+    this.intTexture.minFilter = NearestFilter;
+    this.intTexture.magFilter = NearestFilter;
+    this.intTexture.generateMipmaps = false;
+    this.intTexture.needsUpdate = true;
 
     // Create float buffer and texture
     this.floatBufferData = new Float32Array(totalPixels * 4);
@@ -73,6 +94,11 @@ export class HexTileBuffer {
       RGBAFormat,
       FloatType,
     );
+    this.floatTexture.internalFormat = "RGBA32F";
+    this.floatTexture.minFilter = NearestFilter;
+    this.floatTexture.magFilter = NearestFilter;
+    this.floatTexture.generateMipmaps = false;
+    this.floatTexture.needsUpdate = true;
   }
 
   private calculateTextureSize(cellCount: number): {
