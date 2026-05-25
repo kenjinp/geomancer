@@ -18,7 +18,15 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": false,
-    "target": "ESNext"
+    "target": "ESNext",
+    "types": ["jest", "node", "vite-plugin-glsl/ext"],
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/renderer/components/*"],
+      "@views/*": ["src/renderer/views/*"],
+      "@lib/*": ["src/lib/*"],
+      "@constants": ["src/constants.ts"]
+    }
   },
   "include": ["src", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
   "exclude": [".github", ".yarn", "node_modules", "**/*.scss"]

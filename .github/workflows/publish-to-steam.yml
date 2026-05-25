@@ -17,6 +17,19 @@ on:
         required: true
       steamBuildConfigVDF:
         required: true
+      # Optional. If provided, a fresh TOTP is generated each run from this Steam
+      # Guard shared secret and used in place of the cached `configVdf` session,
+      # avoiding periodic "License expired" errors. Falls back to `configVdf`
+      # auth when not set.
+      steamSharedSecret:
+        required: false
+      # Required ONLY when `steamSharedSecret` is set: the TOTP login path in
+      # `game-ci/steam-deploy@v3` ignores `configVdf` entirely and runs
+      # `steamcmd +login <user> <password>`, so the builder account password
+      # must be provided alongside the shared secret. Ignored on the configVdf
+      # path.
+      steamBuildPassword:
+        required: false
       # steamDemoAppID:
       #   required: true
       steamAppID:
@@ -27,7 +40,12 @@ on:
 jobs:
   publish-to-steam:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    environment: "Steam Prod"
+    # The `secrets` context can't be referenced from step-level `if:` conditions,
+    # so surface the presence of the optional shared secret as a job-level env
+    # var that downstream `if:` conditions can read.
+    env:
+      HAS_STEAM_SHARED_SECRET: ${{ secrets.steamSharedSecret != '' }}
 
     steps:
       - name: Download Builds
@@ -37,14 +55,14 @@ jobs:
           out-file-path: artifacts
           repository: ${{ github.repository }}
           tag: v${{ inputs.version }}
-          token: ${{ secrets.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Ensure the directories exist before extracting builds.
-      # - run: mkdir -p builds/darwin
-      - run: mkdir -p builds/linux
-      # - run: mkdir -p builds/win32
+      # Each platform's depot is the contents of `builds/<platform>/`. `7z x`
+      # auto-creates these directories, so we don't pre-mkdir them.
 
-      # Rewrite the Windows zip to use forward slashes instead of backslashes.
+      # Forge's MakerZIP on Windows runners stores entry paths with `\`
+      # separators, which `7z` and `steamcmd` handle inconsistently. Rewrite
+      # the path entries in place to use `/` before extracting.
       - name: Convert Windows Archive to Forward Slashes
         run: 7z rn artifacts/${{ inputs.zipPrefix }}-win32-x64-${{ inputs.version }}.zip $(7z l artifacts/${{ inputs.zipPrefix }}-win32-x64-${{ inputs.version }}.zip | grep '\\' | awk '{ print $6, gensub(/\\/, "/", "g", $6); }' | paste -s)
 
@@ -54,27 +72,131 @@ jobs:
       # - name: Decompress macOS Archive
       #   run: 7z x artifacts/${{ inputs.zipPrefix }}-darwin-universal-${{ inputs.version }}.zip -obuilds/darwin
 
+      # Forge's MakerZIP on Linux wraps the build in a top-level
+      # `<zipPrefix>-linux-x64/` directory (the Windows path is already flat),
+      # so extract then rename to keep the depot layout flat across platforms.
+      # That lets the Steamworks Linux launch option stay as a bare `geomancer`.
       - name: Decompress Linux Archive
-        run: 7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds/linux
+        run: |
+          7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds
+          mv builds/${{ inputs.zipPrefix }}-linux-x64 builds/linux
+
+      # `CyberAndrii/steam-totp` rejects the secret with a vague
+      # "Invalid shared secret." if it isn't *exactly* 28 base64 chars ending
+      # in '='. The most common cause is an extra newline appended by
+      # `echo "..." | gh secret set ...`. Validate up front so the failure
+      # message tells us the actual length instead of being opaque.
+      - name: Validate Steam Shared Secret Format
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
+        env:
+          SHARED_SECRET: ${{ secrets.steamSharedSecret }}
+        run: |
+          LEN=${#SHARED_SECRET}
+          LAST_CHAR="${SHARED_SECRET: -1}"
+          echo "STEAM_SHARED_SECRET length: $LEN (expected 28)"
+          if [ "$LEN" -ne 28 ]; then
+            echo "::error::STEAM_SHARED_SECRET is $LEN chars, expected 28. Likely cause: trailing newline/whitespace from 'echo | gh secret set' (use 'printf %s' instead) or wrong .maFile field."
+            exit 1
+          fi
+          if [ "$LAST_CHAR" != "=" ]; then
+            echo "::error::STEAM_SHARED_SECRET does not end with '='. Padding was stripped or you pasted the wrong value."
+            exit 1
+          fi
+          echo "STEAM_SHARED_SECRET format looks valid."
+
+      # The TOTP path in steam-deploy v3 does NOT use cached configVdf creds;
+      # `steamcmd` is invoked as `+login <user> <password>` so the builder
+      # account password is required alongside the shared secret. Fail fast
+      # with a clear message instead of letting steamcmd silently exit on an
+      # empty-password login attempt (visible only in the `connection_log.txt`
+      # artifact as "LogOn() called, but we don't have a valid username/password
+      # or token set yet").
+      - name: Validate TOTP Auth Inputs
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
+        env:
+          HAS_PASSWORD: ${{ secrets.steamBuildPassword != '' }}
+        run: |
+          if [ "$HAS_PASSWORD" != "true" ]; then
+            echo "::error::steamSharedSecret is set, but steamBuildPassword is not. game-ci/steam-deploy@v3 ignores configVdf when totp is set, so the builder account password must also be provided. Add the GitHub secret STEAM_BUILD_PASSWORD."
+            exit 1
+          fi
+
+      - name: Generate Steam TOTP
+        id: steam-totp
+        if: env.HAS_STEAM_SHARED_SECRET == 'true'
+        uses: CyberAndrii/steam-totp@v1
+        with:
+          shared_secret: ${{ secrets.steamSharedSecret }}
 
       - name: Publish Builds to Steam
         uses: game-ci/steam-deploy@v3
         with:
           username: ${{ secrets.steamBuildUsername }}
+          password: ${{ secrets.steamBuildPassword }}
           configVdf: ${{ secrets.steamBuildConfigVDF }}
-          appId: ${{ inputs.branch == 'demo' && secrets.steamDemoAppID || secrets.steamAppID }}
+          totp: ${{ steps.steam-totp.outputs.code }}
+          appId: ${{ secrets.steamAppID }}
           buildDescription: ${{ inputs.version }}
           rootPath: builds
-          depot1Path: win32
-          # depot2Path: darwin
-          depot3Path: linux
+          depot2Path: win32
+          # depot3Path: darwin
+          depot4Path: linux
           releaseBranch: ${{ inputs.branch }}
+
+      # steam-deploy is a Docker container action that writes:
+      #   - `steamcmd` runtime logs to `/github/home/Steam/logs/*` (login,
+      #     connection, content sync — but NOT app_build stdout)
+      #   - `steamcmd +run_app_build` stdout to `build_output.log` in the
+      #     workspace (this is where the actual upload error appears)
+      #   - per-build app/depot logs to `BuildOutput/*.log`
+      # The runner bind-mounts `/github/home` from `${{ runner.temp }}/_github_home`
+      # and `/github/workspace` from `${{ github.workspace }}`, so on failure
+      # we collect from both locations.
+      - name: Collect Steam Logs on Error
+        if: failure()
+        run: |
+          mkdir -p steam-logs
+          # SteamCMD runtime logs (login/connection/etc).
+          if [ -d "${{ runner.temp }}/_github_home/Steam/logs" ]; then
+            cp -r "${{ runner.temp }}/_github_home/Steam/logs/." steam-logs/ || true
+          else
+            echo "No Steam logs directory at ${{ runner.temp }}/_github_home/Steam/logs"
+          fi
+          # `steamcmd +run_app_build` stdout — the most useful file when the
+          # upload itself fails.
+          if [ -f "${{ github.workspace }}/build_output.log" ]; then
+            cp "${{ github.workspace }}/build_output.log" steam-logs/build_output.log || true
+            echo ""
+            echo "##############################################"
+            echo "# build_output.log (steamcmd run_app_build) #"
+            echo "##############################################"
+            cat "${{ github.workspace }}/build_output.log" || true
+            echo "##############################################"
+            echo ""
+          else
+            echo "No build_output.log found at ${{ github.workspace }}/build_output.log"
+          fi
+          # Per-build app/depot logs that steamcmd writes to ./BuildOutput
+          if [ -d "${{ github.workspace }}/BuildOutput" ]; then
+            mkdir -p steam-logs/BuildOutput
+            cp -r "${{ github.workspace }}/BuildOutput/." steam-logs/BuildOutput/ || true
+            for f in "${{ github.workspace }}"/BuildOutput/*.log; do
+              [ -e "$f" ] || continue
+              echo ""
+              echo "######## $(basename "$f") ########"
+              cat "$f" || true
+              echo ""
+            done
+          else
+            echo "No BuildOutput directory found at ${{ github.workspace }}/BuildOutput"
+          fi
+          ls -la steam-logs || true
 
       - name: Save Steam Logs on Error
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           compression-level: 0
-          name: logs
-          path: BuildOutput
+          name: steam-logs
+          path: steam-logs
           retention-days: 30

@@ -99,6 +99,8 @@ jobs:
     secrets:
       steamAppID: ${{ secrets.STEAM_APP_ID }}
       steamBuildUsername: ${{ secrets.STEAM_BUILD_USERNAME }}
+      steamBuildPassword: ${{ secrets.STEAM_BUILD_PASSWORD }}
       steamBuildConfigVDF: ${{ secrets.STEAM_BUILD_CONFIG_VDF }}
+      steamSharedSecret: ${{ secrets.STEAM_SHARED_SECRET }}
       # steamDemoAppID: ${{ secrets.STEAM_DEMO_APP_ID }}
       token: ${{ secrets.GITHUB_TOKEN }}

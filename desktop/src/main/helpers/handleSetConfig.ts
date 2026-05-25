@@ -8,6 +8,6 @@ import { configStore } from "./configStore";
  * @param {string} key The config key to be updated.
  * @param {string} value The new value.
  */
-export function handleSetConfig(_, key: string, value: any) {
+export function handleSetConfig(_: unknown, key: string, value: unknown) {
   configStore.set(key, value);
 }

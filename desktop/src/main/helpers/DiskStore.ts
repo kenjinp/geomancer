@@ -18,12 +18,11 @@ export async function setStore(data) {
   let fileHandle = null;
 
   try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
     fileHandle = await fs.open(STORE_FILE_PATH, "w");
     await fileHandle.truncate();
     await fileHandle.write(Buffer.from(JSON.stringify(data), "utf8"));
     await fileHandle.close();
-  } catch (error) {
+  } catch {
     if (fileHandle) {
       await fileHandle.close();
     }
@@ -40,7 +39,6 @@ export async function getStore() {
   let fileHandle = null;
 
   try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
     fileHandle = await fs.open(STORE_FILE_PATH, "r");
     const { buffer } = await fileHandle.read();
 
@@ -52,7 +50,7 @@ export async function getStore() {
     store = JSON.parse(storeString);
 
     await fileHandle.close();
-  } catch (error) {
+  } catch {
     if (fileHandle) {
       await fileHandle.close();
     }
@@ -60,11 +58,7 @@ export async function getStore() {
     await setStore(store);
   }
 
-  try {
-    return store;
-  } catch (error) {
-    throw new Error("Store file has been corrupted.");
-  }
+  return store;
 }
 
 /**

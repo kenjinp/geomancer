@@ -11,36 +11,33 @@ import { cspConfig } from "./cspConfig";
  * @param {*} callback The callback to fired when we're finished fiddling with the response.
  */
 export function handleHeadersReceived(details, callback) {
-  const cspString = Object.entries(cspConfig).reduce(
-    (accumulator, [key, value], index) => {
-      if (index !== 0) {
-        accumulator += "; ";
-      }
+  const cspString = Object.entries(cspConfig).reduce((accumulator, [key, value], index) => {
+    if (index !== 0) {
+      accumulator += "; ";
+    }
 
-      const compiledValue = value
-        .map((item) => {
-          if (typeof item === "string") {
-            return item;
-          }
+    const compiledValue = value
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
 
-          if (app.isPackaged) {
-            return item.production;
-          }
+        if (app.isPackaged) {
+          return item.production;
+        }
 
-          return item.development;
-        })
-        .filter(Boolean)
-        .flat()
-        .join(" ");
+        return item.development;
+      })
+      .filter(Boolean)
+      .flat()
+      .join(" ");
 
-      if (compiledValue) {
-        accumulator += `${key} ${compiledValue}`;
-      }
+    if (compiledValue) {
+      accumulator += `${key} ${compiledValue}`;
+    }
 
-      return accumulator;
-    },
-    ""
-  );
+    return accumulator;
+  }, "");
 
   callback({
     responseHeaders: {

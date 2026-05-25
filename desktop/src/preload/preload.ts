@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld("IPCBridge", {
    * @param {string} key The config key to be set.
    * @param {*} value The new config value.
    */
-  setConfig: (key: string, value: any) => {
+  setConfig: (key: string, value: unknown) => {
     ipcRenderer.invoke("setConfig", key, value);
   },
 });
