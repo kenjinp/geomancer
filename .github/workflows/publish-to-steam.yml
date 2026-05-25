@@ -75,25 +75,6 @@ jobs:
       - name: Decompress Linux Archive
         run: 7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds/linux
 
-      # Note: never expand a secret directly into a shell `[ -n "..." ]` test —
-      # if the secret value contains a newline, the test breaks. Use job-level
-      # env booleans (which are evaluated by the Actions parser, not the shell)
-      # instead.
-      - name: Debug Secret Availability
-        env:
-          HAS_USERNAME: ${{ secrets.steamBuildUsername != '' }}
-          HAS_CONFIG_VDF: ${{ secrets.steamBuildConfigVDF != '' }}
-          HAS_APP_ID: ${{ secrets.steamAppID != '' }}
-        run: |
-          [ "$HAS_USERNAME" = "true" ]   && echo "steamBuildUsername is set"   || echo "steamBuildUsername is NOT set"
-          [ "$HAS_CONFIG_VDF" = "true" ] && echo "steamBuildConfigVDF is set" || echo "steamBuildConfigVDF is NOT set"
-          [ "$HAS_APP_ID" = "true" ]     && echo "steamAppID is set"          || echo "steamAppID is NOT set"
-          if [ "$HAS_STEAM_SHARED_SECRET" = "true" ]; then
-            echo "steamSharedSecret is set (TOTP auth will be used)"
-          else
-            echo "steamSharedSecret is NOT set (configVdf auth will be used)"
-          fi
-
       # `CyberAndrii/steam-totp` rejects the secret with a vague
       # "Invalid shared secret." if it isn't *exactly* 28 base64 chars ending
       # in '='. The most common cause is an extra newline appended by
@@ -156,18 +137,52 @@ jobs:
           depot4Path: linux
           releaseBranch: ${{ inputs.branch }}
 
-      # steam-deploy is a Docker container action that writes its logs to
-      # `/github/home/Steam/logs` inside the container. The runner bind-mounts
-      # `/github/home` from `${{ runner.temp }}/_github_home`, so on failure
-      # we copy those files into the workspace and upload them as an artifact.
+      # steam-deploy is a Docker container action that writes:
+      #   - `steamcmd` runtime logs to `/github/home/Steam/logs/*` (login,
+      #     connection, content sync — but NOT app_build stdout)
+      #   - `steamcmd +run_app_build` stdout to `build_output.log` in the
+      #     workspace (this is where the actual upload error appears)
+      #   - per-build app/depot logs to `BuildOutput/*.log`
+      # The runner bind-mounts `/github/home` from `${{ runner.temp }}/_github_home`
+      # and `/github/workspace` from `${{ github.workspace }}`, so on failure
+      # we collect from both locations.
       - name: Collect Steam Logs on Error
         if: failure()
         run: |
           mkdir -p steam-logs
+          # SteamCMD runtime logs (login/connection/etc).
           if [ -d "${{ runner.temp }}/_github_home/Steam/logs" ]; then
             cp -r "${{ runner.temp }}/_github_home/Steam/logs/." steam-logs/ || true
           else
-            echo "No Steam logs directory found at ${{ runner.temp }}/_github_home/Steam/logs"
+            echo "No Steam logs directory at ${{ runner.temp }}/_github_home/Steam/logs"
+          fi
+          # `steamcmd +run_app_build` stdout — the most useful file when the
+          # upload itself fails.
+          if [ -f "${{ github.workspace }}/build_output.log" ]; then
+            cp "${{ github.workspace }}/build_output.log" steam-logs/build_output.log || true
+            echo ""
+            echo "##############################################"
+            echo "# build_output.log (steamcmd run_app_build) #"
+            echo "##############################################"
+            cat "${{ github.workspace }}/build_output.log" || true
+            echo "##############################################"
+            echo ""
+          else
+            echo "No build_output.log found at ${{ github.workspace }}/build_output.log"
+          fi
+          # Per-build app/depot logs that steamcmd writes to ./BuildOutput
+          if [ -d "${{ github.workspace }}/BuildOutput" ]; then
+            mkdir -p steam-logs/BuildOutput
+            cp -r "${{ github.workspace }}/BuildOutput/." steam-logs/BuildOutput/ || true
+            for f in "${{ github.workspace }}"/BuildOutput/*.log; do
+              [ -e "$f" ] || continue
+              echo ""
+              echo "######## $(basename "$f") ########"
+              cat "$f" || true
+              echo ""
+            done
+          else
+            echo "No BuildOutput directory found at ${{ github.workspace }}/BuildOutput"
           fi
           ls -la steam-logs || true
 
