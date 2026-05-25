@@ -57,12 +57,12 @@ jobs:
           tag: v${{ inputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Ensure the directories exist before extracting builds.
-      # - run: mkdir -p builds/darwin
-      - run: mkdir -p builds/linux
-      - run: mkdir -p builds/win32
+      # Each platform's depot is the contents of `builds/<platform>/`. `7z x`
+      # auto-creates these directories, so we don't pre-mkdir them.
 
-      # Rewrite the Windows zip to use forward slashes instead of backslashes.
+      # Forge's MakerZIP on Windows runners stores entry paths with `\`
+      # separators, which `7z` and `steamcmd` handle inconsistently. Rewrite
+      # the path entries in place to use `/` before extracting.
       - name: Convert Windows Archive to Forward Slashes
         run: 7z rn artifacts/${{ inputs.zipPrefix }}-win32-x64-${{ inputs.version }}.zip $(7z l artifacts/${{ inputs.zipPrefix }}-win32-x64-${{ inputs.version }}.zip | grep '\\' | awk '{ print $6, gensub(/\\/, "/", "g", $6); }' | paste -s)
 
@@ -72,8 +72,14 @@ jobs:
       # - name: Decompress macOS Archive
       #   run: 7z x artifacts/${{ inputs.zipPrefix }}-darwin-universal-${{ inputs.version }}.zip -obuilds/darwin
 
+      # Forge's MakerZIP on Linux wraps the build in a top-level
+      # `<zipPrefix>-linux-x64/` directory (the Windows path is already flat),
+      # so extract then rename to keep the depot layout flat across platforms.
+      # That lets the Steamworks Linux launch option stay as a bare `geomancer`.
       - name: Decompress Linux Archive
-        run: 7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds/linux
+        run: |
+          7z x artifacts/${{ inputs.zipPrefix }}-linux-x64-${{ inputs.version }}.zip -obuilds
+          mv builds/${{ inputs.zipPrefix }}-linux-x64 builds/linux
 
       # `CyberAndrii/steam-totp` rejects the secret with a vague
       # "Invalid shared secret." if it isn't *exactly* 28 base64 chars ending
