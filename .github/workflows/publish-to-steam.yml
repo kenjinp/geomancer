@@ -141,7 +141,7 @@ jobs:
           depot2Path: win32
           # depot3Path: darwin
           depot4Path: linux
-          releaseBranch: ${{ inputs.branch }}
+          releaseBranch: ${{ inputs.branch == 'main' && 'default' || inputs.branch }}
 
       # steam-deploy is a Docker container action that writes:
       #   - `steamcmd` runtime logs to `/github/home/Steam/logs/*` (login,
