@@ -3,6 +3,12 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("IPCBridge", {
   /**
+   * Host OS platform, mirrors Node's `process.platform`
+   * ("linux" | "darwin" | "win32" | ...).
+   */
+  platform: process.platform,
+
+  /**
    * Gets a config value from disk.
    *
    * @param {string} key The config key to be retrieved.

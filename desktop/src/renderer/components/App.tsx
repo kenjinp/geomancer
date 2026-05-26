@@ -7,6 +7,7 @@ import { ColorRamp } from "./ColorRamp";
 import { Footer } from "./footer/Footer";
 import { MapModeBar } from "./MapModeBar";
 import { MouseFollower } from "./MouseFollower";
+import { WebGPUWarning } from "./WebGPUWarning";
 import { WelcomeModal } from "./WelcomeModal";
 import { Home } from "../views/Home";
 
@@ -64,6 +65,7 @@ export function App() {
       </div>
       {/* </QuadtreeProvider> */}
       <WelcomeModal />
+      <WebGPUWarning />
     </NextUIProvider>
   );
 }

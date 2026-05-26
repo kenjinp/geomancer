@@ -43,6 +43,9 @@ const config: ForgeConfig = {
       options: {
         name: "Geomancer",
         homepage: "https://kenny.wtf",
+        // WebGPU runtime: Vulkan loader + Mesa ICDs.
+        // NVIDIA users get their ICD from the proprietary driver package.
+        requires: ["vulkan-loader", "mesa-vulkan-drivers"],
       },
     }),
     new MakerDeb({
@@ -50,6 +53,9 @@ const config: ForgeConfig = {
         name: "Geomancer",
         maintainer: "Kenneth Pirman",
         homepage: "https://kenny.wtf",
+        // WebGPU runtime: Vulkan loader + Mesa ICDs.
+        // NVIDIA users get their ICD from the proprietary driver package.
+        depends: ["libvulkan1", "mesa-vulkan-drivers"],
       },
     }),
   ],
