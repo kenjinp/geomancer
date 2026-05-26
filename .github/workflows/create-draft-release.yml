@@ -33,10 +33,21 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "yarn"
 
+      # `delete-draft-releases` defaults to deleting every draft in the repo,
+      # which races with concurrent runs on other branches: if `beta` has an
+      # in-flight pipeline holding a draft and `main` (or vice versa) starts a
+      # run, the second pipeline's deletion wipes the first's draft. The first
+      # pipeline's `publish-github-release` step then fails with "No drafts
+      # found" because `LogicOverSnacks/actions-publish` filters by `draft:true`
+      # without matching on tag. The 1h threshold leaves any in-flight pipeline
+      # (build matrix is ~10–15 min on Windows + Linux) plenty of room to finish
+      # while still cleaning up genuinely abandoned drafts on later runs.
       - name: Delete Outdated Drafts
         uses: hugo19941994/delete-draft-releases@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.token }}
+        with:
+          threshold: 1h
 
       - name: Create Release Draft
         uses: softprops/action-gh-release@v0.1.15
