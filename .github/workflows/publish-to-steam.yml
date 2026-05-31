@@ -69,8 +69,8 @@ jobs:
       - name: Decompress Windows Archive
         run: 7z x artifacts/${{ inputs.zipPrefix }}-win32-x64-${{ inputs.version }}.zip -obuilds/win32
 
-      # - name: Decompress macOS Archive
-      #   run: 7z x artifacts/${{ inputs.zipPrefix }}-darwin-universal-${{ inputs.version }}.zip -obuilds/darwin
+      - name: Decompress macOS Archive
+        run: 7z x artifacts/${{ inputs.zipPrefix }}-darwin-universal-${{ inputs.version }}.zip -obuilds/darwin
 
       # Forge's MakerZIP on Linux wraps the build in a top-level
       # `<zipPrefix>-linux-x64/` directory (the Windows path is already flat),
@@ -139,7 +139,7 @@ jobs:
           buildDescription: ${{ inputs.version }}
           rootPath: builds
           depot2Path: win32
-          # depot3Path: darwin
+          depot3Path: darwin
           depot4Path: linux
           releaseBranch: ${{ inputs.branch == 'main' && 'default' || inputs.branch }}
 

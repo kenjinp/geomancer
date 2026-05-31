@@ -13,18 +13,18 @@ on:
         required: true
         type: string
     secrets:
-      # appleAPIKeyContent:
-      #   required: true
-      # appleAPIKeyID:
-      #   required: true
-      # appleAPIIssuerID:
-      #   required: true
-      # appleCertData:
-      #   required: true
-      # appleCertKeychainPassword:
-      #   required: true
-      # appleCertPassword:
-      #   required: true
+      appleAPIKeyContent:
+        required: false
+      appleAPIKeyID:
+        required: false
+      appleAPIIssuerID:
+        required: false
+      appleCertData:
+        required: false
+      appleCertKeychainPassword:
+        required: false
+      appleCertPassword:
+        required: false
       token:
         required: true
 
@@ -33,22 +33,22 @@ jobs:
     runs-on: ${{ inputs.operatingSystem }}
 
     steps:
-      # - name: Write the Apple App Connect API Key to Disk
-      #   uses: timheuer/base64-to-file@v1.2
-      #   id: writeAPIKey
-      #   if: ${{ startsWith(inputs.operatingSystem, 'macos') }}
-      #   with:
-      #     encodedString: ${{ secrets.appleAPIKeyContent }}
-      #     fileName: apikey.p8
+      - name: Write the Apple App Connect API Key to Disk
+        uses: timheuer/base64-to-file@v1.2
+        id: writeAPIKey
+        if: ${{ startsWith(inputs.operatingSystem, 'macos') }}
+        with:
+          encodedString: ${{ secrets.appleAPIKeyContent }}
+          fileName: apikey.p8
 
-      # - name: Add Signing Certificate to Keychain
-      #   uses: BoundfoxStudios/action-import-signing-certificate@v1
-      #   if: ${{ startsWith(inputs.operatingSystem, 'macos') }}
-      #   with:
-      #     certificate-data: ${{ secrets.appleCertData }}
-      #     certificate-passphrase: ${{ secrets.appleCertPassword }}
-      #     keychain-name: login
-      #     keychain-password: ${{ secrets.appleCertKeychainPassword }}
+      - name: Add Signing Certificate to Keychain
+        uses: BoundfoxStudios/action-import-signing-certificate@v1
+        if: ${{ startsWith(inputs.operatingSystem, 'macos') }}
+        with:
+          certificate-data: ${{ secrets.appleCertData }}
+          certificate-passphrase: ${{ secrets.appleCertPassword }}
+          keychain-name: login
+          keychain-password: ${{ secrets.appleCertKeychainPassword }}
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,8 +77,8 @@ jobs:
         run: yarn run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}
         env:
           DEBUG: electron-installer-deb*
-          # APPLE_API_ISSUER_ID: ${{ secrets.appleAPIIssuerID }}
-          # APPLE_API_KEY: ${{ steps.writeAPIKey.outputs.filePath }}
-          # APPLE_API_KEY_ID: ${{ secrets.appleAPIKeyID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.appleAPIIssuerID }}
+          APPLE_API_KEY: ${{ steps.writeAPIKey.outputs.filePath }}
+          APPLE_API_KEY_ID: ${{ secrets.appleAPIKeyID }}
           GITHUB_TOKEN: ${{ secrets.token }}
           NODE_ENV: ${{ inputs.branch }}

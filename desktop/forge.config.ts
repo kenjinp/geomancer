@@ -1,4 +1,3 @@
-import { FuseV1Options, FuseVersion } from "@electron/fuses";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
@@ -6,8 +5,14 @@ import { MakerZIP } from "@electron-forge/maker-zip";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { PublisherGithub } from "@electron-forge/publisher-github";
+import { FuseV1Options, FuseVersion } from "@electron/fuses";
 
 import type { ForgeConfig } from "@electron-forge/shared-types";
+
+// Only attempt to sign/notarize on macOS CI where the App Store Connect API
+// key has been written to disk. This keeps local `package`/`make` runs on a
+// dev machine (which lack the credentials) from failing in the sign step.
+const shouldNotarize = process.platform === "darwin" && !!process.env.APPLE_API_KEY;
 
 const config: ForgeConfig = {
   publishers: [
@@ -21,17 +26,27 @@ const config: ForgeConfig = {
   ],
   packagerConfig: {
     asar: true,
-    icon: "icons/icon",
+    icon: "public/icons/icon",
     // this does not seem to be used in the make step
     // despite whatever the docs say
-    // executableName: "Geomancer",
-    // osxNotarize: {
-    //   tool: 'notarytool',
-    //   appleApiKey: process.env.APPLE_API_KEY,
-    //   appleApiKeyId: process.env.APPLE_API_KEY_ID,
-    //   appleApiIssuer: process.env.APPLE_API_ISSUER_ID,
-    // },
-    // osxSign: {},
+    executableName: "Geomancer",
+    // `@electron/osx-sign` defaults to the "Developer ID Application" identity
+    // in the keychain and applies hardened runtime + Electron's default
+    // entitlements (allow-jit / allow-unsigned-executable-memory), required
+    // both for notarization and for the asar integrity fuse below.
+    osxSign: {},
+    // Notarization only runs on macOS CI where the App Store Connect API key
+    // has been written to disk, so local `package`/`make` runs without
+    // credentials don't fail in the notarize step.
+    ...(shouldNotarize
+      ? {
+          osxNotarize: {
+            appleApiKey: process.env.APPLE_API_KEY!,
+            appleApiKeyId: process.env.APPLE_API_KEY_ID!,
+            appleApiIssuer: process.env.APPLE_API_ISSUER_ID!,
+          },
+        }
+      : {}),
   },
   rebuildConfig: {},
   makers: [
