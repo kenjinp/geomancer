@@ -12,7 +12,14 @@ import type { ForgeConfig } from "@electron-forge/shared-types";
 // Only attempt to sign/notarize on macOS CI where the App Store Connect API
 // key has been written to disk. This keeps local `package`/`make` runs on a
 // dev machine (which lack the credentials) from failing in the sign step.
-const shouldNotarize = process.platform === "darwin" && !!process.env.APPLE_API_KEY;
+const shouldNotarize =
+  process.platform === "darwin" && !!process.env.APPLE_API_KEY;
+
+// Linux executables/`.desktop` Exec entries are conventionally lowercase, and
+// the deb/rpm makers derive their `bin` from the lowercased name. Keep the
+// nicer capitalized name on macOS/Windows.
+const isLinux = process.platform === "linux";
+const executableName = isLinux ? "geomancer" : "Geomancer";
 
 const config: ForgeConfig = {
   publishers: [
@@ -27,9 +34,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: "public/icons/icon",
-    // this does not seem to be used in the make step
-    // despite whatever the docs say
-    executableName: "Geomancer",
+    executableName,
     // `@electron/osx-sign` defaults to the "Developer ID Application" identity
     // in the keychain and applies hardened runtime + Electron's default
     // entitlements (allow-jit / allow-unsigned-executable-memory), required
@@ -57,6 +62,9 @@ const config: ForgeConfig = {
     new MakerRpm({
       options: {
         name: "Geomancer",
+        // Must match `packagerConfig.executableName` so the maker can find the
+        // packaged binary (out/geomancer-linux-x64/geomancer).
+        bin: executableName,
         homepage: "https://kenny.wtf",
         // WebGPU runtime: Vulkan loader + Mesa ICDs.
         // NVIDIA users get their ICD from the proprietary driver package.
@@ -66,6 +74,9 @@ const config: ForgeConfig = {
     new MakerDeb({
       options: {
         name: "Geomancer",
+        // Must match `packagerConfig.executableName` so the maker can find the
+        // packaged binary (out/geomancer-linux-x64/geomancer).
+        bin: executableName,
         maintainer: "Kenneth Pirman",
         homepage: "https://kenny.wtf",
         // WebGPU runtime: Vulkan loader + Mesa ICDs.
