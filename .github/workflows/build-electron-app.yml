@@ -96,11 +96,15 @@ jobs:
 
       - name: Build and Publish to Github
         working-directory: ./desktop
-        run: yarn run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}
+        # DIAGNOSTIC: dropped `--arch=universal` to build a single native arch.
+        # If this finishes (signs + makes), the hang is in @electron/universal's
+        # merge/re-sign path; if it still hangs after signing, it's notarize/creds.
+        # Restore `${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}` once diagnosed.
+        run: yarn run publish
         env:
-          # Surface signing + notarization progress so a "stuck" macOS build is
-          # legible (uploading / waiting on Apple vs. an actual codesign hang).
-          DEBUG: electron-osx-sign*,@electron/notarize*,electron-installer-deb*
+          # DIAGNOSTIC: DEBUG="*" so every phase (universal merge, notarytool,
+          # etc.) is visible. Narrow back to the per-namespace list afterward.
+          DEBUG: "*"
           APPLE_API_ISSUER_ID: ${{ secrets.appleAPIIssuerID }}
           APPLE_API_KEY: ${{ steps.writeAPIKey.outputs.filePath }}
           APPLE_API_KEY_ID: ${{ secrets.appleAPIKeyID }}
