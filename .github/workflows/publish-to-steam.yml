@@ -141,7 +141,13 @@ jobs:
           depot2Path: win32
           depot3Path: darwin
           depot4Path: linux
-          releaseBranch: ${{ inputs.branch == 'main' && 'default' || inputs.branch }}
+          # Steam forbids setting the 'default' (public) branch live via
+          # SteamCMD as a safeguard against accidental production releases (see
+          # https://partner.steamgames.com/doc/sdk/uploading). Passing 'default'
+          # uploads the depots fine but fails the commit with a generic
+          # "Failed to commit build ... Failure". So for main we upload only
+          # (empty releaseBranch) and promote to default manually in App Admin.
+          releaseBranch: ${{ inputs.branch == 'main' && '' || inputs.branch }}
 
       # steam-deploy is a Docker container action that writes:
       #   - `steamcmd` runtime logs to `/github/home/Steam/logs/*` (login,
