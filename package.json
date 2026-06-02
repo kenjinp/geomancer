@@ -19,6 +19,7 @@
   ],
   "dependencies": {
     "@semantic-release/commit-analyzer": "^13.0.0",
+    "semantic-release": "^24.0.0",
     "semantic-release-export-data": "git+https://github.com/trezy-studios/semantic-release-export-data.git#add-release-notes"
   }
 }

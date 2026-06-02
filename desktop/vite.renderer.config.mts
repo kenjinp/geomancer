@@ -3,7 +3,7 @@ import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
 import glsl from "vite-plugin-glsl";
 // import topLevelAwait from "vite-plugin-top-level-await";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react-oxc";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 import { getLastCommit } from "./commit-info";

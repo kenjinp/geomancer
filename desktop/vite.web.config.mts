@@ -1,4 +1,4 @@
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react-oxc";
 import autoprefixer from "autoprefixer";
 import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
