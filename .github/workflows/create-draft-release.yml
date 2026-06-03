@@ -27,11 +27,14 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "yarn"
+          cache: "pnpm"
 
       # `delete-draft-releases` defaults to deleting every draft in the repo,
       # which races with concurrent runs on other branches: if `beta` has an

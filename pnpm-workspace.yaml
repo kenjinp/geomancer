@@ -1,0 +1,12 @@
+packages:
+  - desktop
+  - infra/pulumi
+
+# pnpm 10 blocks dependency build scripts (postinstall, etc.) by default.
+# These packages need their scripts to run: Electron downloads its binary,
+# esbuild fetches its platform binary, and the rest compile native addons.
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+  - "@electron/rebuild"
+  - electron-winstaller

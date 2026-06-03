@@ -1,5 +1,5 @@
 {
-  "name": "geomancer",
+  "name": "@geomancer/desktop",
   "version": "0.0.0",
   "description": "My Electron application description",
   "keywords": [],
@@ -24,9 +24,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
-  },
-  "resolutions": {
-    "postcss": "^8.5.1"
   },
   "dependencies": {
     "@hello-worlds/core": "^0.0.9",

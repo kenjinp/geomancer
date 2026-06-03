@@ -10,14 +10,14 @@ on:
       - "**.md"
       - .editorconfig
       - .gitignore
-      - .yarnrc
+      - .npmrc
       - LICENSE
   pull_request:
     paths-ignore:
       - "**.md"
       - .editorconfig
       - .gitignore
-      - .yarnrc
+      - .npmrc
       - LICENSE
 
 concurrency:

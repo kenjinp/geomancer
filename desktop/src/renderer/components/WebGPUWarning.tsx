@@ -41,7 +41,7 @@ async function probeWebGPU(): Promise<WebGPUStatus> {
 
 function getPlatform(): NodeJS.Platform | "unknown" {
   // Prefer the value injected by the preload bridge; fall back to a
-  // best-effort UA sniff so this component still works in `yarn web:dev`.
+  // best-effort UA sniff so this component still works in `pnpm web:dev`.
   if (typeof window !== "undefined" && window.IPCBridge?.platform) {
     return window.IPCBridge.platform;
   }

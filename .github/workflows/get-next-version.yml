@@ -34,14 +34,17 @@ jobs:
       - name: List Git Tags
         run: git tag
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "yarn"
+          cache: "pnpm"
 
       - name: Install Packages
-        run: yarn install
+        run: pnpm install --frozen-lockfile
 
       - name: Get Next Version
         run: npx semantic-release --dry-run

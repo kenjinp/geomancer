@@ -78,25 +78,26 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "yarn"
+          cache: "pnpm"
 
       - name: Install Packages
-        working-directory: ./desktop
-        run: yarn install --network-timeout 600000
+        run: pnpm install --frozen-lockfile
 
       - name: Update Version
         working-directory: ./desktop
         # TODO make sure this commits the version bump
         # after CI is working correctly
-        run: yarn version --new-version ${{ inputs.version }} --no-git-tag-version
+        run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Build and Publish to Github
-        working-directory: ./desktop
-        run: yarn run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}
+        run: pnpm --filter @geomancer/desktop run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}
         env:
           # Matches the whole electron-forge toolchain (universal merge, packager,
           # osx-sign, notarize, installer-deb) under both the scoped `@electron/*`

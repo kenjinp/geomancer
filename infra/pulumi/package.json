@@ -1,17 +1,19 @@
 {
   "name": "@geomancer/pulumi",
   "private": true,
+  "scripts": {
+    "preview": "pulumi preview",
+    "up": "pulumi up",
+    "destroy": "pulumi destroy",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
-    "@types/mime": "^3.0.1",
-    "@types/node": "^14"
+    "@types/node": "^22.19.19",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@pulumi/aws": "^6.13.2",
-    "@pulumi/pulumi": "^3.96.1",
-    "mime": "^3.0.0",
-    "typescript": "^4.0.0"
-  },
-  "workspaces": [
-    "packages/"
-  ]
+    "@pulumi/aws": "^7.32.0",
+    "@pulumi/pulumi": "^3.244.0",
+    "mime": "^4.1.0"
+  }
 }

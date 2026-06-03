@@ -7,19 +7,29 @@
   "repository": "https://github.com/kenjinp/geomancer.git",
   "license": "MIT",
   "private": true,
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
-    "start": "yarn workspace @geomancer/electron start",
-    "start:desktop": "cd desktop && yarn start",
-    "package": "yarn workspace @geomancer/electron package",
-    "make": "yarn workspace @geomancer/electron make",
+    "start": "pnpm --filter @geomancer/desktop run start",
+    "dev": "pnpm --filter @geomancer/desktop run dev",
+    "web:dev": "pnpm --filter @geomancer/desktop run web:dev",
+    "package": "pnpm --filter @geomancer/desktop run package",
+    "make": "pnpm --filter @geomancer/desktop run make",
+    "publish": "pnpm --filter @geomancer/desktop run publish",
+    "lint": "pnpm --filter @geomancer/desktop run lint",
+    "test": "pnpm --filter @geomancer/desktop run test",
+    "infra:preview": "pnpm --filter @geomancer/pulumi run preview",
+    "infra:up": "pnpm --filter @geomancer/pulumi run up",
+    "infra:destroy": "pnpm --filter @geomancer/pulumi run destroy",
     "updateVersion": "semantic-release"
   },
-  "workspaces": [
-    "apps/*"
-  ],
-  "dependencies": {
+  "devDependencies": {
     "@semantic-release/commit-analyzer": "^13.0.0",
     "semantic-release": "^24.0.0",
     "semantic-release-export-data": "git+https://github.com/trezy-studios/semantic-release-export-data.git#add-release-notes"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.1"
+    }
   }
 }
