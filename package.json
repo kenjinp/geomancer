@@ -25,7 +25,8 @@
   "devDependencies": {
     "@semantic-release/commit-analyzer": "^13.0.0",
     "semantic-release": "^24.0.0",
-    "semantic-release-export-data": "git+https://github.com/trezy-studios/semantic-release-export-data.git#add-release-notes"
+    "semantic-release-export-data": "https://codeload.github.com/trezy-studios/semantic-release-export-data/tar.gz/1543fb0dd2144b96f2d320bab74f7598a0935f04",
+    "typescript": "^5.7.3"
   },
   "pnpm": {
     "overrides": {

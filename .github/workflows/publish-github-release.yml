@@ -27,12 +27,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Undraft the release
-        uses: LogicOverSnacks/actions-publish@v2
+      - name: Publish (undraft) the release
         env:
-          GITHUB_TOKEN: ${{ secrets.token }}
-        with:
-          repo: ${{ inputs.repo }}
+          GH_TOKEN: ${{ secrets.token }}
+        run: gh release edit "v${{ inputs.version }}" --draft=false --repo "${{ inputs.repo }}"
 
       - name: Checkout
         uses: actions/checkout@v4

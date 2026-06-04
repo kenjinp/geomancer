@@ -1,7 +1,7 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import * as fs from "fs";
-import * as mime from "mime";
+import mime from "mime";
 import * as path from "path";
 
 // Import the program's configuration settings.

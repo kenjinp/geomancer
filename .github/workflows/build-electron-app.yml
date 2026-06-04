@@ -97,7 +97,7 @@ jobs:
         run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Build and Publish to Github
-        run: pnpm --filter @geomancer/desktop run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' }}
+        run: pnpm --filter @geomancer/desktop run publish ${{ startsWith(inputs.operatingSystem, 'macos') && '--arch=universal' || '' }}
         env:
           # Matches the whole electron-forge toolchain (universal merge, packager,
           # osx-sign, notarize, installer-deb) under both the scoped `@electron/*`
