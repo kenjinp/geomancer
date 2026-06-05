@@ -1,6 +1,6 @@
 import { decode, encode } from "@jsquash/webp";
 import * as h3 from "h3-js";
-import { CubeTexture, DataTexture, NearestFilter, RGBAFormat, UnsignedByteType } from "three";
+import { CubeTexture, DataTexture, FloatType, LinearFilter, RGBAFormat, UnsignedByteType } from "three";
 
 import { CubicCoordinates } from "../coordinate-systems/cube-projection/CubicCoordinates";
 import { HexGrid } from "../coordinate-systems/hex/HexGrid";
@@ -253,15 +253,20 @@ export class H3CubeMapGenerator {
     for (let face = 0; face < 6; face++) {
       const offset = face * faceSize * faceSize * 4;
       const faceData = this.cubeRgba.subarray(offset, offset + faceSize * faceSize * 4);
+      const floatData = new Float32Array(faceData.length);
+      for (let i = 0; i < faceData.length; i++) {
+        floatData[i] = faceData[i] / 255;
+      }
       const dataTexture = new DataTexture(
-        faceData,
+        floatData,
         faceSize,
         faceSize,
         RGBAFormat,
-        UnsignedByteType,
+        FloatType,
       );
-      dataTexture.minFilter = NearestFilter;
-      dataTexture.magFilter = NearestFilter;
+      dataTexture.minFilter = LinearFilter;
+      dataTexture.magFilter = LinearFilter;
+      dataTexture.flipY = false;
       dataTexture.needsUpdate = true;
       images.push(dataTexture);
     }
@@ -273,8 +278,8 @@ export class H3CubeMapGenerator {
     }
 
     const cubeTexture = new CubeTexture(images);
-    cubeTexture.minFilter = NearestFilter;
-    cubeTexture.magFilter = NearestFilter;
+    cubeTexture.minFilter = LinearFilter;
+    cubeTexture.magFilter = LinearFilter;
     cubeTexture.generateMipmaps = false;
     cubeTexture.needsUpdate = true;
 

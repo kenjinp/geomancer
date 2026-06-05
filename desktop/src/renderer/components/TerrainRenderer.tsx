@@ -1,20 +1,19 @@
-import { remap } from "@hello-worlds/planets";
 import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import { Vector3 } from "three";
 
 import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
 import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
 import { integerToRGB } from "@/lib/images/colorUtils";
 import { getState } from "@/state/Context";
-import { ShaderUtils } from "@/utils/three.utils";
+import { remap } from "@/utils/math";
 
 import { CubeSphereQuadtree } from "../terrain/CubeSphereQuadtree";
 import { TerrainInstancer } from "../terrain/TerrainInstancer";
 
 interface TerrainRendererProps {
   radius?: number;
-  position?: THREE.Vector3;
+  position?: Vector3;
   maxDepth?: number;
 }
 
@@ -31,7 +30,7 @@ const makeHumanReadableMeters = (meters: number) => {
 
 export function TerrainRenderer({
   radius = 1,
-  position = new THREE.Vector3(),
+  position = new Vector3(),
   maxDepth = 20,
 }: TerrainRendererProps) {
   const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
@@ -40,7 +39,7 @@ export function TerrainRenderer({
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
   const renderer = useThree((state) => state.gl);
-  const sphereWorldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const sphereWorldPosition = useRef(new Vector3());
   const [hovering, setHovering] = useState(false);
   const hoveredHexTileIndex = useRef(-1);
 
@@ -60,9 +59,8 @@ export function TerrainRenderer({
     instancerRef.current = new TerrainInstancer(quadtreeRef.current);
 
     instancerRef.current.initialize().then(() => {
-      if (!stale) {
+      if (!stale && instancerRef.current) {
         scene.add(instancerRef.current.mesh);
-        ShaderUtils.init(renderer, scene, camera, instancerRef.current.mesh);
       }
     });
 

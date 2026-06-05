@@ -15,6 +15,7 @@ export default defineConfig({
   optimizeDeps: {
     esbuildOptions: { target: "esnext" },
     exclude: ["@jsquash/webp"],
+    include: ["three/webgpu", "three/tsl"],
   },
   build: { target: "esnext" },
   plugins: [react(), tsconfigPaths(), glsl()],

@@ -1,4 +1,4 @@
-import { SUN_RADIUS } from "@hello-worlds/planets";
+import { SUN_RADIUS } from "@/constants";
 import { useTexture } from "@react-three/drei";
 import * as React from "react";
 import { Mesh, NearestFilter, NearestMipmapLinearFilter, PointLight, RepeatWrapping } from "three";

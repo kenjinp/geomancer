@@ -1,20 +1,14 @@
-import { Stars } from "@react-three/drei";
-import { Canvas as ThreeCanvas, useThree } from "@react-three/fiber";
+import { extend, Canvas as ThreeCanvas } from "@react-three/fiber";
 import { PropsWithChildren, Suspense } from "react";
-import { Vector3 } from "three";
+import type { WebGPURendererParameters } from "three/src/renderers/webgpu/WebGPURenderer.js";
+import * as THREE from "three/webgpu";
 
-import { AU, EARTH_AUTHALIC_RADIUS } from "@/constants";
+import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 
 import { OrbitCamera } from "./OrbitCamera";
-import { Post } from "./post/Post";
 import { SpaceBox } from "./space-box/SpaceBox";
 
-const Background: React.FC = () => {
-  useThree(() => {
-    // state.scene.background = new Color("#3D4058");
-  });
-  return null;
-};
+extend(THREE as Record<string, unknown>);
 
 export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
   const radius = EARTH_AUTHALIC_RADIUS;
@@ -27,12 +21,13 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
         near: 0.1,
         far: Number.MAX_SAFE_INTEGER,
       }}
-      gl={{
-        logarithmicDepthBuffer: true,
-        antialias: true,
-        stencil: true,
-        depth: true,
-        alpha: true,
+      gl={async (props) => {
+        const renderer = new THREE.WebGPURenderer(props as WebGPURendererParameters);
+        renderer.logarithmicDepthBuffer = true;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        await renderer.init();
+        return renderer;
       }}
       shadows="soft"
       shadow-camera-far={1000000}
@@ -42,25 +37,18 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
       shadow-camera-bottom={-20000}
     >
       <Suspense fallback={null}>
-        <Post>
-          <SpaceBox />
-          <group scale={new Vector3(1, 1, 1).multiplyScalar(AU).multiplyScalar(10)}>
-            <Stars saturation={1} count={10_000} />
-          </group>
-
-          {children}
-          <OrbitCamera planetRadius={radius} />
-          <ambientLight intensity={Math.PI / 90} />
-          <spotLight
-            position={[radius * 10, (radius * 10) / 2, radius * 10]}
-            angle={0.15}
-            penumbra={1}
-            decay={0}
-            intensity={Math.PI}
-          />
-        </Post>
+        <SpaceBox />
+        {children}
+        <OrbitCamera planetRadius={radius} />
+        <ambientLight intensity={Math.PI / 90} />
+        <spotLight
+          position={[radius * 10, (radius * 10) / 2, radius * 10]}
+          angle={0.15}
+          penumbra={1}
+          decay={0}
+          intensity={Math.PI}
+        />
       </Suspense>
-      <Background />
     </ThreeCanvas>
   );
 };
