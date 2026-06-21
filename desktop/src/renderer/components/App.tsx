@@ -2,6 +2,7 @@ import { NextUIProvider } from "@nextui-org/react";
 import { Panel, PanelGroup } from "react-resizable-panels";
 
 import "../styles/app.css";
+import { Home } from "../views/Home";
 import { Canvas } from "./Canvas";
 import { ColorRamp } from "./ColorRamp";
 import { Footer } from "./footer/Footer";
@@ -9,7 +10,6 @@ import { MapModeBar } from "./MapModeBar";
 import { MouseFollower } from "./MouseFollower";
 import { WebGPUWarning } from "./WebGPUWarning";
 import { WelcomeModal } from "./WelcomeModal";
-import { Home } from "../views/Home";
 
 /**
  * Wrapper for the entire application.
@@ -20,7 +20,7 @@ export function App() {
   // const qt = useMemo(() => {
   //   return new CubicQuadtree({
   //     size: radius,
-  //     minNodeSize: 10,
+  //     minNodeSize: 10, 
   //     origin: new Vector3(),
   //     comparatorValue: 1.5,
   //   });

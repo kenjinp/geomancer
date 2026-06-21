@@ -1,153 +1,105 @@
-import { ThreeEvent, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
-import { Vector3 } from "three";
 
-import { HexGrid } from "@/lib/coordinate-systems/hex/HexGrid";
-import { LatLong } from "@/lib/coordinate-systems/sphere/LatLong";
-import { integerToRGB } from "@/lib/images/colorUtils";
-import { getState } from "@/state/Context";
-import { remap } from "@/utils/math";
+import { EARTH_AUTHALIC_RADIUS } from "@/constants";
+import { Terrain, useTerrain } from "@hello-terrain/react";
+import { createCubeSphereTopology } from "@hello-terrain/three";
+import { extend, type ThreeEvent } from "@react-three/fiber";
+import { useCallback, useMemo } from "react";
+import { clamp, float, Fn, instanceIndex, smoothstep } from "three/tsl";
+import * as THREE from "three/webgpu";
+import { fbm } from "../tsl/fm";
+import { hashColor } from "../tsl/hash";
+import { Atmosphere } from "./atmosphere/Atmosphere";
+import { MouseAltitudeIndicator } from "./MouseFollower";
+import { OrbitCamera } from "./OrbitCamera";
 
-import { CubeSphereQuadtree } from "../terrain/CubeSphereQuadtree";
-import { TerrainInstancer } from "../terrain/TerrainInstancer";
+extend({ MeshStandardNodeMaterial: THREE.MeshStandardNodeMaterial });
 
-interface TerrainRendererProps {
-  radius?: number;
-  position?: Vector3;
-  maxDepth?: number;
-}
+export function TerrainRenderer() {
 
-const makeHumanReadableMeters = (meters: number) => {
-  if (Math.abs(meters) > 1000) {
-    return `${(meters / 1000).toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-    })}km`;
-  }
-  return `${meters.toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  })}m`;
-};
+  const topology = useMemo(
+    () =>
+      createCubeSphereTopology({
+        radius: EARTH_AUTHALIC_RADIUS,
+        invert: false,
+      }),
+    [],
+  );
 
-export function TerrainRenderer({
-  radius = 1,
-  position = new Vector3(),
-  maxDepth = 20,
-}: TerrainRendererProps) {
-  const quadtreeRef = useRef<CubeSphereQuadtree>(new CubeSphereQuadtree());
-  const instancerRef = useRef<TerrainInstancer>(null);
-  const axesHelperRef = useRef<THREE.AxesHelper>(null);
-  const scene = useThree((state) => state.scene);
-  const camera = useThree((state) => state.camera);
-  const renderer = useThree((state) => state.gl);
-  const sphereWorldPosition = useRef(new Vector3());
-  const [hovering, setHovering] = useState(false);
-  const hoveredHexTileIndex = useRef(-1);
+  const elevation = useMemo(
+    () =>({ worldPosition }) => {
+      const dir = worldPosition.normalize();
+      const noiseFrequency = 4;
+      const ruggedness = 4;
+      const seaLevel = 0;
+      const continents = fbm(dir.mul(float(noiseFrequency)));
+      const sea = float(seaLevel);
+      const land = smoothstep(sea, sea.add(0.05), continents);
+      const base = clamp(continents.sub(sea), float(0), float(1));
+  
+      // Ridged multifractal detail: sharp crests, deep valleys on land.
+      const ridgeNoise = fbm(dir.mul(float(noiseFrequency * 4)));
+      const ridges = float(1).sub(ridgeNoise.mul(2).sub(1).abs());
+      const detail = ridges.mul(ridges).mul(float(ruggedness));
+  
+      return clamp(base.add(detail), float(0), float(1)).mul(land);
+    },
+    [],
+  );
 
-  const positionKey = position.toArray().join(",");
 
-  useEffect(() => {
-    if (!renderer) return;
-    let stale = false;
-    console.log("Initializing terrain with:", {
-      radius,
-      position,
-      nodes: quadtreeRef.current
-        .getVisibleNodes(camera, radius, position)
-        .map((n) => quadtreeRef.current.getNodeView(n).toObject()),
-    });
-
-    instancerRef.current = new TerrainInstancer(quadtreeRef.current);
-
-    instancerRef.current.initialize().then(() => {
-      if (!stale && instancerRef.current) {
-        scene.add(instancerRef.current.mesh);
-      }
-    });
-
-    return () => {
-      stale = true;
-      console.log("Disposing terrain");
-      instancerRef.current?.dispose();
-      scene.remove(instancerRef.current?.mesh);
-    };
-  }, [radius, positionKey, camera, renderer]);
-
-  useFrame(({ camera }) => {
-    if (!instancerRef.current || !quadtreeRef.current) return;
-
-    quadtreeRef.current.maxDepth = maxDepth;
-    quadtreeRef.current.updateLOD(camera.position, radius, position);
-    instancerRef.current.update(camera);
-    instancerRef.current.setSelectedTile(hoveredHexTileIndex.current);
-
-    const latLong = LatLong.cartesianToLatLong(sphereWorldPosition.current.normalize());
-
-    const mouseFollower = document.getElementById("mouse-follower");
-    if (mouseFollower) {
-      if (hoveredHexTileIndex.current && hoveredHexTileIndex.current < 0) {
-        mouseFollower.innerHTML = null;
-        return;
-      }
-      const state = getState();
-      const hexTileBuffer = state.buffers.hexTileBuffer;
-      const hexTileData = hexTileBuffer.readTileData(hoveredHexTileIndex.current);
-
-      const hashColor = integerToRGB(hoveredHexTileIndex.current);
-      const hashColorString = hashColor.join(",");
-      const hashColorRGB = `rgb(${hashColorString})`;
-      const elevation = makeHumanReadableMeters(remap(hexTileData.elevation, -1, 1, -8_000, 8_000));
-      mouseFollower.innerHTML = hovering
-        ? `
-      <div class="latlong text-small bg-background/20 p-2 rounded-md">
-        <em style="color: ${hashColorRGB}">${hoveredHexTileIndex.current}</em>
-        <span>${elevation}</span>
-        <span>${latLong.lat.toFixed(2)}° lat</span>,
-        <span>${latLong.lon.toFixed(2)}° lon</span> 
-      </div> 
-        `
-        : null;
-    }
+  const terrain = useTerrain({
+    topology,
+    radius: EARTH_AUTHALIC_RADIUS,
+    maxLevel: 18,
+    maxNodes: Math.pow(2, 10),
+    skirtScale: EARTH_AUTHALIC_RADIUS / 10,
+    elevationScale: 10_000,
+    elevation,
   });
 
-  // Optional: Update instancer without recreation
-  useEffect(() => {
-    if (instancerRef.current.mesh) {
-      instancerRef.current.setRadius(radius, camera);
-      instancerRef.current.setPosition(position);
-    }
-    if (axesHelperRef.current) {
-      axesHelperRef.current.scale.setScalar(radius);
-      axesHelperRef.current.position.copy(position);
-    }
-  }, [radius, position, camera]);
 
-  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    sphereWorldPosition.current.copy(event.point);
-    const index = HexGrid.getIndexFromPosition(event.point.normalize(), 4);
-    hoveredHexTileIndex.current = index;
-    // instancerRef.current.setSelectedTile(index);
-  };
+  const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+  }, []);
 
-  const handlePointerLeave = () => {
-    hoveredHexTileIndex.current = -1;
-    setHovering(false);
-  };
-
-  const handlePointerEnter = () => {
-    setHovering(true);
-  };
+  // Direction from the planet centre toward the sun. Drives both the surface
+  // lighting (directional light) and the atmospheric scattering effect, so the
+  // day/night terminator lines up with the sky colours.
+  const sunDirection = useMemo(
+    () => new THREE.Vector3(1.0, 0.35, 0.6).normalize(),
+    [],
+  );
 
   return (
     <>
-      <mesh
-        visible={false}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
-        onPointerEnter={handlePointerEnter}
+      <Terrain
+        terrain={terrain}
+        frustumCulled={false}
+        onPointerDown={handlePointerDown}
       >
-        <sphereGeometry args={[radius, 64, 64]} />
-        <meshStandardMaterial color="blue" />
-      </mesh>
+        {({ positionNode }) => (
+          <meshStandardNodeMaterial
+            positionNode={positionNode}
+            colorNode={Fn(() => hashColor(instanceIndex))()}
+            metalness={0.05}
+            roughness={0.95}
+          />
+        )}
+      </Terrain>
+      <directionalLight
+        position={[
+          sunDirection.x * EARTH_AUTHALIC_RADIUS * 5,
+          sunDirection.y * EARTH_AUTHALIC_RADIUS * 5,
+          sunDirection.z * EARTH_AUTHALIC_RADIUS * 5,
+        ]}
+        intensity={Math.PI}
+      />
+      <Atmosphere
+        planetRadius={EARTH_AUTHALIC_RADIUS}
+        sunDirection={sunDirection}
+      />
+      <OrbitCamera planetRadius={EARTH_AUTHALIC_RADIUS} terrain={terrain} />
+      <MouseAltitudeIndicator terrain={terrain} />
     </>
   );
 }

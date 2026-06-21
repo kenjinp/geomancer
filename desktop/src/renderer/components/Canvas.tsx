@@ -5,7 +5,6 @@ import * as THREE from "three/webgpu";
 
 import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 
-import { OrbitCamera } from "./OrbitCamera";
 import { SpaceBox } from "./space-box/SpaceBox";
 
 extend(THREE as Record<string, unknown>);
@@ -22,6 +21,8 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
         far: Number.MAX_SAFE_INTEGER,
       }}
       gl={async (props) => {
+        props.alpha = true;
+        props.antialias = true;
         const renderer = new THREE.WebGPURenderer(props as WebGPURendererParameters);
         renderer.logarithmicDepthBuffer = true;
         renderer.shadowMap.enabled = true;
@@ -39,7 +40,6 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
       <Suspense fallback={null}>
         <SpaceBox />
         {children}
-        <OrbitCamera planetRadius={radius} />
         <ambientLight intensity={Math.PI / 90} />
         <spotLight
           position={[radius * 10, (radius * 10) / 2, radius * 10]}

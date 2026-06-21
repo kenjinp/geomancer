@@ -1,14 +1,12 @@
-import { Html } from "@react-three/drei";
 import { useEffect, useState } from "react";
 
-import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { subscribe } from "@/state/Context";
 import { runTaskGraph } from "@/tasks/TaskGraph";
 
+import { Html } from "@react-three/drei";
 import { TerrainRenderer } from "../components/TerrainRenderer";
 
 export const Home: React.FC = () => {
-  const radius = EARTH_AUTHALIC_RADIUS;
   const [checkingWebGPU, setCheckingWebGPU] = useState(true);
   const [hasWebGPU, setHasWebGPU] = useState(false);
 
@@ -82,7 +80,7 @@ export const Home: React.FC = () => {
 
   return (
     <group>
-      <TerrainRenderer radius={radius} />
+      <TerrainRenderer />
     </group>
   );
 };

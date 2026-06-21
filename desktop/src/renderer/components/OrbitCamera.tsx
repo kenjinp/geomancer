@@ -1,7 +1,8 @@
+import type { TerrainHandle } from "@hello-terrain/react";
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as React from "react";
-import { MathUtils, Spherical, Vector3 } from "three";
+import { MathUtils, Ray, Spherical, Vector3 } from "three";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 export interface OrbitCameraProps {
@@ -10,12 +11,35 @@ export interface OrbitCameraProps {
   maxAltitudeOffset?: number;
   maxDistanceMultiplier?: number;
   defaultCameraPosition?: Vector3;
+  /** Terrain handle used to raycast the true ground elevation beneath the camera. */
+  terrain?: TerrainHandle;
+  /**
+   * Maps the camera's altitude-above-terrain (expressed as a fraction of its
+   * distance to the planet center) to a zoom speed. Larger = zooms faster at
+   * every height.
+   */
+  zoomSpeedScale?: number;
+  /** As {@link OrbitCameraProps.zoomSpeedScale}, but for orbit/rotate speed. */
+  rotateSpeedScale?: number;
+  /** Lower clamp on zoom speed (keeps zoom usable at very low altitude). */
+  minZoomSpeed?: number;
+  /** Upper clamp on zoom speed (caps zoom at very high altitude). */
+  maxZoomSpeed?: number;
+  /** Lower clamp on rotate speed (keeps rotation usable at very low altitude). */
+  minRotateSpeed?: number;
+  /** Upper clamp on rotate speed. */
+  maxRotateSpeed?: number;
 }
 
-const quadtratic = (t: number) => t * (-(t * t) * t + 4 * t * t - 6 * t + 4);
 function easeOutExpo(x: number): number {
   return x === 1 ? 1 : 1 - Math.pow(4, -10 * x);
 }
+
+// Reused each frame to avoid per-frame allocations while probing ground height.
+const groundRay = new Ray();
+// Scratch vectors reused by the terrain-collision clamp.
+const radialOffset = new Vector3();
+const radialDir = new Vector3();
 
 interface AnimationState {
   isAnimating: boolean;
@@ -31,8 +55,13 @@ export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = 
   planetRadius,
   planetPosition = new Vector3(),
   maxAltitudeOffset = 100,
-  maxDistanceMultiplier = 10,
+  maxDistanceMultiplier = 4,
   defaultCameraPosition,
+  terrain,
+  minZoomSpeed = 0.00000025,
+  maxZoomSpeed = 0.25,
+  minRotateSpeed = 0.0000025,
+  maxRotateSpeed = 0.5,
   children,
 }) => {
   const orbitControls = React.useRef<OrbitControlsImpl>(null);
@@ -122,6 +151,47 @@ export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = 
     };
   }, []);
 
+  // Altitude of the camera above the terrain surface directly below it.
+  // Falls back to altitude above sea level when the terrain raycaster isn't
+  // ready yet, or when the camera is looking out into space past the horizon.
+  const getAltitudeAboveTerrain = React.useCallback(() => {
+    const sphereAltitude = Math.max(
+      camera.position.distanceTo(planetPosition) - planetRadius,
+      0,
+    );
+
+    const raycast = terrain?.runtime.raycast;
+    if (!raycast) return sphereAltitude;
+
+    groundRay.origin.copy(camera.position);
+    groundRay.direction.copy(planetPosition).sub(camera.position).normalize();
+
+    const hit = raycast.pick(groundRay);
+    return hit ? hit.distance : sphereAltitude;
+  }, [camera, planetPosition, planetRadius, terrain]);
+
+  // Prevents the camera from passing through the planet's surface. Probes the
+  // terrain elevation directly beneath the camera (along its radial direction)
+  // and, if the camera is closer to the center than the surface plus the
+  // required clearance, pushes it back out radially. Mountains can rise far
+  // above the sphere datum, so a static `minDistance` alone is insufficient.
+  const clampAboveTerrain = React.useCallback(() => {
+    radialOffset.copy(camera.position).sub(planetPosition);
+    const distance = radialOffset.length();
+    if (distance === 0) return;
+    radialDir.copy(radialOffset).divideScalar(distance);
+
+    // Radial terrain height under the camera (already scaled to world units);
+    // falls back to the sphere datum until the terrain query is ready.
+    const elevation =
+      terrain?.runtime.sphereQuery?.getElevationByDirection(radialDir) ?? 0;
+    const minDistance = planetRadius + elevation + maxAltitudeOffset;
+
+    if (distance < minDistance) {
+      camera.position.copy(planetPosition).addScaledVector(radialDir, minDistance);
+    }
+  }, [camera, planetPosition, planetRadius, maxAltitudeOffset, terrain]);
+
   useFrame((_, delta) => {
     if (!orbitControls.current) return;
 
@@ -174,15 +244,37 @@ export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = 
       camera.position.lerp(targetRotation, t);
       camera.lookAt(planetPosition);
     } else {
-      // Normal orbit controls behavior
-      altitude.current = camera.position.distanceTo(planetPosition) - planetRadius || 0;
-      orbitControls.current.zoomSpeed = easeOutExpo(
-        altitude.current / orbitControls.current.maxDistance,
+      altitude.current = getAltitudeAboveTerrain();
+
+      // Map altitude to speed on a logarithmic scale. The usable altitude range
+      // spans many orders of magnitude (meters at the surface to thousands of
+      // km in orbit); a linear ratio collapses the entire near-surface band
+      // onto the min speed, so low and mid altitudes feel identical. In log
+      // space each decade of altitude contributes an equal slice of the speed
+      // range: `minAltitude` maps to min speed, `maxAltitude` to max speed.
+      const minAltitude = maxAltitudeOffset;
+      const maxAltitude = planetRadius * maxDistanceMultiplier;
+      const speedRatio = MathUtils.clamp(
+        Math.log(altitude.current / minAltitude) / Math.log(maxAltitude / minAltitude),
+        0,
+        1,
       );
-      orbitControls.current.rotateSpeed = quadtratic(
-        altitude.current / orbitControls.current.maxDistance,
+
+      orbitControls.current.zoomSpeed = MathUtils.lerp(
+        minZoomSpeed,
+        maxZoomSpeed,
+        speedRatio,
+      );
+      orbitControls.current.rotateSpeed = MathUtils.lerp(
+        minRotateSpeed,
+        maxRotateSpeed,
+        speedRatio,
       );
     }
+
+    // Runs after the orbit-controls update (registered earlier) and during
+    // fly-to animations, so the camera can never end a frame below the terrain.
+    clampAboveTerrain();
   });
 
   React.useEffect(() => {

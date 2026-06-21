@@ -26,6 +26,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@hello-terrain/react": "0.0.0-alpha.13",
+    "@hello-terrain/three": "0.0.0-alpha.13",
+    "@hello-terrain/work": "^0.3.0",
     "@hmans/react-toolbox": "^0.1.4",
     "@hmans/signal": "^0.2.2",
     "@jsquash/webp": "^1.4.0",
@@ -49,7 +52,7 @@
     "react-resizable-panels": "^2.1.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.4.17",
-    "three": "0.172.0",
+    "three": "0.184.0",
     "three-stdlib": "^2.35.12",
     "use-sound": "^4.0.3",
     "vite-tsconfig-paths": "^5.1.4",
@@ -69,7 +72,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
-    "@types/three": "0.172.0",
+    "@types/three": "0.184.1",
     "@vitejs/plugin-react-oxc": "^0.4.3",
     "@webgpu/types": "^0.1.54",
     "electron": "34.0.0",
