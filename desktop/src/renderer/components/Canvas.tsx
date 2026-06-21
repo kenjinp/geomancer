@@ -3,6 +3,7 @@ import { PropsWithChildren, Suspense } from "react";
 import type { WebGPURendererParameters } from "three/src/renderers/webgpu/WebGPURenderer.js";
 import * as THREE from "three/webgpu";
 
+import { PostProcessingProvider } from "./post/PostProcessing";
 import { SpaceBox } from "./space-box/SpaceBox";
 
 extend(THREE as Record<string, unknown>);
@@ -34,13 +35,15 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
       shadow-camera-bottom={-20000}
     >
       <Suspense fallback={null}>
-        <SpaceBox />
-        {children}
-        {/* The planet's single sun lives in TerrainRenderer as a directionalLight
-            aligned to the atmosphere's sunDirection. A second light here lit the
-            sphere from a different angle, producing a mismatched terminator that
-            split the planet into bright/dim sections. */}
-        <ambientLight intensity={Math.PI / 90} />
+        <PostProcessingProvider>
+          <SpaceBox />
+          {children}
+          {/* The planet's single sun lives in TerrainRenderer as a directionalLight
+              aligned to the atmosphere's sunDirection. A second light here lit the
+              sphere from a different angle, producing a mismatched terminator that
+              split the planet into bright/dim sections. */}
+          <ambientLight intensity={Math.PI / 90} />
+        </PostProcessingProvider>
       </Suspense>
     </ThreeCanvas>
   );

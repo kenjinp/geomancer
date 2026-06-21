@@ -110,15 +110,20 @@ export const MapModeBar: React.FC = () => {
             size="sm"
             className="bg-background"
             onPress={() => {
-              setState({
-                cameraMode:
-                  cameraMode === CameraMode.ORBIT
-                    ? CameraMode.FLY
-                    : CameraMode.ORBIT,
-              });
+              const order = [
+                CameraMode.ORBIT,
+                CameraMode.FLY,
+                CameraMode.CHARACTER,
+              ];
+              const next = order[(order.indexOf(cameraMode) + 1) % order.length];
+              setState({ cameraMode: next });
             }}
           >
-            {cameraMode === CameraMode.ORBIT ? "Orbit Camera" : "Fly Camera"}
+            {cameraMode === CameraMode.ORBIT
+              ? "Orbit Camera"
+              : cameraMode === CameraMode.FLY
+                ? "Fly Camera"
+                : "Character"}
           </Button>
         </div>
       </div>

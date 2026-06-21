@@ -7,6 +7,7 @@ import {
   createAtmosphereNode,
   type AtmosphereUniforms,
 } from "../../tsl/atmosphere";
+import { usePostProcessing } from "../post/PostProcessing";
 
 export interface AtmosphereProps {
   /** Planet radius in metres (planet is assumed centred at the world origin). */
@@ -29,11 +30,12 @@ export interface AtmosphereProps {
   enabled?: boolean;
 }
 
-interface Pipeline {
-  postProcessing: THREE.RenderPipeline;
+interface AtmosphereResources {
   uniforms: AtmosphereUniforms;
   sunCamera: THREE.OrthographicCamera;
   sunRenderTarget: THREE.RenderTarget;
+  /** The composited scene + atmosphere node, published as the post-FX base. */
+  outputNode: unknown;
 }
 
 const _cameraWorldPosition = new THREE.Vector3();
@@ -63,11 +65,13 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
 }) => {
   const { gl, scene, camera } = useThree();
 
-  const [postProcessing] = React.useState(new THREE.RenderPipeline(
-    gl as unknown as THREE.Renderer,
-  ))
+  // The post-processing pipeline is a shared singleton (see PostProcessing.tsx).
+  // The atmosphere assembles the base image (scene + scattering) and publishes
+  // it via `setSceneNode`; screen-space effects like bloom layer themselves on
+  // top through the same pipeline.
+  const { pipeline, setSceneNode } = usePostProcessing();
 
-  const pipeline = React.useMemo<Pipeline>(() => {
+  const atmo = React.useMemo<AtmosphereResources>(() => {
     // Beauty pass: the full scene rendered from the main camera.
     const scenePass = pass(scene, camera);
     const colorNode = scenePass.getTextureNode("output");
@@ -97,8 +101,6 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
         lightSteps,
       },
     );
-    postProcessing.outputNode = outputNode;
-
     // The atmosphere outputs linear HDR (in-scattered light is additive and
     // routinely exceeds 1.0). Without a tone mapper the pipeline just clamps,
     // blowing the lit hemisphere out to white, so make sure one is active.
@@ -108,13 +110,12 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
       renderer.toneMappingExposure = 1;
     }
 
-    return { postProcessing, uniforms, sunCamera, sunRenderTarget };
+    return { uniforms, sunCamera, sunRenderTarget, outputNode };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     gl,
     scene,
     camera,
-    postProcessing,
     planetRadius,
     atmosphereThickness,
     sunIntensity,
@@ -123,12 +124,18 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
     shadowMapSize,
   ]);
 
+  // Publish the scene + atmosphere image as the base that post-FX build upon.
+  React.useEffect(() => {
+    setSceneNode(atmo.outputNode);
+  }, [setSceneNode, atmo]);
+
   React.useEffect(() => {
     return () => {
-      pipeline.postProcessing.dispose();
-      pipeline.sunRenderTarget.dispose();
+      // The pipeline itself is owned by <PostProcessingProvider>; only dispose
+      // the resources this component created.
+      atmo.sunRenderTarget.dispose();
     };
-  }, [pipeline]);
+  }, [atmo]);
 
   useFrame(() => {
     const renderer = gl as unknown as THREE.WebGPURenderer;
@@ -138,7 +145,7 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
       return;
     }
 
-    const { postProcessing, uniforms, sunCamera, sunRenderTarget } = pipeline;
+    const { uniforms, sunCamera, sunRenderTarget } = atmo;
     const sunDir = sunDirection.clone().normalize();
 
     camera.updateMatrixWorld();
@@ -206,7 +213,7 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
     );
     uniforms.uShadowEnabled.value = shadows ? shadowFade : 0;
 
-    postProcessing.render();
+    pipeline.render();
   }, 1);
 
   return null;

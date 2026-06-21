@@ -20,6 +20,7 @@ export enum MapMode {
 export enum CameraMode {
   ORBIT,
   FLY,
+  CHARACTER,
 }
 
 export enum MapLayer {

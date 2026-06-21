@@ -1,10 +1,10 @@
 
 import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { Terrain, useTerrain } from "@hello-terrain/react";
-import { createCubeSphereTopology } from "@hello-terrain/three";
-import { extend, type ThreeEvent } from "@react-three/fiber";
+import { createCubeSphereTopology, quadtreeUpdate } from "@hello-terrain/three";
+import { extend, type ThreeEvent, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { clamp, float, length, mix, smoothstep, varying, vec3 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import { useStore } from "zustand";
@@ -14,9 +14,12 @@ import store, { CameraMode } from "@/state/Context";
 import { getColorForElevation } from "../terrain/nodes/colors";
 import { fbm } from "../tsl/fm";
 import { Atmosphere } from "./atmosphere/Atmosphere";
+import { CharacterController } from "./character/CharacterController";
 import { FlyCamera } from "./FlyCamera";
 import { MouseAltitudeIndicator } from "./MouseFollower";
 import { OrbitCamera } from "./OrbitCamera";
+import { Bloom } from "./post/Bloom";
+import { Sun } from "./sun/Sun";
 
 extend({ MeshStandardNodeMaterial: THREE.MeshStandardNodeMaterial });
 
@@ -69,6 +72,18 @@ export function TerrainRenderer() {
     // Level 14 keeps vertices ~10 m apart (well above the precision floor);
     // raising this past ~15 reintroduces the close-up shards.
     maxLevel: { value: 14, min: 6, max: 18, step: 1 },
+  });
+
+  // Subdivision strategy. `@hello-terrain/react` always drives the quadtree in
+  // distance mode, so we reach into the terrain graph below to switch it.
+  // - distance: split when the camera is within `distanceFactor × tileRadius`.
+  // - screen: split when a tile's projected pixel radius exceeds `targetPixels`
+  //   (lower = finer mesh). `projectionFactor` is derived from the live FOV and
+  //   canvas height, so it must be refreshed whenever either changes.
+  const { lodMode, targetPixels, distanceFactor } = useControls("LOD", {
+    lodMode: { value: "distance", options: ["distance", "screen"] },
+    targetPixels: { value: 16, min: 4, max: 128, step: 1 },
+    distanceFactor: { value: 4, min: 0.5, max: 4, step: 0.1 },
   });
 
   // Believable planetary terrain from fractal Brownian motion (FBM) of Perlin
@@ -132,6 +147,43 @@ export function TerrainRenderer() {
     elevation,
   });
 
+  const viewportHeight = useThree((state) => state.size.height);
+  const camera = useThree((state) => state.camera);
+
+  // Patch the quadtree's LOD criteria directly on the graph. The React layer
+  // only ever overwrites `cameraOrigin` (preserving the rest of the param), so
+  // the mode/thresholds we set here persist across frames.
+  useEffect(() => {
+    if (!terrain.ready) return;
+    terrain.graph.set(quadtreeUpdate, (prev) => {
+      const params = prev as {
+        mode: "distance" | "screen";
+        distanceFactor?: number;
+        projectionFactor?: number;
+        targetPixels?: number;
+      };
+      if (lodMode === "screen") {
+        const fovRadians = ((camera as THREE.PerspectiveCamera).fov * Math.PI) / 180;
+        params.mode = "screen";
+        params.projectionFactor =
+          viewportHeight / (2 * Math.tan(fovRadians / 2));
+        params.targetPixels = targetPixels;
+      } else {
+        params.mode = "distance";
+        params.distanceFactor = distanceFactor;
+      }
+      return prev;
+    });
+  }, [
+    terrain.graph,
+    terrain.ready,
+    lodMode,
+    targetPixels,
+    distanceFactor,
+    viewportHeight,
+    camera,
+  ]);
+
 
   const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
@@ -180,14 +232,23 @@ export function TerrainRenderer() {
         ]}
         intensity={Math.PI}
       />
+      <Sun direction={sunDirection} />
       <Atmosphere
         key="atmo"
         planetRadius={EARTH_AUTHALIC_RADIUS}
         sunDirection={sunDirection}
       />
-      {cameraMode === CameraMode.FLY ? (
+      <Bloom />
+      {cameraMode === CameraMode.FLY && (
         <FlyCamera planetRadius={EARTH_AUTHALIC_RADIUS} terrain={terrain} />
-      ) : (
+      )}
+      {cameraMode === CameraMode.CHARACTER && (
+        <CharacterController
+          planetRadius={EARTH_AUTHALIC_RADIUS}
+          terrain={terrain}
+        />
+      )}
+      {cameraMode === CameraMode.ORBIT && (
         <OrbitCamera planetRadius={EARTH_AUTHALIC_RADIUS} terrain={terrain} />
       )}
       <MouseAltitudeIndicator terrain={terrain} />
