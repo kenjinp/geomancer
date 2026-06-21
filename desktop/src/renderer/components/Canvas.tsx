@@ -3,15 +3,11 @@ import { PropsWithChildren, Suspense } from "react";
 import type { WebGPURendererParameters } from "three/src/renderers/webgpu/WebGPURenderer.js";
 import * as THREE from "three/webgpu";
 
-import { EARTH_AUTHALIC_RADIUS } from "@/constants";
-
 import { SpaceBox } from "./space-box/SpaceBox";
 
 extend(THREE as Record<string, unknown>);
 
 export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
-  const radius = EARTH_AUTHALIC_RADIUS;
-
   return (
     <ThreeCanvas
       id="three-canvas"
@@ -40,14 +36,11 @@ export const Canvas: React.FC<PropsWithChildren> = ({ children }) => {
       <Suspense fallback={null}>
         <SpaceBox />
         {children}
+        {/* The planet's single sun lives in TerrainRenderer as a directionalLight
+            aligned to the atmosphere's sunDirection. A second light here lit the
+            sphere from a different angle, producing a mismatched terminator that
+            split the planet into bright/dim sections. */}
         <ambientLight intensity={Math.PI / 90} />
-        <spotLight
-          position={[radius * 10, (radius * 10) / 2, radius * 10]}
-          angle={0.15}
-          penumbra={1}
-          decay={0}
-          intensity={Math.PI}
-        />
       </Suspense>
     </ThreeCanvas>
   );

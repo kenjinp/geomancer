@@ -2,13 +2,14 @@ import { Button, ButtonGroup } from "@nextui-org/react";
 import { useStore } from "zustand";
 
 import { cn } from "@/lib/ui/utilts";
-import store, { MapLayer, MapMode, setState } from "@/state/Context";
+import store, { CameraMode, MapLayer, MapMode, setState } from "@/state/Context";
 
 import { SeedInput } from "./SeedInput";
 
 export const MapModeBar: React.FC = () => {
   const mapMode = useStore(store).mapMode;
   const mapLayers = useStore(store).mapLayers;
+  const cameraMode = useStore(store).cameraMode;
   const mapModeButtons = [
     // {
     //   label: "Realistic",
@@ -102,6 +103,23 @@ export const MapModeBar: React.FC = () => {
         </div>
         <div className="mt-2">
           <SeedInput />
+        </div>
+        <div className="mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-background"
+            onPress={() => {
+              setState({
+                cameraMode:
+                  cameraMode === CameraMode.ORBIT
+                    ? CameraMode.FLY
+                    : CameraMode.ORBIT,
+              });
+            }}
+          >
+            {cameraMode === CameraMode.ORBIT ? "Orbit Camera" : "Fly Camera"}
+          </Button>
         </div>
       </div>
       <div>

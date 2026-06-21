@@ -63,6 +63,10 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
 }) => {
   const { gl, scene, camera } = useThree();
 
+  const [postProcessing] = React.useState(new THREE.RenderPipeline(
+    gl as unknown as THREE.Renderer,
+  ))
+
   const pipeline = React.useMemo<Pipeline>(() => {
     // Beauty pass: the full scene rendered from the main camera.
     const scenePass = pass(scene, camera);
@@ -93,10 +97,6 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
         lightSteps,
       },
     );
-
-    const postProcessing = new THREE.RenderPipeline(
-      gl as unknown as THREE.Renderer,
-    );
     postProcessing.outputNode = outputNode;
 
     // The atmosphere outputs linear HDR (in-scattered light is additive and
@@ -114,6 +114,7 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
     gl,
     scene,
     camera,
+    postProcessing,
     planetRadius,
     atmosphereThickness,
     sunIntensity,

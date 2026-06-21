@@ -57,7 +57,7 @@ const perlinNoise = Fn(([p]: [any]) => {
  */
 export const fbm = Fn(([
   pos, 
-  octaves = 6, 
+  octaves = 13, 
   baseAmp = 0.5, 
   baseFreq = 1.0, 
   freqMult = 2.03, 

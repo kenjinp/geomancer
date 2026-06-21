@@ -17,6 +17,11 @@ export enum MapMode {
   CHUNKS,
 }
 
+export enum CameraMode {
+  ORBIT,
+  FLY,
+}
+
 export enum MapLayer {
   HEXGRID,
   LATLONG,
@@ -32,6 +37,7 @@ export enum MapLayer {
 export interface Context {
   mapMode: MapMode;
   mapLayers: MapLayer[];
+  cameraMode: CameraMode;
   random: {
     seed: number;
     seededRandom: Rand;
@@ -63,6 +69,7 @@ export interface Context {
 export const initialContext: Context = {
   mapMode: MapMode.ELEVATION,
   mapLayers: [MapLayer.SPHERE_PROJECTION, MapLayer.INTERPOLATION],
+  cameraMode: CameraMode.ORBIT,
   random: {
     seed: 123,
     seededRandom: new Rand("0"),
