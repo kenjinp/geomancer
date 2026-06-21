@@ -55,7 +55,7 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
   sunDirection,
   atmosphereThickness = 120_000,
   sunIntensity = 22,
-  primarySteps = 20,
+  primarySteps = 32,
   lightSteps = 6,
   shadowMapSize = 2048,
   shadows = true,
@@ -98,6 +98,15 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
       gl as unknown as THREE.Renderer,
     );
     postProcessing.outputNode = outputNode;
+
+    // The atmosphere outputs linear HDR (in-scattered light is additive and
+    // routinely exceeds 1.0). Without a tone mapper the pipeline just clamps,
+    // blowing the lit hemisphere out to white, so make sure one is active.
+    const renderer = gl as unknown as THREE.WebGPURenderer;
+    if (renderer.toneMapping === THREE.NoToneMapping) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1;
+    }
 
     return { postProcessing, uniforms, sunCamera, sunRenderTarget };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,7 +194,16 @@ export const Atmosphere: React.FC<AtmosphereProps> = ({
     const bias = Math.max(100, extent * 0.01);
     uniforms.uShadowBias.value = bias;
     uniforms.uShadowSoftness.value = bias * 2;
-    uniforms.uShadowEnabled.value = shadows ? 1 : 0;
+    // Fade terrain shadows out with altitude: from orbit the sun-depth map
+    // covers a huge area, so its texels become too coarse to be trustworthy and
+    // the terrain tile skirts smear into blocky shadow shafts that read as tiles
+    // sticking out of the atmosphere.
+    const shadowFade = THREE.MathUtils.clamp(
+      1 - (altitude - planetRadius * 0.02) / (planetRadius * 0.13),
+      0,
+      1,
+    );
+    uniforms.uShadowEnabled.value = shadows ? shadowFade : 0;
 
     postProcessing.render();
   }, 1);

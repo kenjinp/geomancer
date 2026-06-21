@@ -214,7 +214,7 @@ export function createAtmosphereNode(
    */
   const sunVisibility = Fn(([worldPositionM]: [any]) => {
     const visibility = float(1.0).toVar();
-    If(uniforms.uShadowEnabled.greaterThan(0.5), () => {
+    If(uniforms.uShadowEnabled.greaterThan(0.01), () => {
       const viewPos = uniforms.uSunViewMatrix.mul(vec4(worldPositionM, 1.0));
       const clip = uniforms.uSunProjectionMatrix.mul(viewPos);
       const ndc = clip.xyz.div(clip.w);
@@ -238,14 +238,15 @@ export function createAtmosphereNode(
         // Both view-Z values are negative; the sample sits behind the nearest
         // occluder (further from the sun) when its view-Z is more negative.
         const distanceBehind = occluderViewZ.sub(viewPos.z);
+        // uShadowEnabled doubles as a 0..1 strength so shadows can be faded out
+        // when zoomed out (where the sun-depth map is too coarse to be reliable).
+        const shadowed = smoothstep(
+          uniforms.uShadowBias,
+          uniforms.uShadowBias.add(uniforms.uShadowSoftness),
+          distanceBehind,
+        );
         visibility.assign(
-          float(1.0).sub(
-            smoothstep(
-              uniforms.uShadowBias,
-              uniforms.uShadowBias.add(uniforms.uShadowSoftness),
-              distanceBehind,
-            ),
-          ),
+          float(1.0).sub(shadowed.mul(uniforms.uShadowEnabled)),
         );
       });
     });
@@ -295,13 +296,25 @@ export function createAtmosphereNode(
       const nearDistance = max(atmosphereHit.x, 0.0).toVar();
       const farDistance = atmosphereHit.y.toVar();
 
-      // Stop at the planet's surface if the ray would hit it.
+      // Stop at the planet. The analytic sphere is smooth and precise, so use it
+      // as the primary far bound and only let the depth buffer override when the
+      // scene geometry is meaningfully closer (mountains / foreground meshes).
+      // Applying the depth clamp unconditionally lets depth-buffer noise on the
+      // datum surface modulate the haze per-tile, which reads as terrain tiles
+      // poking through the atmosphere when zoomed out.
       If(planetHit.x.greaterThan(0.0), () => {
         farDistance.assign(min(farDistance, planetHit.x));
-      });
-      // Stop at the nearest scene geometry (terrain / other meshes).
-      If(isForeground, () => {
-        farDistance.assign(min(farDistance, sceneDistanceKm));
+        If(
+          isForeground.and(sceneDistanceKm.lessThan(planetHit.x.sub(2.0))),
+          () => {
+            farDistance.assign(min(farDistance, sceneDistanceKm));
+          },
+        );
+      }).Else(() => {
+        // Ray misses the planet entirely (sky / limb); clamp to any scene mesh.
+        If(isForeground, () => {
+          farDistance.assign(min(farDistance, sceneDistanceKm));
+        });
       });
 
       If(farDistance.greaterThan(nearDistance), () => {

@@ -59,7 +59,7 @@ export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = 
   defaultCameraPosition,
   terrain,
   minZoomSpeed = 0.00000025,
-  maxZoomSpeed = 0.25,
+  maxZoomSpeed = 0.5,
   minRotateSpeed = 0.0000025,
   maxRotateSpeed = 0.5,
   children,
@@ -246,19 +246,8 @@ export const OrbitCamera: React.FC<React.PropsWithChildren<OrbitCameraProps>> = 
     } else {
       altitude.current = getAltitudeAboveTerrain();
 
-      // Map altitude to speed on a logarithmic scale. The usable altitude range
-      // spans many orders of magnitude (meters at the surface to thousands of
-      // km in orbit); a linear ratio collapses the entire near-surface band
-      // onto the min speed, so low and mid altitudes feel identical. In log
-      // space each decade of altitude contributes an equal slice of the speed
-      // range: `minAltitude` maps to min speed, `maxAltitude` to max speed.
-      const minAltitude = maxAltitudeOffset;
       const maxAltitude = planetRadius * maxDistanceMultiplier;
-      const speedRatio = MathUtils.clamp(
-        Math.log(altitude.current / minAltitude) / Math.log(maxAltitude / minAltitude),
-        0,
-        1,
-      );
+      const speedRatio = MathUtils.clamp(altitude.current / maxAltitude, 0, 1)
 
       orbitControls.current.zoomSpeed = MathUtils.lerp(
         minZoomSpeed,
