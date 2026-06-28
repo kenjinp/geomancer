@@ -23,6 +23,11 @@ export enum CameraMode {
   CHARACTER,
 }
 
+export enum WorldMode {
+  SPHERE,
+  TORUS,
+}
+
 export enum MapLayer {
   HEXGRID,
   LATLONG,
@@ -39,6 +44,7 @@ export interface Context {
   mapMode: MapMode;
   mapLayers: MapLayer[];
   cameraMode: CameraMode;
+  worldMode: WorldMode;
   random: {
     seed: number;
     seededRandom: Rand;
@@ -69,8 +75,13 @@ export interface Context {
 
 export const initialContext: Context = {
   mapMode: MapMode.ELEVATION,
-  mapLayers: [MapLayer.SPHERE_PROJECTION, MapLayer.INTERPOLATION],
+  mapLayers: [
+    MapLayer.SPHERE_PROJECTION,
+    MapLayer.INTERPOLATION,
+    MapLayer.ATMOSPHERE,
+  ],
   cameraMode: CameraMode.ORBIT,
+  worldMode: WorldMode.SPHERE,
   random: {
     seed: 123,
     seededRandom: new Rand("0"),

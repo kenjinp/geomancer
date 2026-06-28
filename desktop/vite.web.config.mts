@@ -11,6 +11,10 @@ const commitInfo = getLastCommit({});
 
 // https://vitejs.dev/config
 export default defineConfig({
+  resolve: {
+    dedupe: ["@react-three/fiber", "react", "react-dom", "three"],
+    preserveSymlinks: true,
+  },
   optimizeDeps: {
     esbuildOptions: { target: "esnext" },
     exclude: ["@jsquash/webp"],

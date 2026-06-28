@@ -2,7 +2,13 @@ import { Button, ButtonGroup } from "@nextui-org/react";
 import { useStore } from "zustand";
 
 import { cn } from "@/lib/ui/utilts";
-import store, { CameraMode, MapLayer, MapMode, setState } from "@/state/Context";
+import store, {
+  CameraMode,
+  MapLayer,
+  MapMode,
+  WorldMode,
+  setState,
+} from "@/state/Context";
 
 import { SeedInput } from "./SeedInput";
 
@@ -10,6 +16,17 @@ export const MapModeBar: React.FC = () => {
   const mapMode = useStore(store).mapMode;
   const mapLayers = useStore(store).mapLayers;
   const cameraMode = useStore(store).cameraMode;
+  const worldMode = useStore(store).worldMode;
+  const worldModeButtons = [
+    {
+      label: "Sphere",
+      worldMode: WorldMode.SPHERE,
+    },
+    {
+      label: "Torus",
+      worldMode: WorldMode.TORUS,
+    },
+  ];
   const mapModeButtons = [
     // {
     //   label: "Realistic",
@@ -66,10 +83,10 @@ export const MapModeBar: React.FC = () => {
       label: "Coastalness",
       mapLayer: MapLayer.COASTALNESS,
     },
-    // {
-    //   label: "Atmosphere",
-    //   mapLayer: MapLayer.ATMOSPHERE,
-    // },
+    {
+      label: "Atmosphere",
+      mapLayer: MapLayer.ATMOSPHERE,
+    },
     // {
     //   label: "Plate Boundaries",
     //   mapLayer: MapLayer.PLATE_BOUNDARIES,
@@ -79,11 +96,35 @@ export const MapModeBar: React.FC = () => {
   return (
     <div className="absolute flex flex-row justify-between w-full top-0 left-0 p-2 pr-20">
       <div>
+        <div className="mb-2">
+          <ButtonGroup>
+            {worldModeButtons.map((button) => {
+              return (
+                <Button
+                  key={button.worldMode}
+                  variant="ghost"
+                  size="sm"
+                  className={cn({
+                    "bg-background": worldMode === button.worldMode,
+                  })}
+                  onPress={() => {
+                    setState({
+                      worldMode: button.worldMode,
+                    });
+                  }}
+                >
+                  {button.label}
+                </Button>
+              );
+            })}
+          </ButtonGroup>
+        </div>
         <div>
           <ButtonGroup>
             {mapModeButtons.map((button) => {
               return (
                 <Button
+                  key={button.mapMode}
                   variant="ghost"
                   size="sm"
                   className={cn({
@@ -132,6 +173,7 @@ export const MapModeBar: React.FC = () => {
           {mapLayerButtons.map((button) => {
             return (
               <Button
+                key={button.mapLayer}
                 variant="bordered"
                 size="sm"
                 className={cn({

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 
-import { subscribe } from "@/state/Context";
+import store, { subscribe, WorldMode } from "@/state/Context";
 import { runTaskGraph } from "@/tasks/TaskGraph";
 
 import { Html } from "@react-three/drei";
+import { useStore } from "zustand";
 import { TerrainRenderer } from "../components/TerrainRenderer";
+import { TorusWorld } from "./TorusWorld";
 
 export const Home: React.FC = () => {
   const [checkingWebGPU, setCheckingWebGPU] = useState(true);
   const [hasWebGPU, setHasWebGPU] = useState(false);
+  const worldMode = useStore(store).worldMode;
 
   useEffect(() => {
     subscribe((state, prevState) => {
@@ -80,7 +83,7 @@ export const Home: React.FC = () => {
 
   return (
     <group>
-      <TerrainRenderer />
+      {worldMode === WorldMode.TORUS ? <TorusWorld /> : <TerrainRenderer />}
     </group>
   );
 };

@@ -26,9 +26,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@hello-terrain/react": "0.0.0-alpha.13",
-    "@hello-terrain/three": "0.0.0-alpha.13",
-    "@hello-terrain/work": "^0.3.0",
+    "@hello-terrain/react": "link:../../hello-terrain/packages/react",
+    "@hello-terrain/three": "link:../../hello-terrain/packages/three",
+    "@hello-terrain/work": "link:../../hello-terrain/packages/work",
     "@hmans/react-toolbox": "^0.1.4",
     "@hmans/signal": "^0.2.2",
     "@jsquash/webp": "^1.4.0",

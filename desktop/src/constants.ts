@@ -2,6 +2,22 @@
 export const SUN_RADIUS = 696_340_000;
 
 export const EARTH_AUTHALIC_RADIUS = 6_371_007.2;
+export const EARTH_SURFACE_AREA =
+  4 * Math.PI * EARTH_AUTHALIC_RADIUS * EARTH_AUTHALIC_RADIUS;
+
+/**
+ * Earth-area torus dimensions. A torus has surface area `4π²Rr`; keeping
+ * `R / r = 3` gives a readable donut while matching Earth's authalic area.
+ */
+export const EARTH_AREA_TORUS_MAJOR_MINOR_RATIO = 3;
+export const EARTH_AREA_TORUS_MINOR_RADIUS =
+  EARTH_AUTHALIC_RADIUS /
+  Math.sqrt(Math.PI * EARTH_AREA_TORUS_MAJOR_MINOR_RATIO);
+export const EARTH_AREA_TORUS_MAJOR_RADIUS =
+  EARTH_AREA_TORUS_MINOR_RADIUS * EARTH_AREA_TORUS_MAJOR_MINOR_RATIO;
+export const EARTH_AREA_TORUS_BOUNDING_RADIUS =
+  EARTH_AREA_TORUS_MAJOR_RADIUS + EARTH_AREA_TORUS_MINOR_RADIUS;
+
 export const H3_RESOLUTION = 4;
 export const AU = 149_597_870_700;
 

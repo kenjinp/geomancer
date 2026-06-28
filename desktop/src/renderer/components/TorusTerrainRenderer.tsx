@@ -1,15 +1,19 @@
-import { EARTH_AUTHALIC_RADIUS } from "@/constants";
+import {
+  EARTH_AREA_TORUS_BOUNDING_RADIUS,
+  EARTH_AREA_TORUS_MAJOR_RADIUS,
+  EARTH_AREA_TORUS_MINOR_RADIUS,
+} from "@/constants";
 import { Terrain, useTerrain } from "@hello-terrain/react";
-import { createCubeSphereTopology, quadtreeUpdate } from "@hello-terrain/three";
+import { createTorusTopology, quadtreeUpdate } from "@hello-terrain/three";
 import { extend, type ThreeEvent, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { useCallback, useEffect, useMemo } from "react";
 import {
   clamp,
   float,
-  length,
   mix,
   smoothstep,
+  sqrt,
   varying,
   vec3,
 } from "three/tsl";
@@ -20,17 +24,17 @@ import store, { CameraMode, MapLayer } from "@/state/Context";
 
 import { getColorForElevation } from "../terrain/nodes/colors";
 import { fbm } from "../tsl/fm";
-import { Atmosphere } from "./atmosphere/Atmosphere";
-import { CharacterController } from "./character/CharacterController";
-import { FlyCamera } from "./FlyCamera";
+import { TorusAtmosphere } from "./atmosphere/TorusAtmosphere";
+import { SurfaceCharacterController } from "./character/SurfaceCharacterController";
 import { MouseAltitudeIndicator } from "./MouseFollower";
-import { OrbitCamera } from "./OrbitCamera";
 import { Bloom } from "./post/Bloom";
 import { Sun } from "./sun/Sun";
+import { SurfaceFlyCamera } from "./SurfaceFlyCamera";
+import { SurfaceOrbitCamera } from "./SurfaceOrbitCamera";
 
 extend({ MeshStandardNodeMaterial: THREE.MeshStandardNodeMaterial });
 
-export function TerrainRenderer() {
+export function TorusTerrainRenderer() {
   const cameraMode = useStore(store).cameraMode;
   const atmosphereEnabled = useStore(store).mapLayers.includes(
     MapLayer.ATMOSPHERE,
@@ -38,16 +42,14 @@ export function TerrainRenderer() {
 
   const topology = useMemo(
     () =>
-      createCubeSphereTopology({
-        radius: EARTH_AUTHALIC_RADIUS,
+      createTorusTopology({
+        majorRadius: EARTH_AREA_TORUS_MAJOR_RADIUS,
+        minorRadius: EARTH_AREA_TORUS_MINOR_RADIUS,
         invert: false,
       }),
     [],
   );
 
-  // Live terrain controls. Each value is baked into the elevation TSL closure
-  // below; changing one produces a new `elevation` function identity which the
-  // terrain library detects and uses to regenerate the height field.
   const {
     continentFrequency,
     seaLevel,
@@ -60,7 +62,7 @@ export function TerrainRenderer() {
     ruggedness,
     elevationScale,
     maxLevel,
-  } = useControls("Terrain", {
+  } = useControls("Torus Terrain", {
     continents: folder({
       continentFrequency: { value: 2, min: 0.2, max: 8, step: 0.1 },
       seaLevel: { value: 0.5, min: 0, max: 1, step: 0.01 },
@@ -75,54 +77,34 @@ export function TerrainRenderer() {
       ruggedness: { value: 0.5, min: 0, max: 1.5, step: 0.01 },
     }),
     elevationScale: { value: 10_000, min: 1_000, max: 20_000, step: 500 },
-    // The elevation field is evaluated from `worldPosition` (~6.37e6 m) in a
-    // float32 compute pass. ULP at that magnitude is ~0.5 m, so once tile
-    // vertices get closer than a few metres their positions differ by ~1 ULP,
-    // the noise input quantises, and the surface dissolves into shard noise.
-    // Level 14 keeps vertices ~10 m apart (well above the precision floor);
-    // raising this past ~15 reintroduces the close-up shards.
     maxLevel: { value: 14, min: 6, max: 18, step: 1 },
   });
 
-  // Subdivision strategy. `@hello-terrain/react` always drives the quadtree in
-  // distance mode, so we reach into the terrain graph below to switch it.
-  // - distance: split when the camera is within `distanceFactor × tileRadius`.
-  // - screen: split when a tile's projected pixel radius exceeds `targetPixels`
-  //   (lower = finer mesh). `projectionFactor` is derived from the live FOV and
-  //   canvas height, so it must be refreshed whenever either changes.
-  const { lodMode, targetPixels, distanceFactor } = useControls("LOD", {
+  const { lodMode, targetPixels, distanceFactor } = useControls("Torus LOD", {
     lodMode: { value: "distance", options: ["distance", "screen"] },
     targetPixels: { value: 16, min: 4, max: 128, step: 1 },
     distanceFactor: { value: 4, min: 0.5, max: 4, step: 0.1 },
   });
 
-  // Believable planetary terrain from fractal Brownian motion (FBM) of Perlin
-  // noise. The output is a normalized height (roughly -0.85..1.0) that the
-  // library multiplies by `elevationScale` to get metres, so the value also maps
-  // cleanly onto the NOAA elevation colour ramp used for shading.
   const elevation = useMemo(
     () =>
       ({ worldPosition }) => {
-        const dir = worldPosition.normalize();
+        const p = worldPosition.mul(float(1 / EARTH_AREA_TORUS_MAJOR_RADIUS));
 
-        // Domain-warp the sample direction so coastlines meander instead of
-        // looking like smooth, uniform blobs.
         const warp = vec3(
-          fbm(dir.mul(float(warpFrequency))),
-          fbm(dir.mul(float(warpFrequency)).add(vec3(19.3, 7.1, 33.7))),
-          fbm(dir.mul(float(warpFrequency)).add(vec3(41.2, 17.9, 5.3))),
+          fbm(p.mul(float(warpFrequency))),
+          fbm(p.mul(float(warpFrequency)).add(vec3(19.3, 7.1, 33.7))),
+          fbm(p.mul(float(warpFrequency)).add(vec3(41.2, 17.9, 5.3))),
         )
           .sub(0.5)
           .mul(float(continentWarp));
-        const warpedDir = dir.add(warp);
+        const warpedPosition = p.add(warp);
 
-        // Low-frequency FBM (~0..1) decides where land sits relative to the sea.
-        const continents = fbm(warpedDir.mul(float(continentFrequency)));
+        const continents = fbm(warpedPosition.mul(float(continentFrequency)));
         const relative = continents.sub(float(seaLevel));
         const land = smoothstep(float(0), float(coastWidth), relative);
 
-        // Ridged multifractal: sharp mountain crests, concentrated on land.
-        const ridgeNoise = fbm(dir.mul(float(mountainFrequency)));
+        const ridgeNoise = fbm(p.mul(float(mountainFrequency)));
         const ridges = float(1).sub(ridgeNoise.mul(2).sub(1).abs());
         const mountains = ridges.mul(ridges).mul(float(ruggedness));
 
@@ -149,10 +131,9 @@ export function TerrainRenderer() {
 
   const terrain = useTerrain({
     topology,
-    radius: EARTH_AUTHALIC_RADIUS,
     maxLevel,
     maxNodes: Math.pow(2, 10),
-    skirtScale: EARTH_AUTHALIC_RADIUS / 10,
+    skirtScale: EARTH_AREA_TORUS_MINOR_RADIUS / 10,
     elevationScale,
     elevation,
     // Frustum culling depends on the full view-projection matrix, not just
@@ -164,9 +145,6 @@ export function TerrainRenderer() {
   const viewportHeight = useThree((state) => state.size.height);
   const camera = useThree((state) => state.camera);
 
-  // Patch the quadtree's LOD criteria directly on the graph. The React runner
-  // owns the camera/frustum params and now refreshes them every frame via
-  // `cameraHysteresis: 0`, while this keeps geomancer's custom LOD controls.
   useEffect(() => {
     if (!terrain.ready) return;
     terrain.graph.set(quadtreeUpdate, (prev) => {
@@ -202,9 +180,6 @@ export function TerrainRenderer() {
     event.stopPropagation();
   }, []);
 
-  // Direction from the planet centre toward the sun. Drives both the surface
-  // lighting (directional light) and the atmospheric scattering effect, so the
-  // day/night terminator lines up with the sky colours.
   const sunDirection = useMemo(
     () => new THREE.Vector3(1.0, 0.35, 0.6).normalize(),
     [],
@@ -218,15 +193,17 @@ export function TerrainRenderer() {
         onPointerDown={handlePointerDown}
       >
         {({ positionNode }) => {
-          // The displaced vertex sits at `radius + elevationMetres` from the
-          // planet centre, so recover the elevation by subtracting the radius.
-          // This MUST happen in the vertex stage (wrapped in `varying`): doing
-          // `length(worldPos) - 6.37e6` per fragment subtracts two huge, nearly
-          // equal float32 magnitudes, and the cancellation error changes with
-          // camera distance — which made the terrain colour flicker by altitude.
-          const elevationMetres = varying(
-            length(positionNode).sub(float(EARTH_AUTHALIC_RADIUS)),
+          const rho = sqrt(positionNode.x.mul(positionNode.x).add(
+            positionNode.z.mul(positionNode.z),
+          ));
+          const tubeX = rho.sub(float(EARTH_AREA_TORUS_MAJOR_RADIUS));
+          const tubeDistance = sqrt(
+            tubeX.mul(tubeX).add(positionNode.y.mul(positionNode.y)),
           );
+          const elevationMetres = varying(
+            tubeDistance.sub(float(EARTH_AREA_TORUS_MINOR_RADIUS)),
+          );
+
           return (
             <meshStandardNodeMaterial
               positionNode={positionNode}
@@ -239,31 +216,35 @@ export function TerrainRenderer() {
       </Terrain>
       <directionalLight
         position={[
-          sunDirection.x * EARTH_AUTHALIC_RADIUS * 5,
-          sunDirection.y * EARTH_AUTHALIC_RADIUS * 5,
-          sunDirection.z * EARTH_AUTHALIC_RADIUS * 5,
+          sunDirection.x * EARTH_AREA_TORUS_BOUNDING_RADIUS * 5,
+          sunDirection.y * EARTH_AREA_TORUS_BOUNDING_RADIUS * 5,
+          sunDirection.z * EARTH_AREA_TORUS_BOUNDING_RADIUS * 5,
         ]}
         intensity={Math.PI}
       />
       <Sun direction={sunDirection} />
-      <Atmosphere
-        key="atmo"
-        planetRadius={EARTH_AUTHALIC_RADIUS}
+      <TorusAtmosphere
+        key="torus-atmo"
+        majorRadius={EARTH_AREA_TORUS_MAJOR_RADIUS}
+        minorRadius={EARTH_AREA_TORUS_MINOR_RADIUS}
         sunDirection={sunDirection}
         enabled={atmosphereEnabled}
       />
       <Bloom />
       {cameraMode === CameraMode.FLY && (
-        <FlyCamera planetRadius={EARTH_AUTHALIC_RADIUS} terrain={terrain} />
-      )}
-      {cameraMode === CameraMode.CHARACTER && (
-        <CharacterController
-          planetRadius={EARTH_AUTHALIC_RADIUS}
+        <SurfaceFlyCamera
           terrain={terrain}
+          worldRadius={EARTH_AREA_TORUS_BOUNDING_RADIUS}
         />
       )}
+      {cameraMode === CameraMode.CHARACTER && (
+        <SurfaceCharacterController terrain={terrain} />
+      )}
       {cameraMode === CameraMode.ORBIT && (
-        <OrbitCamera planetRadius={EARTH_AUTHALIC_RADIUS} terrain={terrain} />
+        <SurfaceOrbitCamera
+          terrain={terrain}
+          worldRadius={EARTH_AREA_TORUS_BOUNDING_RADIUS}
+        />
       )}
       <MouseAltitudeIndicator terrain={terrain} />
     </>

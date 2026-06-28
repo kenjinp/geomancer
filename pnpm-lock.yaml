@@ -27,14 +27,14 @@ importers:
   desktop:
     dependencies:
       '@hello-terrain/react':
-        specifier: 0.0.0-alpha.13
-        version: 0.0.0-alpha.13(@react-three/fiber@9.6.1(@types/react@19.0.7)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(three@0.184.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(three@0.184.0)
+        specifier: link:../../hello-terrain/packages/react
+        version: link:../../hello-terrain/packages/react
       '@hello-terrain/three':
-        specifier: 0.0.0-alpha.13
-        version: 0.0.0-alpha.13(three@0.184.0)
+        specifier: link:../../hello-terrain/packages/three
+        version: link:../../hello-terrain/packages/three
       '@hello-terrain/work':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: link:../../hello-terrain/packages/work
+        version: link:../../hello-terrain/packages/work
       '@hmans/react-toolbox':
         specifier: ^0.1.4
         version: 0.1.4(react@19.0.0)
@@ -644,22 +644,6 @@ packages:
     resolution: {integrity: sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg==}
     engines: {node: '>=6'}
     hasBin: true
-
-  '@hello-terrain/react@0.0.0-alpha.13':
-    resolution: {integrity: sha512-yd7uVrpmpXcLKM6kODZcAandLZzEjTXLGRsAiRPnzgsHH2BhvqJHVlaptRRFHl11RaO3so/L2eo/qlX9zKWYvA==}
-    peerDependencies:
-      '@react-three/fiber': ^8.0.0 || ^9.0.0
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
-      three: '>=0.182.0'
-
-  '@hello-terrain/three@0.0.0-alpha.13':
-    resolution: {integrity: sha512-eJxsV1G2zKU3ZE+cdD0MRnQk0JDlCxbxaSzG1BEj1W+Vb69mzB/AY13Cph8wkGW1WUSfR6NHLbg3MWGSne5Nkg==}
-    peerDependencies:
-      three: '>=0.182.0'
-
-  '@hello-terrain/work@0.3.0':
-    resolution: {integrity: sha512-OiKZSShBDcPlBDQkRGrEaeVLUu4V6W5bL6cFICVVNg0yqKlCqe5ezN522BOXkB6FBcFNZc5jBFX68JLJeWAVOg==}
 
   '@hmans/react-toolbox@0.1.4':
     resolution: {integrity: sha512-PmhaalZ70hSfIX7AUgWO9gVhKkWH8cbZXxGzmjgJ+46sw6cJUlnawkc/WlIxtUro+TTW61YG1i+18QD0zsvF+Q==}
@@ -4393,9 +4377,6 @@ packages:
   eventemitter3@5.0.4:
     resolution: {integrity: sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==}
 
-  eventery@0.0.4:
-    resolution: {integrity: sha512-rQbXJG8WX9z2cm3IJadkSUZLWFXuwGMIJ40oWyB23DhVb1e92T7Jx3qF0UwtgHI7D4VZzVswbZ7MXfW88cFF4Q==}
-
   events@3.3.0:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
@@ -7982,24 +7963,6 @@ snapshots:
       long: 5.3.2
       protobufjs: 7.6.2
       yargs: 17.7.2
-
-  '@hello-terrain/react@0.0.0-alpha.13(@react-three/fiber@9.6.1(@types/react@19.0.7)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(three@0.184.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(three@0.184.0)':
-    dependencies:
-      '@hello-terrain/three': 0.0.0-alpha.13(three@0.184.0)
-      '@hello-terrain/work': 0.3.0
-      '@react-three/fiber': 9.6.1(@types/react@19.0.7)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(three@0.184.0)
-      react: 19.0.0
-      react-dom: 19.0.0(react@19.0.0)
-      three: 0.184.0
-
-  '@hello-terrain/three@0.0.0-alpha.13(three@0.184.0)':
-    dependencies:
-      '@hello-terrain/work': 0.3.0
-      three: 0.184.0
-
-  '@hello-terrain/work@0.3.0':
-    dependencies:
-      eventery: 0.0.4
 
   '@hmans/react-toolbox@0.1.4(react@19.0.0)':
     dependencies:
@@ -12715,8 +12678,6 @@ snapshots:
   eventemitter3@4.0.7: {}
 
   eventemitter3@5.0.4: {}
-
-  eventery@0.0.4: {}
 
   events@3.3.0: {}
 
