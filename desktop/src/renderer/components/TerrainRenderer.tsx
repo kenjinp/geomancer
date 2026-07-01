@@ -1,9 +1,13 @@
 import { EARTH_AUTHALIC_RADIUS } from "@/constants";
 import { Terrain, useTerrain } from "@hello-terrain/react";
-import { createCubeSphereTopology, quadtreeUpdate } from "@hello-terrain/three";
+import {
+  createCubeSphereTopology,
+  type LodCriteria,
+  terrainTasks,
+} from "@hello-terrain/three";
 import { extend, type ThreeEvent, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   clamp,
   float,
@@ -29,6 +33,8 @@ import { Bloom } from "./post/Bloom";
 import { Sun } from "./sun/Sun";
 
 extend({ MeshStandardNodeMaterial: THREE.MeshStandardNodeMaterial });
+
+const terrainReadyTasks = [terrainTasks.positionNode] as const;
 
 export function TerrainRenderer() {
   const cameraMode = useStore(store).cameraMode;
@@ -84,17 +90,28 @@ export function TerrainRenderer() {
     maxLevel: { value: 14, min: 6, max: 18, step: 1 },
   });
 
-  // Subdivision strategy. `@hello-terrain/react` always drives the quadtree in
-  // distance mode, so we reach into the terrain graph below to switch it.
-  // - distance: split when the camera is within `distanceFactor × tileRadius`.
-  // - screen: split when a tile's projected pixel radius exceeds `targetPixels`
-  //   (lower = finer mesh). `projectionFactor` is derived from the live FOV and
-  //   canvas height, so it must be refreshed whenever either changes.
+  // Subdivision strategy. These feed the terrain's LOD option below
+  // (lower `targetPixels` = finer mesh in screen mode).
   const { lodMode, targetPixels, distanceFactor } = useControls("LOD", {
     lodMode: { value: "distance", options: ["distance", "screen"] },
     targetPixels: { value: 16, min: 4, max: 128, step: 1 },
     distanceFactor: { value: 4, min: 0.5, max: 4, step: 0.1 },
   });
+
+  const viewportHeight = useThree((state) => state.size.height);
+  const camera = useThree((state) => state.camera);
+
+  const lod = useMemo<LodCriteria>(() => {
+    if (lodMode === "screen") {
+      const fovRadians = ((camera as THREE.PerspectiveCamera).fov * Math.PI) / 180;
+      return {
+        mode: "screen",
+        projectionFactor: viewportHeight / (2 * Math.tan(fovRadians / 2)),
+        targetPixels,
+      };
+    }
+    return { mode: "distance", distanceFactor };
+  }, [lodMode, targetPixels, distanceFactor, viewportHeight, camera]);
 
   // Believable planetary terrain from fractal Brownian motion (FBM) of Perlin
   // noise. The output is a normalized height (roughly -0.85..1.0) that the
@@ -155,48 +172,14 @@ export function TerrainRenderer() {
     skirtScale: EARTH_AUTHALIC_RADIUS / 10,
     elevationScale,
     elevation,
-    // Frustum culling depends on the full view-projection matrix, not just
-    // camera position. Force the hello-terrain runner to refresh it for
-    // rotate-only camera moves as well.
-    cameraHysteresis: 0,
+    lod,
+    tasks: terrainReadyTasks,
+    // Frustum culling depends on the full view-projection matrix, which the
+    // runner's comparator now diffs directly, so rotate-only moves already
+    // refresh. Drop the camera-origin hysteresis so any translation refreshes
+    // the view too (matches the previous `cameraHysteresis: 0` behaviour).
+    culling: { originHysteresis: 0 },
   });
-
-  const viewportHeight = useThree((state) => state.size.height);
-  const camera = useThree((state) => state.camera);
-
-  // Patch the quadtree's LOD criteria directly on the graph. The React runner
-  // owns the camera/frustum params and now refreshes them every frame via
-  // `cameraHysteresis: 0`, while this keeps geomancer's custom LOD controls.
-  useEffect(() => {
-    if (!terrain.ready) return;
-    terrain.graph.set(quadtreeUpdate, (prev) => {
-      const params = prev as {
-        mode: "distance" | "screen";
-        distanceFactor?: number;
-        projectionFactor?: number;
-        targetPixels?: number;
-      };
-      if (lodMode === "screen") {
-        const fovRadians = ((camera as THREE.PerspectiveCamera).fov * Math.PI) / 180;
-        params.mode = "screen";
-        params.projectionFactor =
-          viewportHeight / (2 * Math.tan(fovRadians / 2));
-        params.targetPixels = targetPixels;
-      } else {
-        params.mode = "distance";
-        params.distanceFactor = distanceFactor;
-      }
-      return params;
-    });
-  }, [
-    terrain.graph,
-    terrain.ready,
-    lodMode,
-    targetPixels,
-    distanceFactor,
-    viewportHeight,
-    camera,
-  ]);
 
   const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
